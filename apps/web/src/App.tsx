@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ChangeEvent, KeyboardEvent, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import Prism from 'prismjs';
@@ -238,6 +238,30 @@ function HomePage() {
   );
 }
 
+// Search history management
+const SEARCH_HISTORY_KEY = 'codelens_search_history';
+const MAX_HISTORY_ITEMS = 10;
+
+function getSearchHistory(): string[] {
+  try {
+    const history = localStorage.getItem(SEARCH_HISTORY_KEY);
+    return history ? JSON.parse(history) : [];
+  } catch {
+    return [];
+  }
+}
+
+function addToSearchHistory(query: string) {
+  const history = getSearchHistory();
+  const filtered = history.filter(q => q !== query);
+  const updated = [query, ...filtered].slice(0, MAX_HISTORY_ITEMS);
+  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
+}
+
+function clearSearchHistory() {
+  localStorage.removeItem(SEARCH_HISTORY_KEY);
+}
+
 function RepoPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -247,16 +271,50 @@ function RepoPage() {
   const [result, setResult] = useState<QAResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchHistory, setSearchHistory] = useState<string[]>(getSearchHistory());
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Refs for debounce and abort controller
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimerRef = useRef<number | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async () => {
     if (!query) return;
 
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
+    setShowHistory(false);
+
+    // Add to search history
+    addToSearchHistory(query);
+    setSearchHistory(getSearchHistory());
 
     try {
       if (mode === 'search') {
-        const res = await fetch(`${API_BASE}/search?repoId=${repoId}&q=${encodeURIComponent(query)}`);
+        const res = await fetch(`${API_BASE}/search?repoId=${repoId}&q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error('搜索失败');
         const data = await res.json();
         setResult({ query, answer: '', evidence: data.hits });
@@ -265,6 +323,7 @@ function RepoPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ repoId: parseInt(repoId), query }),
+          signal: controller.signal,
         });
         if (!res.ok) throw new Error('问答失败');
         const data = await res.json();
@@ -274,15 +333,21 @@ function RepoPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ repoId: parseInt(repoId), query }),
+          signal: controller.signal,
         });
         if (!res.ok) throw new Error('根因分析失败');
         const data = await res.json();
         setResult({ query, answer: data.rootCause, evidence: data.evidence });
       }
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       setError((err as Error).message);
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -316,29 +381,86 @@ function RepoPage() {
           </button>
         </div>
 
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder={
-              mode === 'search'
-                ? '搜索代码...'
-                : mode === 'ask'
-                ? '提问：登录方案是什么？'
-                : '描述 bug：登录一天要登录好几次'
-            }
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !loading && handleSubmit()}
-            disabled={loading}
-            className="flex-1 px-4 py-2 border rounded disabled:bg-gray-100"
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !query}
-            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
-          >
-            {loading ? <LoadingSpinner /> : '提交'}
-          </button>
+        <div className="relative">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder={
+                mode === 'search'
+                  ? '搜索代码...'
+                  : mode === 'ask'
+                  ? '提问：登录方案是什么？'
+                  : '描述 bug：登录一天要登录好几次'
+              }
+              value={query}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                const newQuery = e.target.value;
+                setQuery(newQuery);
+
+                // Clear previous debounce timer
+                if (debounceTimerRef.current) {
+                  clearTimeout(debounceTimerRef.current);
+                }
+
+                // Auto-search with debounce (only for search mode)
+                if (mode === 'search' && newQuery.trim()) {
+                  debounceTimerRef.current = window.setTimeout(() => {
+                    handleSubmit();
+                  }, 800); // 800ms debounce for auto-search
+                }
+              }}
+              onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+                if (e.key === 'Enter' && !loading) {
+                  // Clear debounce timer on Enter
+                  if (debounceTimerRef.current) {
+                    clearTimeout(debounceTimerRef.current);
+                  }
+                  handleSubmit();
+                }
+              }}
+              onFocus={() => setShowHistory(true)}
+              onBlur={() => setTimeout(() => setShowHistory(false), 200)}
+              disabled={loading}
+              className="flex-1 px-4 py-2 border rounded disabled:bg-gray-100"
+            />
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !query}
+              className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
+            >
+              {loading ? <LoadingSpinner /> : '提交'}
+            </button>
+          </div>
+
+          {/* Search history dropdown */}
+          {showHistory && searchHistory.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded shadow-lg z-10 max-h-60 overflow-y-auto">
+              <div className="flex items-center justify-between px-3 py-2 border-b bg-gray-50">
+                <span className="text-sm text-gray-600">搜索历史</span>
+                <button
+                  onClick={() => {
+                    clearSearchHistory();
+                    setSearchHistory([]);
+                  }}
+                  className="text-xs text-red-600 hover:underline"
+                >
+                  清空
+                </button>
+              </div>
+              {searchHistory.map((item: string, index: number) => (
+                <div
+                  key={index}
+                  onClick={() => {
+                    setQuery(item);
+                    setShowHistory(false);
+                  }}
+                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -365,7 +487,7 @@ function RepoPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {result.evidence.map((hit, i) => (
+                {result.evidence.map((hit: SearchHit, i: number) => (
                   <div key={hit.id} className="border rounded p-4 bg-gray-50">
                     <div className="flex items-center justify-between mb-2">
                       <div className="font-medium">
