@@ -307,6 +307,10 @@ function RepoPage() {
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('all');
   const [symbolTypeFilter, setSymbolTypeFilter] = useState<string>('all');
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+
   // Refs for debounce and abort controller
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
@@ -408,6 +412,17 @@ function RepoPage() {
   const symbolTypes = Array.from(new Set(result?.evidence.map((hit: SearchHit) =>
     hit.symbol_type
   ) || []));
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredEvidence.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedEvidence = filteredEvidence.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [fileTypeFilter, symbolTypeFilter, result]);
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -577,24 +592,79 @@ function RepoPage() {
                 {result.evidence.length === 0 ? '未找到相关代码' : '没有符合筛选条件的结果'}
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredEvidence.map((hit: SearchHit, i: number) => (
-                  <div key={hit.id} className="border rounded p-4 bg-gray-50">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="font-medium">
-                        [{i + 1}] {highlightText(hit.file_path, query)}:{hit.line_start}-{hit.line_end}
+              <>
+                <div className="space-y-4">
+                  {paginatedEvidence.map((hit: SearchHit, i: number) => (
+                    <div key={hit.id} className="border rounded p-4 bg-gray-50">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-medium">
+                          [{startIndex + i + 1}] {highlightText(hit.file_path, query)}:{hit.line_start}-{hit.line_end}
+                        </div>
+                        {hit.similarity && (
+                          <div className="text-sm text-gray-600">相似度: {(hit.similarity * 100).toFixed(1)}%</div>
+                        )}
                       </div>
-                      {hit.similarity && (
-                        <div className="text-sm text-gray-600">相似度: {(hit.similarity * 100).toFixed(1)}%</div>
-                      )}
+                      <div className="text-sm text-gray-600 mb-2">
+                        {highlightText(hit.symbol_name, query)} ({hit.symbol_type})
+                      </div>
+                      <CodeBlock code={hit.code_text} language="typescript" />
                     </div>
-                    <div className="text-sm text-gray-600 mb-2">
-                      {highlightText(hit.symbol_name, query)} ({hit.symbol_type})
+                  ))}
+                </div>
+
+                {/* Pagination controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-6">
+                    <button
+                      onClick={() => setCurrentPage((prev: number) => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      上一页
+                    </button>
+
+                    <div className="flex gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                        // Show first page, last page, current page, and pages around current
+                        if (
+                          page === 1 ||
+                          page === totalPages ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)
+                        ) {
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => setCurrentPage(page)}
+                              className={`px-3 py-1 border rounded ${
+                                currentPage === page
+                                  ? 'bg-blue-600 text-white'
+                                  : 'hover:bg-gray-100'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        } else if (page === currentPage - 2 || page === currentPage + 2) {
+                          return <span key={page} className="px-2">...</span>;
+                        }
+                        return null;
+                      })}
                     </div>
-                    <CodeBlock code={hit.code_text} language="typescript" />
+
+                    <button
+                      onClick={() => setCurrentPage((prev: number) => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      下一页
+                    </button>
+
+                    <span className="text-sm text-gray-600 ml-2">
+                      第 {currentPage} / {totalPages} 页
+                    </span>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         </div>
