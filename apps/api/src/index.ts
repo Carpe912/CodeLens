@@ -191,6 +191,76 @@ fastify.get('/questions', async () => {
   return result.rows;
 });
 
+// Get call graph for a symbol
+fastify.get<{
+  Querystring: { repoId: string; symbolName: string };
+}>('/call-graph', async (request, reply) => {
+  const { repoId, symbolName } = request.query;
+
+  if (!repoId || !symbolName) {
+    return reply.code(400).send({ error: 'Missing repoId or symbolName' });
+  }
+
+  try {
+    // Find the symbol
+    const symbolResult = await pool.query(
+      `SELECT c.id, c.symbol_name, c.symbol_type, f.path as file_path
+       FROM code_chunks c
+       JOIN files f ON c.file_id = f.id
+       WHERE f.repo_id = $1 AND c.symbol_name = $2
+       LIMIT 1`,
+      [parseInt(repoId), symbolName]
+    );
+
+    if (symbolResult.rows.length === 0) {
+      return reply.code(404).send({ error: 'Symbol not found' });
+    }
+
+    const symbol = symbolResult.rows[0];
+
+    // Get outgoing calls (what this symbol calls)
+    const outgoingResult = await pool.query(
+      `SELECT DISTINCT cg.to_symbol, c2.symbol_type, f2.path as file_path
+       FROM call_graph cg
+       LEFT JOIN code_chunks c2 ON c2.symbol_name = cg.to_symbol
+       LEFT JOIN files f2 ON c2.file_id = f2.id
+       WHERE cg.from_chunk_id = $1 AND f2.repo_id = $2`,
+      [symbol.id, parseInt(repoId)]
+    );
+
+    // Get incoming calls (what calls this symbol)
+    const incomingResult = await pool.query(
+      `SELECT DISTINCT c.symbol_name, c.symbol_type, f.path as file_path
+       FROM call_graph cg
+       JOIN code_chunks c ON cg.from_chunk_id = c.id
+       JOIN files f ON c.file_id = f.id
+       WHERE cg.to_symbol = $1 AND f.repo_id = $2`,
+      [symbolName, parseInt(repoId)]
+    );
+
+    return {
+      symbol: {
+        name: symbol.symbol_name,
+        type: symbol.symbol_type,
+        file: symbol.file_path,
+      },
+      calls: outgoingResult.rows.map((row: any) => ({
+        name: row.to_symbol,
+        type: row.symbol_type,
+        file: row.file_path,
+      })),
+      calledBy: incomingResult.rows.map((row: any) => ({
+        name: row.symbol_name,
+        type: row.symbol_type,
+        file: row.file_path,
+      })),
+    };
+  } catch (error) {
+    console.error('Call graph error:', error);
+    return reply.code(500).send({ error: 'Failed to fetch call graph' });
+  }
+});
+
 const port = parseInt(process.env.PORT || '8787');
 
 // Graceful shutdown
