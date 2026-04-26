@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding } from './db/index.js';
@@ -8,10 +9,28 @@ import { enqueueIndexJob, startIndexWorker } from './indexer/queue.js';
 import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
 
+// Validate required environment variables
+function validateEnv() {
+  const required = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY'];
+  const missing = required.filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    console.error(`Missing required environment variables: ${missing.join(', ')}`);
+    console.error('Please check your .env file');
+    process.exit(1);
+  }
+}
+
+validateEnv();
+
 const fastify = Fastify({ logger: true });
 
 await fastify.register(cors);
 await fastify.register(multipart);
+await fastify.register(rateLimit, {
+  max: 100,
+  timeWindow: '1 minute',
+});
 
 await initDatabase();
 startIndexWorker();
@@ -147,6 +166,23 @@ fastify.get('/questions', async () => {
 });
 
 const port = parseInt(process.env.PORT || '8787');
+
+// Graceful shutdown
+const signals = ['SIGINT', 'SIGTERM'];
+signals.forEach((signal) => {
+  process.on(signal, async () => {
+    console.log(`Received ${signal}, closing server gracefully...`);
+    try {
+      await fastify.close();
+      await pool.end();
+      console.log('Server closed successfully');
+      process.exit(0);
+    } catch (err) {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    }
+  });
+});
 
 try {
   await fastify.listen({ port, host: '0.0.0.0' });

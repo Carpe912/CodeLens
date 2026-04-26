@@ -50,7 +50,9 @@ async function indexCodebase(repoId: number, repoPath: string) {
         continue;
       }
 
-      const fileId = await insertFile(repoId, filePath, parseResult.language, content);
+      // Store relative path instead of absolute path
+      const relativePath = filePath.replace(repoPath, '').replace(/^\//, '');
+      const fileId = await insertFile(repoId, relativePath, parseResult.language, content);
 
       const texts = parseResult.chunks.map((chunk) => {
         return `${chunk.symbolName} ${chunk.symbolType}\n${chunk.code}`;
@@ -73,7 +75,7 @@ async function indexCodebase(repoId: number, repoPath: string) {
         );
       }
 
-      console.log(`Indexed ${filePath} with ${parseResult.chunks.length} chunks`);
+      console.log(`Indexed ${relativePath} with ${parseResult.chunks.length} chunks`);
     } catch (error) {
       console.error(`Failed to index ${filePath}:`, error);
     }

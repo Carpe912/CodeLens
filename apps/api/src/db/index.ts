@@ -10,73 +10,84 @@ export const pool = new Pool({
   password: process.env.DB_PASSWORD || 'postgres',
 });
 
+// Handle pool errors
+pool.on('error', (err) => {
+  console.error('Unexpected database pool error:', err);
+  process.exit(1);
+});
+
 export async function initDatabase() {
-  await pool.query(`
-    CREATE EXTENSION IF NOT EXISTS vector;
-  `);
+  try {
+    await pool.query(`
+      CREATE EXTENSION IF NOT EXISTS vector;
+    `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS repos (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      source TEXT NOT NULL,
-      url TEXT,
-      status TEXT NOT NULL,
-      description TEXT,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS repos (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        source TEXT NOT NULL,
+        url TEXT,
+        status TEXT NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS files (
-      id SERIAL PRIMARY KEY,
-      repo_id INTEGER REFERENCES repos(id) ON DELETE CASCADE,
-      path TEXT NOT NULL,
-      language TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS files (
+        id SERIAL PRIMARY KEY,
+        repo_id INTEGER REFERENCES repos(id) ON DELETE CASCADE,
+        path TEXT NOT NULL,
+        language TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS code_chunks (
-      id SERIAL PRIMARY KEY,
-      file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
-      symbol_name TEXT NOT NULL,
-      symbol_type TEXT NOT NULL,
-      line_start INTEGER NOT NULL,
-      line_end INTEGER NOT NULL,
-      code_text TEXT NOT NULL,
-      embedding vector(1536),
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS code_chunks (
+        id SERIAL PRIMARY KEY,
+        file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
+        symbol_name TEXT NOT NULL,
+        symbol_type TEXT NOT NULL,
+        line_start INTEGER NOT NULL,
+        line_end INTEGER NOT NULL,
+        code_text TEXT NOT NULL,
+        embedding vector(1536),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS call_graph (
-      id SERIAL PRIMARY KEY,
-      from_chunk_id INTEGER REFERENCES code_chunks(id) ON DELETE CASCADE,
-      to_symbol TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS call_graph (
+        id SERIAL PRIMARY KEY,
+        from_chunk_id INTEGER REFERENCES code_chunks(id) ON DELETE CASCADE,
+        to_symbol TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS questions (
-      id SERIAL PRIMARY KEY,
-      repo_id INTEGER REFERENCES repos(id) ON DELETE CASCADE,
-      query TEXT NOT NULL,
-      answer TEXT,
-      evidence_ids INTEGER[],
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS questions (
+        id SERIAL PRIMARY KEY,
+        repo_id INTEGER REFERENCES repos(id) ON DELETE CASCADE,
+        query TEXT NOT NULL,
+        answer TEXT,
+        evidence_ids INTEGER[],
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_code_chunks_embedding ON code_chunks USING ivfflat (embedding vector_cosine_ops);
-  `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_code_chunks_embedding ON code_chunks USING ivfflat (embedding vector_cosine_ops);
+    `);
 
-  console.log('Database initialized');
+    console.log('Database initialized');
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    throw error;
+  }
 }
 
 export type Repo = {
