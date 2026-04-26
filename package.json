@@ -1,0 +1,13 @@
+{
+  "name": "codelens-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @codelens/web dev",
+    "dev:web": "pnpm --filter @codelens/web dev",
+    "dev:api": "pnpm --filter @codelens/api dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

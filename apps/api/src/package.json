@@ -1,0 +1,5 @@
+{
+  "name": "@codelens/api-src",
+  "private": true,
+  "type": "module"
+}

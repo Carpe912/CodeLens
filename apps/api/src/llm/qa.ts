@@ -1,0 +1,79 @@
+import Anthropic from '@anthropic-ai/sdk';
+import type { CodeChunkRecord } from '../db/index.js';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+export async function answerQuestion(query: string, evidence: CodeChunkRecord[]): Promise<string> {
+  const evidenceText = evidence
+    .map((e, i) => {
+      return `[证据 ${i + 1}] ${e.file_path}:${e.line_start}-${e.line_end}
+符号: ${e.symbol_name} (${e.symbol_type})
+代码:
+\`\`\`
+${e.code_text}
+\`\`\`
+`;
+    })
+    .join('\n\n');
+
+  const prompt = `你是一个代码智能问答助手。用户提出了关于代码仓库的问题，我已经为你检索了相关的代码片段作为证据。
+
+用户问题: ${query}
+
+相关代码证据:
+${evidenceText}
+
+请基于这些证据回答用户的问题。要求:
+1. 直接回答问题，给出具体的文件、函数、行号
+2. 解释实现方案和逻辑
+3. 如果证据不足，明确指出
+4. 用中文回答`;
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const content = message.content[0];
+  return content.type === 'text' ? content.text : '';
+}
+
+export async function analyzeRootCause(query: string, evidence: CodeChunkRecord[]): Promise<string> {
+  const evidenceText = evidence
+    .map((e, i) => {
+      return `[证据 ${i + 1}] ${e.file_path}:${e.line_start}-${e.line_end}
+符号: ${e.symbol_name} (${e.symbol_type})
+代码:
+\`\`\`
+${e.code_text}
+\`\`\`
+`;
+    })
+    .join('\n\n');
+
+  const prompt = `你是一个代码根因分析专家。用户报告了一个 bug，我已经为你检索了相关的代码片段。
+
+Bug 描述: ${query}
+
+相关代码证据:
+${evidenceText}
+
+请分析这个 bug 的根本原因。要求:
+1. 识别可能的根因（token 过期、状态管理、并发问题等）
+2. 指出具体的代码位置和逻辑问题
+3. 给出调用链分析
+4. 提供修复建议
+5. 用中文回答`;
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  const content = message.content[0];
+  return content.type === 'text' ? content.text : '';
+}
