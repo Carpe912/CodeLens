@@ -83,6 +83,31 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_code_chunks_embedding ON code_chunks USING ivfflat (embedding vector_cosine_ops);
     `);
 
+    // Additional indexes for query optimization
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_files_repo_id ON files(repo_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_code_chunks_file_id ON code_chunks(file_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_name ON code_chunks(symbol_name);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_type ON code_chunks(symbol_type);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_call_graph_from_chunk_id ON call_graph(from_chunk_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_questions_repo_id ON questions(repo_id);
+    `);
+
     console.log('Database initialized');
   } catch (error) {
     console.error('Failed to initialize database:', error);

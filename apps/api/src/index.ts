@@ -8,6 +8,7 @@ import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding } fr
 import { enqueueIndexJob, startIndexWorker } from './indexer/queue.js';
 import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
+import { searchTTLCache, generateCacheKey } from './cache.js';
 
 // Validate required environment variables
 function validateEnv() {
@@ -99,6 +100,14 @@ fastify.get<{
     return reply.code(400).send({ error: 'Missing repoId or q' });
   }
 
+  // Check cache first
+  const cacheKey = generateCacheKey('search', repoId, q);
+  const cached = searchTTLCache.get(cacheKey);
+  if (cached) {
+    console.log('Search cache hit');
+    return cached;
+  }
+
   const keywordResults = await searchByKeyword(parseInt(repoId), q);
 
   const embedding = await generateEmbedding(q);
@@ -107,10 +116,15 @@ fastify.get<{
   const combined = [...keywordResults, ...semanticResults];
   const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
 
-  return {
+  const result = {
     query: q,
     hits: unique.slice(0, 20),
   };
+
+  // Cache the result
+  searchTTLCache.set(cacheKey, result);
+
+  return result;
 });
 
 fastify.post<{
@@ -120,6 +134,13 @@ fastify.post<{
 
   if (!repoId || !query) {
     return reply.code(400).send({ error: 'Missing repoId or query' });
+  }
+
+  // Check cache first
+  const cacheKey = generateCacheKey('ask', repoId.toString(), query);
+  const cached = searchTTLCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   const embedding = await generateEmbedding(query);
@@ -132,11 +153,16 @@ fastify.post<{
     [repoId, query, answer, evidence.map((e) => e.id)]
   );
 
-  return {
+  const result = {
     query,
     answer,
     evidence,
   };
+
+  // Cache the result
+  searchTTLCache.set(cacheKey, result);
+
+  return result;
 });
 
 fastify.post<{
