@@ -2,13 +2,15 @@
 
 ## 服务器信息
 - **IP**: 47.116.6.132
-- **用户**: root
-- **部署目录**: /opt/codelens
+- **用户**: admin
+- **部署目录**: /home/admin/codelens
+- **Node.js**: v22 (通过 nvm 管理)
 
 ## 快速部署
 
 ### 前置要求
-本地机器需要安装 `sshpass`:
+
+1. **安装 sshpass**（用于密码认证）：
 ```bash
 # macOS
 brew install hudochenkov/sshpass/sshpass
@@ -17,11 +19,20 @@ brew install hudochenkov/sshpass/sshpass
 sudo apt-get install sshpass
 ```
 
+2. **服务器环境**（admin 用户需要安装）：
+- Node.js 22 (已通过 nvm 安装 ✅)
+- PostgreSQL
+- Redis
+- PM2 (部署脚本会自动安装)
+
 ### 一键部署
 ```bash
-chmod +x deploy.sh
-./deploy.sh
+pnpm deploy
+# 或
+npm run deploy
 ```
+
+脚本会自动使用密码 `Sunlingyao0912` 进行认证。
 
 部署脚本会自动：
 1. 打包项目
@@ -36,7 +47,7 @@ chmod +x deploy.sh
 
 ### SSH 登录服务器
 ```bash
-ssh root@47.116.6.132
+ssh admin@47.116.6.132
 # 密码: Sunlingyao0912
 ```
 
@@ -93,7 +104,7 @@ FLUSHALL
 
 ## 环境变量配置
 
-配置文件位于 `/opt/codelens/.env`
+配置文件位于 `/home/admin/codelens/.env`
 
 ```bash
 # Anthropic API
@@ -171,13 +182,13 @@ redis-cli ping
 
 ```bash
 # 1. 登录服务器
-ssh root@47.116.6.132
+ssh admin@47.116.6.132
 
-# 2. 进入部署目录
-cd /opt/codelens
+# 2. 切换到 Node.js 22
+nvm use 22
 
-# 3. 拉取最新代码或上传文件
-# ...
+# 3. 进入部署目录
+cd /home/admin/codelens
 
 # 4. 安装依赖
 pnpm install

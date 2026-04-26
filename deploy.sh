@@ -6,12 +6,21 @@
 set -e
 
 SERVER_IP="47.116.6.132"
-SERVER_USER="root"
+SERVER_USER="admin"
 SERVER_PASSWORD="Sunlingyao0912"
-DEPLOY_DIR="/opt/codelens"
+DEPLOY_DIR="/home/admin/codelens"
 PROJECT_NAME="CodeLens"
 
 echo "🚀 开始部署 CodeLens 到服务器 ${SERVER_IP}..."
+
+# 检查 sshpass 是否安装
+if ! command -v sshpass &> /dev/null; then
+    echo "❌ 错误: 未安装 sshpass"
+    echo "请先安装 sshpass:"
+    echo "  macOS: brew install hudochenkov/sshpass/sshpass"
+    echo "  Ubuntu: sudo apt-get install sshpass"
+    exit 1
+fi
 
 # 1. 打包项目
 echo "📦 打包项目..."
@@ -36,8 +45,15 @@ sshpass -p "${SERVER_PASSWORD}" ssh -o StrictHostKeyChecking=no \
 
 set -e
 
-DEPLOY_DIR="/opt/codelens"
+DEPLOY_DIR="/home/admin/codelens"
 PROJECT_NAME="CodeLens"
+
+# 加载 nvm
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# 使用 Node.js 22
+nvm use 22
 
 echo "📁 创建部署目录..."
 mkdir -p ${DEPLOY_DIR}
@@ -47,13 +63,7 @@ echo "📦 解压项目..."
 tar -xzf /tmp/codelens-deploy.tar.gz -C ${DEPLOY_DIR}
 rm /tmp/codelens-deploy.tar.gz
 
-echo "🔧 安装系统依赖..."
-# 检查并安装 Node.js
-if ! command -v node &> /dev/null; then
-    echo "安装 Node.js 20..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y nodejs
-fi
+echo "🔧 检查系统依赖..."
 
 # 检查并安装 pnpm
 if ! command -v pnpm &> /dev/null; then
@@ -61,29 +71,16 @@ if ! command -v pnpm &> /dev/null; then
     npm install -g pnpm
 fi
 
-# 检查并安装 PostgreSQL
+# 检查 PostgreSQL (假设已安装)
 if ! command -v psql &> /dev/null; then
-    echo "安装 PostgreSQL..."
-    apt-get update
-    apt-get install -y postgresql postgresql-contrib
-    systemctl start postgresql
-    systemctl enable postgresql
-
-    # 创建数据库和用户
-    sudo -u postgres psql << EOF
-CREATE DATABASE codelens;
-CREATE USER postgres WITH PASSWORD 'postgres';
-GRANT ALL PRIVILEGES ON DATABASE codelens TO postgres;
-ALTER DATABASE codelens OWNER TO postgres;
-EOF
+    echo "⚠️  PostgreSQL 未安装，请手动安装"
+    echo "sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib"
 fi
 
-# 检查并安装 Redis
+# 检查 Redis (假设已安装)
 if ! command -v redis-cli &> /dev/null; then
-    echo "安装 Redis..."
-    apt-get install -y redis-server
-    systemctl start redis-server
-    systemctl enable redis-server
+    echo "⚠️  Redis 未安装，请手动安装"
+    echo "sudo apt-get install -y redis-server"
 fi
 
 # 安装 PM2
@@ -149,3 +146,7 @@ echo ""
 echo "🌐 访问地址："
 echo "  - API: http://47.116.6.132:8787"
 echo "  - Web: http://47.116.6.132:5173"
+echo ""
+echo "💡 提示："
+echo "  - 确保 PostgreSQL 和 Redis 已安装并运行"
+echo "  - 如需初始化数据库，请运行: cd ${DEPLOY_DIR}/apps/api && node dist/db/init.js"
