@@ -8,6 +8,13 @@ import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-jsx';
 import 'prismjs/components/prism-tsx';
 
+// Simple Filter icon component
+const Filter = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+  </svg>
+);
+
 const API_BASE = 'http://localhost:8787';
 
 type Repo = {
@@ -262,6 +269,28 @@ function clearSearchHistory() {
   localStorage.removeItem(SEARCH_HISTORY_KEY);
 }
 
+// Highlight search keywords in text
+function highlightText(text: string, query: string) {
+  if (!query.trim()) {
+    return text;
+  }
+
+  const parts = text.split(new RegExp(`(${query})`, 'gi'));
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark key={index} className="bg-yellow-200 px-1 rounded">
+            {part}
+          </mark>
+        ) : (
+          <span key={index}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
 function RepoPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -273,6 +302,10 @@ function RepoPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>(getSearchHistory());
   const [showHistory, setShowHistory] = useState(false);
+
+  // Filter states
+  const [fileTypeFilter, setFileTypeFilter] = useState<string>('all');
+  const [symbolTypeFilter, setSymbolTypeFilter] = useState<string>('all');
 
   // Refs for debounce and abort controller
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -350,6 +383,31 @@ function RepoPage() {
       abortControllerRef.current = null;
     }
   };
+
+  // Filter results based on selected filters
+  const filteredEvidence = result?.evidence.filter((hit: SearchHit) => {
+    // File type filter
+    if (fileTypeFilter !== 'all') {
+      const ext = hit.file_path.split('.').pop()?.toLowerCase();
+      if (ext !== fileTypeFilter) return false;
+    }
+
+    // Symbol type filter
+    if (symbolTypeFilter !== 'all') {
+      if (hit.symbol_type !== symbolTypeFilter) return false;
+    }
+
+    return true;
+  }) || [];
+
+  // Get unique file types and symbol types from results
+  const fileTypes = Array.from(new Set(result?.evidence.map((hit: SearchHit) =>
+    hit.file_path.split('.').pop()?.toLowerCase() || 'unknown'
+  ) || []));
+
+  const symbolTypes = Array.from(new Set(result?.evidence.map((hit: SearchHit) =>
+    hit.symbol_type
+  ) || []));
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -480,25 +538,58 @@ function RepoPage() {
           )}
 
           <div className="border rounded-lg p-6">
-            <h3 className="font-semibold mb-4">证据 ({result.evidence.length})</h3>
-            {result.evidence.length === 0 ? (
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">证据 ({filteredEvidence.length} / {result.evidence.length})</h3>
+
+              {/* Filters */}
+              <div className="flex gap-3">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-600" />
+                  <select
+                    value={fileTypeFilter}
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setFileTypeFilter(e.target.value)}
+                    className="px-3 py-1 border rounded text-sm"
+                  >
+                    <option value="all">所有文件类型</option>
+                    {fileTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={symbolTypeFilter}
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setSymbolTypeFilter(e.target.value)}
+                    className="px-3 py-1 border rounded text-sm"
+                  >
+                    <option value="all">所有符号类型</option>
+                    {symbolTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {filteredEvidence.length === 0 ? (
               <div className="text-gray-500 text-center py-8">
-                未找到相关代码
+                {result.evidence.length === 0 ? '未找到相关代码' : '没有符合筛选条件的结果'}
               </div>
             ) : (
               <div className="space-y-4">
-                {result.evidence.map((hit: SearchHit, i: number) => (
+                {filteredEvidence.map((hit: SearchHit, i: number) => (
                   <div key={hit.id} className="border rounded p-4 bg-gray-50">
                     <div className="flex items-center justify-between mb-2">
                       <div className="font-medium">
-                        [{i + 1}] {hit.file_path}:{hit.line_start}-{hit.line_end}
+                        [{i + 1}] {highlightText(hit.file_path, query)}:{hit.line_start}-{hit.line_end}
                       </div>
                       {hit.similarity && (
                         <div className="text-sm text-gray-600">相似度: {(hit.similarity * 100).toFixed(1)}%</div>
                       )}
                     </div>
                     <div className="text-sm text-gray-600 mb-2">
-                      {hit.symbol_name} ({hit.symbol_type})
+                      {highlightText(hit.symbol_name, query)} ({hit.symbol_type})
                     </div>
                     <CodeBlock code={hit.code_text} language="typescript" />
                   </div>
