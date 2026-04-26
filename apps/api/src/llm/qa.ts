@@ -2,7 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { CodeChunkRecord } from '../db/index.js';
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY,
+  baseURL: process.env.ANTHROPIC_BASE_URL,
 });
 
 export async function answerQuestion(query: string, evidence: CodeChunkRecord[]): Promise<string> {

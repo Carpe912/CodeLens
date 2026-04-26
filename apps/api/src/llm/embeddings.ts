@@ -2,7 +2,8 @@ import OpenAI from 'openai';
 import { embeddingCache } from '../cache.js';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.EMBED_API_KEY || process.env.OPENAI_API_KEY,
+  baseURL: process.env.EMBED_BASE_URL,
 });
 
 export async function generateEmbedding(text: string): Promise<number[]> {
@@ -13,9 +14,13 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     return cached;
   }
 
+  const model = process.env.EMBED_MODEL || 'text-embedding-3-small';
+  const dimensions = process.env.EMBED_DIMENSIONS ? parseInt(process.env.EMBED_DIMENSIONS) : undefined;
+
   const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
+    model,
     input: text,
+    ...(dimensions && { dimensions }),
   });
 
   const embedding = response.data[0].embedding;
@@ -50,10 +55,14 @@ export async function batchGenerateEmbeddings(texts: string[]): Promise<number[]
 
   console.log(`Generating ${uncachedTexts.length}/${texts.length} embeddings`);
 
+  const model = process.env.EMBED_MODEL || 'text-embedding-3-small';
+  const dimensions = process.env.EMBED_DIMENSIONS ? parseInt(process.env.EMBED_DIMENSIONS) : undefined;
+
   // Generate embeddings for uncached texts
   const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
+    model,
     input: uncachedTexts,
+    ...(dimensions && { dimensions }),
   });
 
   // Store results and cache

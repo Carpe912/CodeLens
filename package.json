@@ -8,6 +8,7 @@
     "dev:web": "pnpm --filter @codelens/web dev",
     "dev:api": "pnpm --filter @codelens/api dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "deploy": "bash deploy.sh"
   }
 }

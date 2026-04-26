@@ -12,11 +12,13 @@ import { searchTTLCache, generateCacheKey } from './cache.js';
 
 // Validate required environment variables
 function validateEnv() {
-  const required = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY'];
-  const missing = required.filter((key) => !process.env[key]);
+  const required = [
+    process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY ? null : 'ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN',
+    process.env.EMBED_API_KEY || process.env.OPENAI_API_KEY ? null : 'OPENAI_API_KEY or EMBED_API_KEY'
+  ].filter(Boolean);
 
-  if (missing.length > 0) {
-    console.error(`Missing required environment variables: ${missing.join(', ')}`);
+  if (required.length > 0) {
+    console.error(`Missing required environment variables: ${required.join(', ')}`);
     console.error('Please check your .env file');
     process.exit(1);
   }
