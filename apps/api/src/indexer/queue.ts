@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
-import { indexRepository } from './indexer.js';
+import { indexRepository, indexMultipleFiles } from './indexer.js';
 
 const connection = new Redis({
   host: process.env.REDIS_HOST || 'localhost',
@@ -18,14 +18,28 @@ export type IndexJobData = {
   zipPath?: string;
 };
 
+export type IncrementalIndexJobData = {
+  repoId: number;
+  repoPath: string;
+  files: string[]; // relative paths
+};
+
 export function startIndexWorker() {
-  const worker = new Worker<IndexJobData>(
+  const worker = new Worker<IndexJobData | IncrementalIndexJobData>(
     'index-repo',
     async (job) => {
-      console.log(`Processing index job ${job.id} for repo ${job.data.repoName}`);
+      console.log(`Processing index job ${job.id}`);
 
       try {
-        await indexRepository(job.data);
+        if (job.name === 'index') {
+          const data = job.data as IndexJobData;
+          console.log(`Full indexing for repo ${data.repoName}`);
+          await indexRepository(data);
+        } else if (job.name === 'incremental-index') {
+          const data = job.data as IncrementalIndexJobData;
+          console.log(`Incremental indexing ${data.files.length} files for repo ${data.repoId}`);
+          await indexMultipleFiles(data.repoId, data.repoPath, data.files);
+        }
         console.log(`Index job ${job.id} completed`);
       } catch (error) {
         console.error(`Index job ${job.id} failed:`, error);
@@ -48,5 +62,10 @@ export function startIndexWorker() {
 
 export async function enqueueIndexJob(data: IndexJobData) {
   const job = await indexQueue.add('index', data);
+  return job.id;
+}
+
+export async function enqueueIncrementalIndexJob(data: IncrementalIndexJobData) {
+  const job = await indexQueue.add('incremental-index', data);
   return job.id;
 }

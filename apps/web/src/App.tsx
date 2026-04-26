@@ -7,6 +7,7 @@ import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-jsx';
 import 'prismjs/components/prism-tsx';
+import { CallGraph } from './components/CallGraph.js';
 
 // Simple Filter icon component
 const Filter = ({ className }: { className?: string }) => (
@@ -600,9 +601,17 @@ function RepoPage() {
                         <div className="font-medium">
                           [{startIndex + i + 1}] {highlightText(hit.file_path, query)}:{hit.line_start}-{hit.line_end}
                         </div>
-                        {hit.similarity && (
-                          <div className="text-sm text-gray-600">相似度: {(hit.similarity * 100).toFixed(1)}%</div>
-                        )}
+                        <div className="flex items-center gap-3">
+                          {hit.similarity && (
+                            <div className="text-sm text-gray-600">相似度: {(hit.similarity * 100).toFixed(1)}%</div>
+                          )}
+                          <button
+                            onClick={() => navigate(`/repo/${repoId}/call-graph/${encodeURIComponent(hit.symbol_name)}`)}
+                            className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+                          >
+                            调用图
+                          </button>
+                        </div>
                       </div>
                       <div className="text-sm text-gray-600 mb-2">
                         {highlightText(hit.symbol_name, query)} ({hit.symbol_type})
@@ -673,11 +682,47 @@ function RepoPage() {
   );
 }
 
+function CallGraphPage() {
+  const navigate = useNavigate();
+  const { id, symbolName } = useParams<{ id: string; symbolName: string }>();
+  const repoId = id || '';
+  const decodedSymbolName = symbolName ? decodeURIComponent(symbolName) : '';
+
+  const handleSymbolClick = useCallback((newSymbolName: string) => {
+    navigate(`/repo/${repoId}/call-graph/${encodeURIComponent(newSymbolName)}`);
+  }, [navigate, repoId]);
+
+  return (
+    <div className="h-screen flex flex-col">
+      <div className="p-4 border-b bg-white">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate(`/repo/${repoId}`)} className="text-blue-600 hover:underline">
+              ← 返回搜索
+            </button>
+            <div className="text-lg font-semibold">
+              调用图: {decodedSymbolName}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex-1">
+        <CallGraph
+          repoId={repoId}
+          symbolName={decodedSymbolName}
+          onSymbolClick={handleSymbolClick}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/repo/:id" element={<RepoPage />} />
+      <Route path="/repo/:id/call-graph/:symbolName" element={<CallGraphPage />} />
     </Routes>
   );
 }

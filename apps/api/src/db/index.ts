@@ -144,6 +144,11 @@ export async function createRepo(name: string, source: 'gitlab' | 'zip', url?: s
   return result.rows[0].id;
 }
 
+export async function getRepo(repoId: number): Promise<Repo | null> {
+  const result = await pool.query('SELECT * FROM repos WHERE id = $1', [repoId]);
+  return result.rows[0] || null;
+}
+
 export async function updateRepoStatus(repoId: number, status: 'ready' | 'indexing' | 'failed') {
   await pool.query('UPDATE repos SET status = $1 WHERE id = $2', [status, repoId]);
 }
@@ -195,4 +200,28 @@ export async function searchByEmbedding(repoId: number, embedding: number[], lim
     [`[${embedding.join(',')}]`, repoId, limit]
   );
   return result.rows;
+}
+
+// Incremental indexing functions
+export async function getFileByPath(repoId: number, path: string): Promise<{ id: number; content: string } | null> {
+  const result = await pool.query(
+    'SELECT id, content FROM files WHERE repo_id = $1 AND path = $2',
+    [repoId, path]
+  );
+  return result.rows[0] || null;
+}
+
+export async function updateFile(fileId: number, content: string, language: string): Promise<void> {
+  await pool.query(
+    'UPDATE files SET content = $1, language = $2 WHERE id = $3',
+    [content, language, fileId]
+  );
+}
+
+export async function deleteFileChunks(fileId: number): Promise<void> {
+  await pool.query('DELETE FROM code_chunks WHERE file_id = $1', [fileId]);
+}
+
+export async function deleteFile(fileId: number): Promise<void> {
+  await pool.query('DELETE FROM files WHERE id = $1', [fileId]);
 }

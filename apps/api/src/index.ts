@@ -4,8 +4,8 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding } from './db/index.js';
-import { enqueueIndexJob, startIndexWorker } from './indexer/queue.js';
+import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding, getRepo } from './db/index.js';
+import { enqueueIndexJob, enqueueIncrementalIndexJob, startIndexWorker } from './indexer/queue.js';
 import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
 import { searchTTLCache, generateCacheKey } from './cache.js';
@@ -89,6 +89,34 @@ fastify.post('/repos/upload', async (request, reply) => {
   });
 
   return { repoId, status: 'indexing' };
+});
+
+fastify.post<{
+  Params: { id: string };
+  Body: { files: string[] };
+}>('/repos/:id/incremental-index', async (request, reply) => {
+  const repoId = parseInt(request.params.id);
+  const { files } = request.body;
+
+  if (!files || !Array.isArray(files) || files.length === 0) {
+    return reply.code(400).send({ error: 'Missing or invalid files array' });
+  }
+
+  const repo = await getRepo(repoId);
+  if (!repo) {
+    return reply.code(404).send({ error: 'Repository not found' });
+  }
+
+  // Determine repo path based on source
+  const repoPath = `/tmp/codelens-repos/${repoId}`;
+
+  const jobId = await enqueueIncrementalIndexJob({
+    repoId,
+    repoPath,
+    files,
+  });
+
+  return { jobId, status: 'indexing', filesCount: files.length };
 });
 
 fastify.get<{
