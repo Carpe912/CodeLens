@@ -38,7 +38,7 @@ type SearchHit = {
 };
 
 type QAResponse = {
-  questionId: number;
+  questionId?: number;
   query: string;
   answer: string;
   evidence: SearchHit[];
