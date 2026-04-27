@@ -1,5 +1,5 @@
 import { Queue, Worker } from 'bullmq';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { indexRepository, indexMultipleFiles } from './indexer.js';
 
 const connection = new Redis({

@@ -31,7 +31,7 @@ class LRUCache<K, V> {
 
     // Evict oldest if over capacity
     if (this.cache.size > this.maxSize) {
-      const firstKey = this.cache.keys().next().value;
+      const firstKey = this.cache.keys().next().value as K;
       this.cache.delete(firstKey);
     }
   }
@@ -94,7 +94,7 @@ export class TTLCache<K, V> {
   set(key: K, value: V): void {
     // Evict oldest if over capacity
     if (this.cache.size >= this.maxSize) {
-      const firstKey = this.cache.keys().next().value;
+      const firstKey = this.cache.keys().next().value as K;
       this.cache.delete(firstKey);
     }
 

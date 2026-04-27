@@ -16,7 +16,7 @@ const Filter = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const API_BASE = 'http://localhost:8787';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787';
 
 type Repo = {
   id: number;

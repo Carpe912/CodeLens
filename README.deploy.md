@@ -99,8 +99,28 @@ FLUSHALL
 ```
 
 ## 访问地址
-- **API**: http://47.116.6.132:8787
-- **Web**: http://47.116.6.132:5173
+- **Web**: http://sunlingyue.cn/code (通过 Nginx 代理)
+- **API**: http://sunlingyue.cn/code-api (通过 Nginx 代理)
+- **直接访问 API**: http://47.116.6.132:8787
+- **直接访问 Web**: http://47.116.6.132:5173
+
+## 配置 HTTPS（可选但推荐）
+
+```bash
+# 登录服务器
+ssh root@47.116.6.132
+
+# 安装 Certbot
+apt-get install -y certbot python3-certbot-nginx
+
+# 自动配置 HTTPS
+certbot --nginx -d sunlingyue.cn -d www.sunlingyue.cn
+
+# 自动续期
+certbot renew --dry-run
+```
+
+配置完成后访问 https://sunlingyue.cn
 
 ## 环境变量配置
 

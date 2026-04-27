@@ -7,7 +7,7 @@ set -e
 
 SERVER_IP="47.116.6.132"
 SERVER_USER="admin"
-SERVER_PASSWORD="Sunlingyao0912"
+SERVER_PASSWORD="${DEPLOY_PASSWORD:-Sunlingyao0912}"
 DEPLOY_DIR="/home/admin/codelens"
 PROJECT_NAME="CodeLens"
 
@@ -16,9 +16,16 @@ echo "🚀 开始部署 CodeLens 到服务器 ${SERVER_IP}..."
 # 检查 sshpass 是否安装
 if ! command -v sshpass &> /dev/null; then
     echo "❌ 错误: 未安装 sshpass"
-    echo "请先安装 sshpass:"
-    echo "  macOS: brew install hudochenkov/sshpass/sshpass"
-    echo "  Ubuntu: sudo apt-get install sshpass"
+    echo ""
+    echo "请选择以下任一方式安装:"
+    echo "  方式1: brew install esolitos/ipa/sshpass"
+    echo "  方式2: 手动编译安装"
+    echo "    curl -O -L https://sourceforge.net/projects/sshpass/files/sshpass/1.09/sshpass-1.09.tar.gz"
+    echo "    tar xvzf sshpass-1.09.tar.gz && cd sshpass-1.09"
+    echo "    ./configure && make && sudo make install"
+    echo ""
+    echo "或者使用 expect 方式部署（无需 sshpass）:"
+    echo "  ./deploy-expect.sh"
     exit 1
 fi
 

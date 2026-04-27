@@ -6,10 +6,10 @@ const anthropic = new Anthropic({
   baseURL: process.env.ANTHROPIC_BASE_URL,
 });
 
-export async function answerQuestion(query: string, evidence: CodeChunkRecord[]): Promise<string> {
+export async function answerQuestion(query: string, evidence: Array<CodeChunkRecord & { file_path?: string }>): Promise<string> {
   const evidenceText = evidence
     .map((e, i) => {
-      return `[证据 ${i + 1}] ${e.file_path}:${e.line_start}-${e.line_end}
+      return `[证据 ${i + 1}] ${e.file_path || 'unknown'}:${e.line_start}-${e.line_end}
 符号: ${e.symbol_name} (${e.symbol_type})
 代码:
 \`\`\`
@@ -42,10 +42,10 @@ ${evidenceText}
   return content.type === 'text' ? content.text : '';
 }
 
-export async function analyzeRootCause(query: string, evidence: CodeChunkRecord[]): Promise<string> {
+export async function analyzeRootCause(query: string, evidence: Array<CodeChunkRecord & { file_path?: string }>): Promise<string> {
   const evidenceText = evidence
     .map((e, i) => {
-      return `[证据 ${i + 1}] ${e.file_path}:${e.line_start}-${e.line_end}
+      return `[证据 ${i + 1}] ${e.file_path || 'unknown'}:${e.line_start}-${e.line_end}
 符号: ${e.symbol_name} (${e.symbol_type})
 代码:
 \`\`\`

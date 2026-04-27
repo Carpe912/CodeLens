@@ -1,6 +1,10 @@
 import { parse } from '@babel/parser';
-import traverse from '@babel/traverse';
+import traverseModule, { type NodePath } from '@babel/traverse';
+import type * as t from '@babel/types';
 import type { CodeChunk, ParseResult } from './types.js';
+
+// Handle both ESM and CJS imports
+const traverse = typeof traverseModule === 'function' ? traverseModule : (traverseModule as any).default;
 
 export function parseTsFile(filePath: string, code: string): ParseResult {
   const chunks: CodeChunk[] = [];
@@ -14,9 +18,9 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
     });
 
   traverse(ast, {
-    ImportDeclaration(path) {
+    ImportDeclaration(path: NodePath<t.ImportDeclaration>) {
       const source = path.node.source.value;
-      const specifiers = path.node.specifiers.map((spec) => {
+      const specifiers = path.node.specifiers.map((spec: t.ImportDeclaration['specifiers'][0]) => {
         if (spec.type === 'ImportDefaultSpecifier') {
           return spec.local.name;
         }
@@ -28,13 +32,13 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
       imports.push({ source, specifiers });
     },
 
-    FunctionDeclaration(path) {
+    FunctionDeclaration(path: NodePath<t.FunctionDeclaration>) {
       const node = path.node;
       if (!node.id || !node.loc) return;
 
       const calls: string[] = [];
       path.traverse({
-        CallExpression(callPath) {
+        CallExpression(callPath: NodePath<t.CallExpression>) {
           const callee = callPath.node.callee;
           if (callee.type === 'Identifier') {
             calls.push(callee.name);
@@ -58,7 +62,7 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
       });
     },
 
-    ClassDeclaration(path) {
+    ClassDeclaration(path: NodePath<t.ClassDeclaration>) {
       const node = path.node;
       if (!node.id || !node.loc) return;
 
@@ -76,18 +80,18 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
       });
     },
 
-    VariableDeclaration(path) {
+    VariableDeclaration(path: NodePath<t.VariableDeclaration>) {
       const node = path.node;
       if (!node.loc) return;
 
-      node.declarations.forEach((decl) => {
+      node.declarations.forEach((decl: t.VariableDeclarator) => {
         if (decl.id.type !== 'Identifier' || !decl.init || !decl.loc) return;
 
         // Arrow function: const fn = () => {}
         if (decl.init.type === 'ArrowFunctionExpression') {
           const calls: string[] = [];
           path.traverse({
-            CallExpression(callPath) {
+            CallExpression(callPath: NodePath<t.CallExpression>) {
               const callee = callPath.node.callee;
               if (callee.type === 'Identifier') {
                 calls.push(callee.name);
@@ -128,7 +132,7 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
       });
     },
 
-    ExportNamedDeclaration(path) {
+    ExportNamedDeclaration(path: NodePath<t.ExportNamedDeclaration>) {
       const node = path.node;
       if (node.declaration) {
         if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id) {
@@ -136,7 +140,7 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
         } else if (node.declaration.type === 'ClassDeclaration' && node.declaration.id) {
           exports.push(node.declaration.id.name);
         } else if (node.declaration.type === 'VariableDeclaration') {
-          node.declaration.declarations.forEach((decl) => {
+          node.declaration.declarations.forEach((decl: t.VariableDeclarator) => {
             if (decl.id.type === 'Identifier') {
               exports.push(decl.id.name);
             }
@@ -145,7 +149,7 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
       }
     },
 
-    ExportDefaultDeclaration(path) {
+    ExportDefaultDeclaration(path: NodePath<t.ExportDefaultDeclaration>) {
       const node = path.node;
       if (node.declaration.type === 'Identifier') {
         exports.push(node.declaration.name);
@@ -156,7 +160,7 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
       }
     },
 
-    TSInterfaceDeclaration(path) {
+    TSInterfaceDeclaration(path: NodePath<t.TSInterfaceDeclaration>) {
       const node = path.node;
       if (!node.id || !node.loc) return;
 
@@ -174,7 +178,7 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
       });
     },
 
-    TSTypeAliasDeclaration(path) {
+    TSTypeAliasDeclaration(path: NodePath<t.TSTypeAliasDeclaration>) {
       const node = path.node;
       if (!node.id || !node.loc) return;
 
@@ -192,13 +196,13 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
       });
     },
 
-    ObjectMethod(path) {
+    ObjectMethod(path: NodePath<t.ObjectMethod>) {
       const node = path.node;
       if (node.key.type !== 'Identifier' || !node.loc) return;
 
       const calls: string[] = [];
       path.traverse({
-        CallExpression(callPath) {
+        CallExpression(callPath: NodePath<t.CallExpression>) {
           const callee = callPath.node.callee;
           if (callee.type === 'Identifier') {
             calls.push(callee.name);
@@ -222,13 +226,13 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
       });
     },
 
-    ClassMethod(path) {
+    ClassMethod(path: NodePath<t.ClassMethod>) {
       const node = path.node;
       if (node.key.type !== 'Identifier' || !node.loc) return;
 
       const calls: string[] = [];
       path.traverse({
-        CallExpression(callPath) {
+        CallExpression(callPath: NodePath<t.CallExpression>) {
           const callee = callPath.node.callee;
           if (callee.type === 'Identifier') {
             calls.push(callee.name);

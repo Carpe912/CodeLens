@@ -1,4 +1,19 @@
-import type { RepoRecord, SearchHit } from './index.js';
+export type RepoRecord = {
+  id: string;
+  name: string;
+  source: 'gitlab' | 'zip';
+  status: 'ready' | 'indexing' | 'failed';
+  description?: string;
+};
+
+export type SearchHit = {
+  file: string;
+  symbol: string;
+  lineStart: number;
+  lineEnd: number;
+  score: number;
+  evidence: string;
+};
 
 export type IngestionJob = {
   id: string;
