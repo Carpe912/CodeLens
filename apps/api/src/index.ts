@@ -5,7 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding, getRepo, addQuestionFeedback, getQuestionFeedback, getSimilarQuestionsWithFeedback } from './db/index.js';
-import { enqueueIndexJob, enqueueIncrementalIndexJob, startIndexWorker } from './indexer/queue.js';
+import { enqueueIndexJob, enqueueIncrementalIndexJob, enqueueRefreshJob, startIndexWorker } from './indexer/queue.js';
 import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
 import { searchTTLCache, generateCacheKey } from './cache.js';
@@ -29,7 +29,12 @@ validateEnv();
 const fastify = Fastify({ logger: true });
 
 await fastify.register(cors);
-await fastify.register(multipart);
+await fastify.register(multipart, {
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB
+    files: 1,
+  },
+});
 await fastify.register(rateLimit, {
   max: 100,
   timeWindow: '1 minute',
@@ -44,7 +49,12 @@ fastify.get('/health', async () => {
 
 fastify.get('/repos', async () => {
   const result = await pool.query('SELECT * FROM repos ORDER BY created_at DESC');
-  return result.rows;
+  // Mask gitlab_token for security
+  const repos = result.rows.map((repo: any) => ({
+    ...repo,
+    gitlab_token: repo.gitlab_token ? '***' : null,
+  }));
+  return repos;
 });
 
 fastify.post<{
@@ -124,6 +134,92 @@ fastify.post<{
   });
 
   return { jobId, status: 'indexing', filesCount: files.length };
+});
+
+// Refresh GitLab repository
+fastify.post<{
+  Params: { id: string };
+}>('/repos/:id/refresh', async (request, reply) => {
+  const repoId = parseInt(request.params.id);
+
+  const repo = await getRepo(repoId);
+  if (!repo) {
+    return reply.code(404).send({ error: 'Repository not found' });
+  }
+
+  if (repo.source !== 'gitlab') {
+    return reply.code(400).send({ error: 'Only GitLab repositories can be refreshed' });
+  }
+
+  if (!repo.url) {
+    return reply.code(400).send({ error: 'Repository URL not found' });
+  }
+
+  if (repo.status === 'indexing') {
+    return reply.code(400).send({ error: 'Repository is currently being indexed' });
+  }
+
+  // Allow refresh even if status is 'failed' - the refresh function will handle re-cloning if needed
+
+  // Update status to indexing
+  await pool.query('UPDATE repos SET status = $1 WHERE id = $2', ['indexing', repoId]);
+
+  const jobId = await enqueueRefreshJob({
+    repoId,
+    url: repo.url,
+    gitlabToken: repo.gitlab_token,
+  });
+
+  return { jobId, status: 'refreshing' };
+});
+
+// Admin endpoint to reset repo status (temporary)
+fastify.post<{
+  Params: { id: string };
+  Body: { status: string };
+}>('/repos/:id/reset-status', async (request, reply) => {
+  const repoId = parseInt(request.params.id);
+  const { status } = request.body;
+
+  if (!['ready', 'failed', 'indexing'].includes(status)) {
+    return reply.code(400).send({ error: 'Invalid status' });
+  }
+
+  await pool.query('UPDATE repos SET status = $1 WHERE id = $2', [status, repoId]);
+  return { message: 'Status updated', repoId, status };
+});
+
+// Admin endpoint to migrate vector dimension
+fastify.post('/admin/migrate-vector-dimension', async (request, reply) => {
+  try {
+    console.log('Starting migration: changing embedding vector dimension from 1536 to 1024...');
+
+    // Drop the index first
+    console.log('Dropping index...');
+    await pool.query('DROP INDEX IF EXISTS idx_code_chunks_embedding');
+
+    // Drop the embedding column
+    console.log('Dropping old embedding column...');
+    await pool.query('ALTER TABLE code_chunks DROP COLUMN IF EXISTS embedding');
+
+    // Add new embedding column with 1024 dimensions
+    console.log('Adding new embedding column with 1024 dimensions...');
+    await pool.query('ALTER TABLE code_chunks ADD COLUMN embedding vector(1024)');
+
+    // Recreate the index
+    console.log('Recreating index...');
+    await pool.query('CREATE INDEX idx_code_chunks_embedding ON code_chunks USING ivfflat (embedding vector_cosine_ops)');
+
+    console.log('Migration completed successfully!');
+
+    return {
+      success: true,
+      message: 'Vector dimension migrated from 1536 to 1024. All existing embeddings have been cleared. You need to re-index your repositories.'
+    };
+  } catch (error: any) {
+    console.error('Migration failed:', error);
+    return reply.code(500).send({ error: 'Migration failed', details: error.message });
+  }
 });
 
 fastify.get<{

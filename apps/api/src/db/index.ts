@@ -55,7 +55,7 @@ export async function initDatabase() {
         line_start INTEGER NOT NULL,
         line_end INTEGER NOT NULL,
         code_text TEXT NOT NULL,
-        embedding vector(1536),
+        embedding vector(1024),
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);

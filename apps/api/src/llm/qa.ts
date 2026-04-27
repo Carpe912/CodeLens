@@ -53,7 +53,7 @@ ${feedbackContext}
 5. 用中文回答`;
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-opus-4-6',
     max_tokens: 2000,
     messages: [{ role: 'user', content: prompt }],
   });
@@ -90,7 +90,7 @@ ${evidenceText}
 5. 用中文回答`;
 
   const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-opus-4-6',
     max_tokens: 2000,
     messages: [{ role: 'user', content: prompt }],
   });

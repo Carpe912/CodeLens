@@ -26,17 +26,21 @@ export async function indexRepository(jobData: IndexJobData) {
   await updateRepoStatus(repoId, 'ready');
 }
 
-async function cloneGitLabRepo(url: string, repoId: number, gitlabToken?: string): Promise<string> {
+export async function cloneGitLabRepo(url: string, repoId: number, gitlabToken?: string): Promise<string> {
   const targetDir = `/tmp/codelens-repos/${repoId}`;
 
   // If token is provided, inject it into the URL for authentication
   let cloneUrl = url;
   if (gitlabToken) {
-    // Support both https:// and http:// URLs
-    if (url.startsWith('https://')) {
-      cloneUrl = url.replace('https://', `https://oauth2:${gitlabToken}@`);
-    } else if (url.startsWith('http://')) {
-      cloneUrl = url.replace('http://', `http://oauth2:${gitlabToken}@`);
+    // Always use HTTPS for authentication (many GitLab servers disable HTTP auth)
+    // Convert http:// to https:// if needed
+    let httpsUrl = url;
+    if (url.startsWith('http://')) {
+      httpsUrl = url.replace('http://', 'https://');
+    }
+
+    if (httpsUrl.startsWith('https://')) {
+      cloneUrl = httpsUrl.replace('https://', `https://oauth2:${gitlabToken}@`);
     }
   }
 
@@ -101,7 +105,14 @@ async function collectFiles(dir: string): Promise<string[]> {
     const entries = await readdir(currentPath);
 
     for (const entry of entries) {
-      if (entry === 'node_modules' || entry === '.git' || entry === 'dist' || entry === 'build') {
+      // Skip common build/dependency/cache directories
+      const skipDirs = [
+        'node_modules', '.git', 'dist', 'build', '.next', 'coverage',
+        '.cache', '.turbo', '.nuxt', '.output', 'out', '.vercel',
+        'vendor', 'target', '__pycache__', '.pytest_cache'
+      ];
+
+      if (skipDirs.includes(entry)) {
         continue;
       }
 
@@ -241,4 +252,51 @@ export async function indexMultipleFiles(repoId: number, repoPath: string, relat
   }
 
   console.log(`Incremental indexing completed for ${relativePaths.length} files`);
+}
+
+// Refresh GitLab repository: pull latest changes and index modified files
+export async function refreshGitLabRepo(repoId: number, url: string, gitlabToken?: string) {
+  const repoPath = `/tmp/codelens-repos/${repoId}`;
+
+  let repoExists = false;
+  try {
+    // Check if repo directory exists
+    await stat(repoPath);
+    repoExists = true;
+  } catch (error) {
+    // Directory doesn't exist, need to clone
+    console.log(`Repository directory not found, cloning from ${url}`);
+  }
+
+  if (!repoExists) {
+    // Clone the repository and do a full index
+    await cloneGitLabRepo(url, repoId, gitlabToken);
+    await indexCodebase(repoId, repoPath);
+    await updateRepoStatus(repoId, 'ready');
+    return { filesUpdated: 'full-reindex' };
+  }
+
+  // Pull latest changes
+  console.log(`Pulling latest changes for repo ${repoId}`);
+  await execAsync(`cd ${repoPath} && git pull`);
+
+  // Get list of changed files
+  const { stdout } = await execAsync(`cd ${repoPath} && git diff --name-only HEAD@{1} HEAD`);
+  const changedFiles = stdout.trim().split('\n').filter(f => f && f.match(/\.(ts|tsx|js|jsx|vue)$/));
+
+  if (changedFiles.length === 0) {
+    console.log(`No code files changed for repo ${repoId}`);
+    await updateRepoStatus(repoId, 'ready');
+    return { filesUpdated: 0 };
+  }
+
+  console.log(`Found ${changedFiles.length} changed files`);
+
+  // Index changed files
+  await indexMultipleFiles(repoId, repoPath, changedFiles);
+
+  // Update status to ready
+  await updateRepoStatus(repoId, 'ready');
+
+  return { filesUpdated: changedFiles.length };
 }

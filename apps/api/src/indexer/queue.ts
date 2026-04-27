@@ -1,6 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
-import { indexRepository, indexMultipleFiles } from './indexer.js';
+import { indexRepository, indexMultipleFiles, refreshGitLabRepo } from './indexer.js';
+import { updateRepoStatus } from '../db/index.js';
 
 const connection = new Redis({
   host: process.env.REDIS_HOST || 'localhost',
@@ -25,8 +26,14 @@ export type IncrementalIndexJobData = {
   files: string[]; // relative paths
 };
 
+export type RefreshJobData = {
+  repoId: number;
+  url: string;
+  gitlabToken?: string;
+};
+
 export function startIndexWorker() {
-  const worker = new Worker<IndexJobData | IncrementalIndexJobData>(
+  const worker = new Worker<IndexJobData | IncrementalIndexJobData | RefreshJobData>(
     'index-repo',
     async (job) => {
       console.log(`Processing index job ${job.id}`);
@@ -40,6 +47,10 @@ export function startIndexWorker() {
           const data = job.data as IncrementalIndexJobData;
           console.log(`Incremental indexing ${data.files.length} files for repo ${data.repoId}`);
           await indexMultipleFiles(data.repoId, data.repoPath, data.files);
+        } else if (job.name === 'refresh') {
+          const data = job.data as RefreshJobData;
+          console.log(`Refreshing repo ${data.repoId}`);
+          await refreshGitLabRepo(data.repoId, data.url, data.gitlabToken);
         }
         console.log(`Index job ${job.id} completed`);
       } catch (error) {
@@ -54,8 +65,19 @@ export function startIndexWorker() {
     console.log(`Job ${job.id} completed`);
   });
 
-  worker.on('failed', (job, err) => {
+  worker.on('failed', async (job, err) => {
     console.error(`Job ${job?.id} failed:`, err);
+
+    // Update repo status to 'failed' if it's a full index job
+    if (job && job.name === 'index') {
+      const data = job.data as IndexJobData;
+      try {
+        await updateRepoStatus(data.repoId, 'failed');
+        console.log(`Updated repo ${data.repoId} status to 'failed'`);
+      } catch (updateError) {
+        console.error(`Failed to update repo status:`, updateError);
+      }
+    }
   });
 
   return worker;
@@ -68,5 +90,10 @@ export async function enqueueIndexJob(data: IndexJobData) {
 
 export async function enqueueIncrementalIndexJob(data: IncrementalIndexJobData) {
   const job = await indexQueue.add('incremental-index', data);
+  return job.id;
+}
+
+export async function enqueueRefreshJob(data: RefreshJobData) {
+  const job = await indexQueue.add('refresh', data);
   return job.id;
 }
