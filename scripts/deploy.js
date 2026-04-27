@@ -170,20 +170,23 @@ function verifyDeployment() {
   // 检查 API
   log('检查 API 服务...', 'blue');
   try {
-    execSync(`curl -f http://${host}:8787/repos`, { stdio: 'ignore' });
+    execSync(`curl -f http://${host}:8787/health`, { stdio: 'ignore', timeout: 5000 });
     log('✓ API 服务正常', 'green');
   } catch {
-    log('⚠ API 服务可能未启动', 'yellow');
+    log('⚠ API 服务可能未启动，请手动检查: http://' + host + ':8787/health', 'yellow');
   }
 
   // 检查前端
   log('检查前端服务...', 'blue');
   try {
-    execSync(`curl -f https://sunlingyue.cn/code/`, { stdio: 'ignore' });
+    execSync(`curl -f http://${host}:5173`, { stdio: 'ignore', timeout: 5000 });
     log('✓ 前端服务正常', 'green');
   } catch {
-    log('⚠ 前端服务可能未启动', 'yellow');
+    log('⚠ 前端服务可能未启动，请手动检查: http://' + host + ':5173', 'yellow');
   }
+
+  log('\n提示: 部署完成后需要执行数据库迁移:', 'yellow');
+  log(`  curl -X POST http://${host}:8787/admin/migrate-vector-dimension`, 'blue');
 }
 
 // 主函数
