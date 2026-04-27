@@ -10,12 +10,12 @@ import type { IndexJobData } from './queue.js';
 const execAsync = promisify(exec);
 
 export async function indexRepository(jobData: IndexJobData) {
-  const { repoId, source, url, zipPath } = jobData;
+  const { repoId, source, url, zipPath, gitlabToken } = jobData;
 
   let repoPath: string;
 
   if (source === 'gitlab' && url) {
-    repoPath = await cloneGitLabRepo(url, repoId);
+    repoPath = await cloneGitLabRepo(url, repoId, gitlabToken);
   } else if (source === 'zip' && zipPath) {
     repoPath = await extractZip(zipPath, repoId);
   } else {
@@ -26,9 +26,21 @@ export async function indexRepository(jobData: IndexJobData) {
   await updateRepoStatus(repoId, 'ready');
 }
 
-async function cloneGitLabRepo(url: string, repoId: number): Promise<string> {
+async function cloneGitLabRepo(url: string, repoId: number, gitlabToken?: string): Promise<string> {
   const targetDir = `/tmp/codelens-repos/${repoId}`;
-  await execAsync(`git clone ${url} ${targetDir}`);
+
+  // If token is provided, inject it into the URL for authentication
+  let cloneUrl = url;
+  if (gitlabToken) {
+    // Support both https:// and http:// URLs
+    if (url.startsWith('https://')) {
+      cloneUrl = url.replace('https://', `https://oauth2:${gitlabToken}@`);
+    } else if (url.startsWith('http://')) {
+      cloneUrl = url.replace('http://', `http://oauth2:${gitlabToken}@`);
+    }
+  }
+
+  await execAsync(`git clone ${cloneUrl} ${targetDir}`);
   return targetDir;
 }
 

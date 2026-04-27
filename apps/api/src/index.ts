@@ -48,21 +48,26 @@ fastify.get('/repos', async () => {
 });
 
 fastify.post<{
-  Body: { name: string; source: 'gitlab' | 'zip'; url?: string };
+  Body: { name: string; source: 'gitlab' | 'zip'; url?: string; gitlabToken?: string };
 }>('/repos', async (request, reply) => {
-  const { name, source, url } = request.body;
+  const { name, source, url, gitlabToken } = request.body;
 
   if (!name || !source) {
     return reply.code(400).send({ error: 'Missing name or source' });
   }
 
-  const repoId = await createRepo(name, source, url);
+  if (source === 'gitlab' && !url) {
+    return reply.code(400).send({ error: 'GitLab source requires url' });
+  }
+
+  const repoId = await createRepo(name, source, url, gitlabToken);
 
   await enqueueIndexJob({
     repoId,
     repoName: name,
     source,
     url,
+    gitlabToken,
   });
 
   return { repoId, status: 'indexing' };

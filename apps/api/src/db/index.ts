@@ -28,6 +28,7 @@ export async function initDatabase() {
         name TEXT NOT NULL,
         source TEXT NOT NULL,
         url TEXT,
+        gitlab_token TEXT,
         status TEXT NOT NULL,
         description TEXT,
         created_at TIMESTAMP DEFAULT NOW()
@@ -120,6 +121,7 @@ export type Repo = {
   name: string;
   source: 'gitlab' | 'zip';
   url?: string;
+  gitlab_token?: string;
   status: 'ready' | 'indexing' | 'failed';
   description?: string;
   created_at: Date;
@@ -136,10 +138,10 @@ export type CodeChunkRecord = {
   embedding?: number[];
 };
 
-export async function createRepo(name: string, source: 'gitlab' | 'zip', url?: string): Promise<number> {
+export async function createRepo(name: string, source: 'gitlab' | 'zip', url?: string, gitlabToken?: string): Promise<number> {
   const result = await pool.query(
-    'INSERT INTO repos (name, source, url, status) VALUES ($1, $2, $3, $4) RETURNING id',
-    [name, source, url, 'indexing']
+    'INSERT INTO repos (name, source, url, gitlab_token, status) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [name, source, url, gitlabToken, 'indexing']
   );
   return result.rows[0].id;
 }

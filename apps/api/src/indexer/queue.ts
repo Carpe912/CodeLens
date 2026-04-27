@@ -16,6 +16,7 @@ export type IndexJobData = {
   source: 'gitlab' | 'zip';
   url?: string;
   zipPath?: string;
+  gitlabToken?: string;
 };
 
 export type IncrementalIndexJobData = {

@@ -84,6 +84,7 @@ function HomePage() {
   const queryClient = useQueryClient();
   const [gitlabUrl, setGitlabUrl] = useState('');
   const [repoName, setRepoName] = useState('');
+  const [gitlabToken, setGitlabToken] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const { data: repos, isLoading: reposLoading, error: reposError } = useQuery<Repo[]>({
@@ -97,7 +98,7 @@ function HomePage() {
   });
 
   const createRepoMutation = useMutation({
-    mutationFn: async (data: { name: string; source: 'gitlab'; url: string }) => {
+    mutationFn: async (data: { name: string; source: 'gitlab'; url: string; gitlabToken?: string }) => {
       const res = await fetch(`${API_BASE}/repos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,6 +111,7 @@ function HomePage() {
       queryClient.invalidateQueries({ queryKey: ['repos'] });
       setGitlabUrl('');
       setRepoName('');
+      setGitlabToken('');
       setToast({ message: '仓库接入成功，正在索引...', type: 'success' });
     },
     onError: (error: Error) => {
@@ -156,16 +158,29 @@ function HomePage() {
           />
           <input
             type="text"
-            placeholder="GitLab URL"
+            placeholder="GitLab URL (例如: https://gitlab.com/user/repo.git)"
             value={gitlabUrl}
             onChange={(e) => setGitlabUrl(e.target.value)}
+            disabled={createRepoMutation.isPending}
+            className="w-full px-3 py-2 border rounded mb-3 disabled:bg-gray-100"
+          />
+          <input
+            type="password"
+            placeholder="GitLab Personal Access Token (可选，私有仓库必填)"
+            value={gitlabToken}
+            onChange={(e) => setGitlabToken(e.target.value)}
             disabled={createRepoMutation.isPending}
             className="w-full px-3 py-2 border rounded mb-3 disabled:bg-gray-100"
           />
           <button
             onClick={() => {
               if (repoName && gitlabUrl) {
-                createRepoMutation.mutate({ name: repoName, source: 'gitlab', url: gitlabUrl });
+                createRepoMutation.mutate({
+                  name: repoName,
+                  source: 'gitlab',
+                  url: gitlabUrl,
+                  gitlabToken: gitlabToken || undefined
+                });
               }
             }}
             disabled={createRepoMutation.isPending || !repoName || !gitlabUrl}
