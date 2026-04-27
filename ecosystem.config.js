@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'codelens-api',
       script: './apps/api/dist/index.js',
-      cwd: '/opt/codelens',
+      cwd: '/root/CodeLens',
       instances: 1,
       exec_mode: 'fork',
       env_production: {
@@ -36,7 +36,7 @@ module.exports = {
       name: 'codelens-web',
       script: 'serve',
       args: ['-s', 'dist', '-p', '5173'],
-      cwd: '/opt/codelens/apps/web',
+      cwd: '/root/CodeLens/apps/web',
       instances: 1,
       exec_mode: 'fork',
       env_production: {
