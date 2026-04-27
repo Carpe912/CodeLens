@@ -19,7 +19,7 @@ module.exports = {
         DB_PORT: '5432',
         DB_NAME: 'codelens',
         DB_USER: 'postgres',
-        DB_PASSWORD: 'postgres',
+        DB_PASSWORD: '666666',
         REDIS_HOST: 'localhost',
         REDIS_PORT: '6379',
       },
