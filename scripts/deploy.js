@@ -17,7 +17,7 @@ const path = require('path');
 // 配置
 const CONFIG = {
   server: {
-    host: '118.89.81.103',
+    host: '47.116.6.132',
     user: 'root',
     deployPath: '/root/CodeLens'
   },
