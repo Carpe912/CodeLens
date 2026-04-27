@@ -4,7 +4,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding, getRepo } from './db/index.js';
+import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding, getRepo, addQuestionFeedback, getQuestionFeedback, getSimilarQuestionsWithFeedback } from './db/index.js';
 import { enqueueIndexJob, enqueueIncrementalIndexJob, startIndexWorker } from './indexer/queue.js';
 import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
@@ -181,17 +181,24 @@ fastify.post<{
   const embedding = await generateEmbedding(query);
   const evidence = await searchByEmbedding(repoId, embedding, 10);
 
-  const answer = await answerQuestion(query, evidence);
+  // Get similar historical questions with feedback
+  const historicalFeedback = await getSimilarQuestionsWithFeedback(repoId, query, 3);
 
-  await pool.query(
-    'INSERT INTO questions (repo_id, query, answer, evidence_ids) VALUES ($1, $2, $3, $4)',
+  const answer = await answerQuestion(query, evidence, historicalFeedback);
+
+  const questionResult = await pool.query(
+    'INSERT INTO questions (repo_id, query, answer, evidence_ids) VALUES ($1, $2, $3, $4) RETURNING id',
     [repoId, query, answer, evidence.map((e) => e.id)]
   );
 
+  const questionId = questionResult.rows[0].id;
+
   const result = {
+    questionId,
     query,
     answer,
     evidence,
+    historicalFeedback: historicalFeedback.length > 0 ? historicalFeedback : undefined,
   };
 
   // Cache the result
@@ -224,6 +231,36 @@ fastify.post<{
 fastify.get('/questions', async () => {
   const result = await pool.query('SELECT * FROM questions ORDER BY created_at DESC LIMIT 50');
   return result.rows;
+});
+
+// Add feedback to a question
+fastify.post<{
+  Body: { questionId: number; feedbackText: string; isHelpful: boolean };
+}>('/questions/feedback', async (request, reply) => {
+  const { questionId, feedbackText, isHelpful } = request.body;
+
+  if (!questionId || !feedbackText) {
+    return reply.code(400).send({ error: 'Missing questionId or feedbackText' });
+  }
+
+  const feedbackId = await addQuestionFeedback(questionId, feedbackText, isHelpful);
+
+  return { feedbackId, success: true };
+});
+
+// Get feedback for a question
+fastify.get<{
+  Querystring: { questionId: string };
+}>('/questions/feedback', async (request, reply) => {
+  const { questionId } = request.query;
+
+  if (!questionId) {
+    return reply.code(400).send({ error: 'Missing questionId' });
+  }
+
+  const feedback = await getQuestionFeedback(parseInt(questionId));
+
+  return { feedback };
 });
 
 // Get call graph for a symbol

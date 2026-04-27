@@ -38,9 +38,15 @@ type SearchHit = {
 };
 
 type QAResponse = {
+  questionId: number;
   query: string;
   answer: string;
   evidence: SearchHit[];
+  historicalFeedback?: Array<{
+    query: string;
+    answer: string;
+    feedback: Array<{ feedback_text: string; is_helpful: boolean }>;
+  }>;
 };
 
 // Toast notification component
@@ -94,7 +100,7 @@ function HomePage() {
       if (!res.ok) throw new Error('Failed to fetch repos');
       return res.json();
     },
-    refetchInterval: 3000, // Poll every 3 seconds to update indexing status
+    refetchInterval: 3000,
   });
 
   const createRepoMutation = useMutation({
@@ -140,121 +146,224 @@ function HomePage() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      <h1 className="text-3xl font-bold mb-8">CodeLens - 代码智能问答平台</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">GitLab 接入</h2>
-          <input
-            type="text"
-            placeholder="仓库名称"
-            value={repoName}
-            onChange={(e) => setRepoName(e.target.value)}
-            disabled={createRepoMutation.isPending}
-            className="w-full px-3 py-2 border rounded mb-3 disabled:bg-gray-100"
-          />
-          <input
-            type="text"
-            placeholder="GitLab URL (例如: https://gitlab.com/user/repo.git)"
-            value={gitlabUrl}
-            onChange={(e) => setGitlabUrl(e.target.value)}
-            disabled={createRepoMutation.isPending}
-            className="w-full px-3 py-2 border rounded mb-3 disabled:bg-gray-100"
-          />
-          <input
-            type="password"
-            placeholder="GitLab Personal Access Token (可选，私有仓库必填)"
-            value={gitlabToken}
-            onChange={(e) => setGitlabToken(e.target.value)}
-            disabled={createRepoMutation.isPending}
-            className="w-full px-3 py-2 border rounded mb-3 disabled:bg-gray-100"
-          />
-          <button
-            onClick={() => {
-              if (repoName && gitlabUrl) {
-                createRepoMutation.mutate({
-                  name: repoName,
-                  source: 'gitlab',
-                  url: gitlabUrl,
-                  gitlabToken: gitlabToken || undefined
-                });
-              }
-            }}
-            disabled={createRepoMutation.isPending || !repoName || !gitlabUrl}
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
-          >
-            {createRepoMutation.isPending ? <LoadingSpinner /> : '接入仓库'}
-          </button>
+      <div className="max-w-7xl mx-auto p-8">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+            CodeLens
+          </h1>
+          <p className="text-xl text-gray-600">代码智能问答平台 - 让代码理解更简单</p>
         </div>
 
-        <div className="border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">上传代码包</h2>
-          <input
-            type="file"
-            accept=".zip"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                uploadMutation.mutate(file);
-              }
-            }}
-            disabled={uploadMutation.isPending}
-            className="w-full px-3 py-2 border rounded mb-3 disabled:bg-gray-100"
-          />
-          <p className="text-sm text-gray-600">
-            {uploadMutation.isPending ? '上传中...' : '支持 .zip 格式'}
-          </p>
-        </div>
-      </div>
-
-      <div className="border rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">仓库列表</h2>
-
-        {reposLoading && <LoadingSpinner />}
-
-        {reposError && (
-          <div className="text-red-600 p-4 bg-red-50 rounded">
-            加载失败: {(reposError as Error).message}
-          </div>
-        )}
-
-        {repos && repos.length === 0 && (
-          <div className="text-gray-500 text-center py-8">
-            暂无仓库，请先接入或上传代码
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {repos?.map((repo) => (
-            <div
-              key={repo.id}
-              className="flex items-center justify-between p-4 border rounded hover:bg-gray-50 cursor-pointer"
-              onClick={() => repo.status === 'ready' && navigate(`/repo/${repo.id}`)}
-            >
-              <div>
-                <div className="font-medium">{repo.name}</div>
-                <div className="text-sm text-gray-600 flex items-center gap-2">
-                  <span>{repo.source}</span>
-                  <span>·</span>
-                  <span className={`
-                    ${repo.status === 'ready' ? 'text-green-600' : ''}
-                    ${repo.status === 'indexing' ? 'text-blue-600 animate-pulse' : ''}
-                    ${repo.status === 'failed' ? 'text-red-600' : ''}
-                  `}>
-                    {repo.status === 'ready' && '✓ 就绪'}
-                    {repo.status === 'indexing' && '⏳ 索引中...'}
-                    {repo.status === 'failed' && '✗ 失败'}
-                  </span>
-                </div>
+        {/* Input Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+          {/* GitLab Card */}
+          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow">
+            <div className="flex items-center mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center mr-4">
+                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M23.546 10.93L13.067.452c-.604-.603-1.582-.603-2.188 0L8.708 2.627l2.76 2.76c.645-.215 1.379-.07 1.889.441.516.515.658 1.258.438 1.9l2.658 2.66c.645-.223 1.387-.078 1.9.435.721.72.721 1.884 0 2.604-.719.719-1.881.719-2.6 0-.539-.541-.674-1.337-.404-1.996L12.86 8.955v6.525c.176.086.342.203.488.348.713.721.713 1.883 0 2.6-.719.721-1.889.721-2.609 0-.719-.719-.719-1.879 0-2.598.182-.18.387-.316.605-.406V8.835c-.217-.091-.424-.222-.6-.401-.545-.545-.676-1.342-.396-2.009L7.636 3.7.45 10.881c-.6.605-.6 1.584 0 2.189l10.48 10.477c.604.604 1.582.604 2.186 0l10.43-10.43c.605-.603.605-1.582 0-2.187"/>
+                </svg>
               </div>
-              <div className="text-sm text-gray-500">
-                {new Date(repo.created_at).toLocaleDateString()}
+              <h2 className="text-2xl font-bold text-gray-800">GitLab 接入</h2>
+            </div>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="仓库名称"
+                value={repoName}
+                onChange={(e) => setRepoName(e.target.value)}
+                disabled={createRepoMutation.isPending}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:bg-gray-50 disabled:cursor-not-allowed"
+              />
+              <input
+                type="text"
+                placeholder="GitLab URL (例如: https://gitlab.com/user/repo.git)"
+                value={gitlabUrl}
+                onChange={(e) => setGitlabUrl(e.target.value)}
+                disabled={createRepoMutation.isPending}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:bg-gray-50 disabled:cursor-not-allowed"
+              />
+              <input
+                type="password"
+                placeholder="Personal Access Token (可选，私有仓库必填)"
+                value={gitlabToken}
+                onChange={(e) => setGitlabToken(e.target.value)}
+                disabled={createRepoMutation.isPending}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:bg-gray-50 disabled:cursor-not-allowed"
+              />
+              <button
+                onClick={() => {
+                  if (repoName && gitlabUrl) {
+                    createRepoMutation.mutate({
+                      name: repoName,
+                      source: 'gitlab',
+                      url: gitlabUrl,
+                      gitlabToken: gitlabToken || undefined
+                    });
+                  }
+                }}
+                disabled={createRepoMutation.isPending || !repoName || !gitlabUrl}
+                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed flex items-center justify-center font-semibold shadow-lg hover:shadow-xl transition-all"
+              >
+                {createRepoMutation.isPending ? <LoadingSpinner /> : '接入仓库'}
+              </button>
+            </div>
+          </div>
+
+          {/* Upload Card */}
+          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 hover:shadow-2xl transition-shadow">
+            <div className="flex items-center mb-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center mr-4">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800">上传代码包</h2>
+            </div>
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors">
+                <input
+                  type="file"
+                  accept=".zip"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      uploadMutation.mutate(file);
+                    }
+                  }}
+                  disabled={uploadMutation.isPending}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className={`cursor-pointer ${uploadMutation.isPending ? 'cursor-not-allowed opacity-50' : ''}`}
+                >
+                  <div className="flex flex-col items-center">
+                    <svg className="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="text-lg font-semibold text-gray-700 mb-2">
+                      {uploadMutation.isPending ? '上传中...' : '点击选择 ZIP 文件'}
+                    </p>
+                    <p className="text-sm text-gray-500">支持 .zip 格式的代码压缩包</p>
+                  </div>
+                </label>
               </div>
             </div>
-          ))}
+          </div>
+        </div>
+
+        {/* Repos List */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+            <svg className="w-8 h-8 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            仓库列表
+          </h2>
+
+          {reposLoading && (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner />
+            </div>
+          )}
+
+          {reposError && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-6 h-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-red-700 font-medium">加载失败: {(reposError as Error).message}</p>
+              </div>
+            </div>
+          )}
+
+          {repos && repos.length === 0 && (
+            <div className="text-center py-16">
+              <svg className="w-24 h-24 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+              <p className="text-xl text-gray-500">暂无仓库</p>
+              <p className="text-gray-400 mt-2">请先接入 GitLab 仓库或上传代码包</p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {repos?.map((repo) => (
+              <div
+                key={repo.id}
+                className={`group relative bg-gradient-to-r from-gray-50 to-white border-2 border-gray-200 rounded-xl p-6 transition-all ${
+                  repo.status === 'ready' ? 'hover:border-blue-400 hover:shadow-lg cursor-pointer' : 'cursor-default'
+                }`}
+                onClick={() => repo.status === 'ready' && navigate(`/repo/${repo.id}`)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center mb-2">
+                      <h3 className="text-xl font-bold text-gray-800 mr-3">{repo.name}</h3>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        repo.source === 'gitlab'
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-green-100 text-green-700'
+                      }`}>
+                        {repo.source === 'gitlab' ? 'GitLab' : 'ZIP'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className={`flex items-center font-medium ${
+                        repo.status === 'ready' ? 'text-green-600' : ''
+                      } ${
+                        repo.status === 'indexing' ? 'text-blue-600 animate-pulse' : ''
+                      } ${
+                        repo.status === 'failed' ? 'text-red-600' : ''
+                      }`}>
+                        {repo.status === 'ready' && (
+                          <>
+                            <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            就绪
+                          </>
+                        )}
+                        {repo.status === 'indexing' && (
+                          <>
+                            <svg className="w-5 h-5 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            索引中...
+                          </>
+                        )}
+                        {repo.status === 'failed' && (
+                          <>
+                            <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                            失败
+                          </>
+                        )}
+                      </span>
+                      <span className="text-gray-500">
+                        {new Date(repo.created_at).toLocaleString('zh-CN')}
+                      </span>
+                    </div>
+                  </div>
+                  {repo.status === 'ready' && (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -318,6 +427,11 @@ function RepoPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>(getSearchHistory());
   const [showHistory, setShowHistory] = useState(false);
+
+  // Feedback states
+  const [feedbackText, setFeedbackText] = useState('');
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
 
   // Filter states
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('all');
@@ -401,6 +515,33 @@ function RepoPage() {
     } finally {
       setLoading(false);
       abortControllerRef.current = null;
+    }
+  };
+
+  const handleFeedbackSubmit = async (isHelpful: boolean) => {
+    if (!result?.questionId || !feedbackText.trim()) return;
+
+    setFeedbackSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/questions/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionId: result.questionId,
+          feedbackText: feedbackText.trim(),
+          isHelpful,
+        }),
+      });
+
+      if (!res.ok) throw new Error('提交反馈失败');
+
+      setFeedbackText('');
+      setShowFeedbackForm(false);
+      alert('感谢您的反馈！');
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setFeedbackSubmitting(false);
     }
   };
 
@@ -562,9 +703,98 @@ function RepoPage() {
       {result && (
         <div className="space-y-6">
           {result.answer && (
-            <div className="border rounded-lg p-6 bg-blue-50">
-              <h3 className="font-semibold mb-2">回答</h3>
-              <div className="whitespace-pre-wrap">{result.answer}</div>
+            <div className="border-2 border-blue-200 rounded-xl p-6 bg-gradient-to-br from-blue-50 to-indigo-50">
+              <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                回答
+              </h3>
+              <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">{result.answer}</div>
+
+              {/* Historical Feedback Display */}
+              {result.historicalFeedback && result.historicalFeedback.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-blue-200">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    历史相关反馈
+                  </h4>
+                  <div className="space-y-3">
+                    {result.historicalFeedback.map((item, idx) => (
+                      <div key={idx} className="bg-white rounded-lg p-4 border border-gray-200">
+                        <p className="text-sm text-gray-600 mb-2">相关问题: {item.query}</p>
+                        {item.feedback.map((fb, fbIdx) => (
+                          <div key={fbIdx} className="flex items-start gap-2 text-sm">
+                            <span className={`mt-0.5 ${fb.is_helpful ? 'text-green-600' : 'text-orange-600'}`}>
+                              {fb.is_helpful ? '✓' : '⚠'}
+                            </span>
+                            <span className="text-gray-700">{fb.feedback_text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Feedback Form */}
+              {result.questionId && (
+                <div className="mt-6 pt-6 border-t border-blue-200">
+                  {!showFeedbackForm ? (
+                    <button
+                      onClick={() => setShowFeedbackForm(true)}
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                      </svg>
+                      添加反馈或补充信息
+                    </button>
+                  ) : (
+                    <div className="space-y-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        您的反馈（例如：功能已废弃、相关议题编号、补充说明等）
+                      </label>
+                      <textarea
+                        value={feedbackText}
+                        onChange={(e) => setFeedbackText(e.target.value)}
+                        placeholder="例如：这个登录流程已经被废弃，现在使用 OAuth2.0 方式，参见议题 #456"
+                        disabled={feedbackSubmitting}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:bg-gray-50 resize-none"
+                        rows={3}
+                      />
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleFeedbackSubmit(true)}
+                          disabled={feedbackSubmitting || !feedbackText.trim()}
+                          className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white py-2 px-4 rounded-xl hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl transition-all"
+                        >
+                          {feedbackSubmitting ? <LoadingSpinner /> : '✓ 有帮助的补充'}
+                        </button>
+                        <button
+                          onClick={() => handleFeedbackSubmit(false)}
+                          disabled={feedbackSubmitting || !feedbackText.trim()}
+                          className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white py-2 px-4 rounded-xl hover:from-orange-700 hover:to-orange-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl transition-all"
+                        >
+                          {feedbackSubmitting ? <LoadingSpinner /> : '⚠ 需要修正'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowFeedbackForm(false);
+                            setFeedbackText('');
+                          }}
+                          disabled={feedbackSubmitting}
+                          className="px-4 py-2 border-2 border-gray-300 rounded-xl hover:bg-gray-50 disabled:cursor-not-allowed transition-all"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

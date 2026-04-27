@@ -81,6 +81,16 @@ export async function initDatabase() {
     `);
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS question_feedback (
+        id SERIAL PRIMARY KEY,
+        question_id INTEGER REFERENCES questions(id) ON DELETE CASCADE,
+        feedback_text TEXT NOT NULL,
+        is_helpful BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_code_chunks_embedding ON code_chunks USING ivfflat (embedding vector_cosine_ops);
     `);
 
@@ -107,6 +117,10 @@ export async function initDatabase() {
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_questions_repo_id ON questions(repo_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_question_feedback_question_id ON question_feedback(question_id);
     `);
 
     console.log('Database initialized');
@@ -226,4 +240,47 @@ export async function deleteFileChunks(fileId: number): Promise<void> {
 
 export async function deleteFile(fileId: number): Promise<void> {
   await pool.query('DELETE FROM files WHERE id = $1', [fileId]);
+}
+
+// Feedback functions
+export async function addQuestionFeedback(questionId: number, feedbackText: string, isHelpful: boolean): Promise<number> {
+  const result = await pool.query(
+    'INSERT INTO question_feedback (question_id, feedback_text, is_helpful) VALUES ($1, $2, $3) RETURNING id',
+    [questionId, feedbackText, isHelpful]
+  );
+  return result.rows[0].id;
+}
+
+export async function getQuestionFeedback(questionId: number): Promise<Array<{ id: number; feedback_text: string; is_helpful: boolean; created_at: Date }>> {
+  const result = await pool.query(
+    'SELECT id, feedback_text, is_helpful, created_at FROM question_feedback WHERE question_id = $1 ORDER BY created_at DESC',
+    [questionId]
+  );
+  return result.rows;
+}
+
+export async function getSimilarQuestionsWithFeedback(repoId: number, query: string, limit = 5): Promise<Array<{
+  id: number;
+  query: string;
+  answer: string;
+  feedback: Array<{ feedback_text: string; is_helpful: boolean }>;
+}>> {
+  const result = await pool.query(
+    `SELECT q.id, q.query, q.answer,
+      COALESCE(
+        json_agg(
+          json_build_object('feedback_text', qf.feedback_text, 'is_helpful', qf.is_helpful)
+          ORDER BY qf.created_at DESC
+        ) FILTER (WHERE qf.id IS NOT NULL),
+        '[]'
+      ) as feedback
+     FROM questions q
+     LEFT JOIN question_feedback qf ON q.id = qf.question_id
+     WHERE q.repo_id = $1 AND q.query ILIKE $2
+     GROUP BY q.id, q.query, q.answer
+     ORDER BY q.created_at DESC
+     LIMIT $3`,
+    [repoId, `%${query}%`, limit]
+  );
+  return result.rows;
 }
