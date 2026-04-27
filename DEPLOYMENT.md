@@ -10,7 +10,7 @@
 阿里云 CDN/WAF (sunlingyue.cn)
     ↓
 Nginx (47.116.6.132)
-    ├─→ /code/          → 静态文件 (React SPA)
+    ├─→ /code/          → PM2 Serve (React SPA on :5173)
     └─→ /code-api/      → API 服务 (Fastify on :8787)
                               ↓
                          PostgreSQL (:5432)
@@ -45,6 +45,21 @@ Nginx (47.116.6.132)
 
 ## 一键部署脚本
 
+### 前置条件
+
+1. **配置 SSH 密钥认证**（推荐，避免每次输入密码）
+
+```bash
+# 生成 SSH 密钥（如果还没有）
+ssh-keygen -t rsa -b 4096
+
+# 复制公钥到服务器
+ssh-copy-id root@47.116.6.132
+
+# 测试连接
+ssh root@47.116.6.132
+```
+
 ### 1. 配置部署脚本
 
 在 `package.json` 中添加部署命令：
@@ -60,6 +75,10 @@ Nginx (47.116.6.132)
 ### 2. 执行部署
 
 ```bash
+# 确保使用 Node.js 18+
+nvm use 18
+
+# 执行部署
 npm run deploy
 ```
 
@@ -68,6 +87,11 @@ npm run deploy
 2. 通过 SSH 上传到服务器
 3. 安装依赖
 4. 重启 PM2 服务
+
+**注意事项**：
+- 前端构建时 Vite base 配置为 `/`，由 Nginx 处理路径映射
+- 上传 dist 目录时使用 `dist/*` 避免嵌套目录问题
+- PM2 使用 `serve` 命令提供静态文件服务
 
 ## 手动部署步骤
 
@@ -89,12 +113,15 @@ pnpm build:web
 ### 2. 上传到服务器
 
 ```bash
-# 上传代码
-scp -r apps/ package.json pnpm-workspace.yaml ecosystem.config.js \
-  root@47.116.6.132:/opt/codelens/
+# 上传 API 构建产物
+scp -r apps/api/dist root@47.116.6.132:/opt/codelens/apps/api/
 
-# 上传环境配置
-scp apps/web/.env.production root@47.116.6.132:/opt/codelens/apps/web/
+# 上传前端构建产物（注意使用 dist/* 避免嵌套）
+ssh root@47.116.6.132 "rm -rf /opt/codelens/apps/web/dist && mkdir -p /opt/codelens/apps/web/dist"
+scp -r apps/web/dist/* root@47.116.6.132:/opt/codelens/apps/web/dist/
+
+# 上传配置文件
+scp package.json pnpm-workspace.yaml ecosystem.config.js root@47.116.6.132:/opt/codelens/
 ```
 
 ### 3. 服务器端操作
@@ -123,73 +150,113 @@ module.exports = {
     {
       name: 'codelens-api',
       script: './apps/api/dist/index.js',
+      cwd: '/opt/codelens',
       instances: 1,
       exec_mode: 'fork',
-      env: {
+      env_production: {
         NODE_ENV: 'production',
         PORT: 8787,
+        ANTHROPIC_BASE_URL: 'http://118.89.81.103:8081',
+        ANTHROPIC_AUTH_TOKEN: 'your_token',
+        EMBED_API_KEY: 'your_key',
+        EMBED_BASE_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        EMBED_MODEL: 'text-embedding-v3',
+        EMBED_DIMENSIONS: '1024',
         DB_HOST: 'localhost',
-        DB_PORT: 5432,
+        DB_PORT: '5432',
         DB_NAME: 'codelens',
         DB_USER: 'postgres',
-        DB_PASSWORD: '666666',
+        DB_PASSWORD: 'your_password',
         REDIS_HOST: 'localhost',
-        REDIS_PORT: 6379,
-        ANTHROPIC_API_KEY: 'your_key',
-        OPENAI_API_KEY: 'your_key'
-      }
-    }
-  ]
+        REDIS_PORT: '6379',
+      },
+      error_file: '/var/log/codelens-api-error.log',
+      out_file: '/var/log/codelens-api-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+      max_memory_restart: '1G',
+    },
+    {
+      name: 'codelens-web',
+      script: 'serve',
+      args: '-s dist -p 5173',
+      cwd: '/opt/codelens/apps/web',
+      instances: 1,
+      exec_mode: 'fork',
+      env_production: {
+        NODE_ENV: 'production',
+      },
+      error_file: '/var/log/codelens-web-error.log',
+      out_file: '/var/log/codelens-web-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      autorestart: true,
+    },
+  ],
 };
 ```
 
+**注意**：
+- 前端使用 `serve` 命令（需要全局安装：`npm install -g serve`）
+- `serve -s dist -p 5173` 提供单页应用支持（SPA）
+- 确保 `args` 参数格式正确，避免 `ENOTFOUND -p` 错误
+
 ## Nginx 配置
 
-文件：`/www/server/panel/vhost/nginx/47.116.6.132.conf`
-
-### 前端静态文件服务
+文件：`/www/server/nginx/conf/vhost/codelens.conf`
 
 ```nginx
-location /code/ {
-    alias /opt/codelens/apps/web/dist/;
-    try_files $uri $uri/ /code/index.html;
-    
-    # 静态资源缓存
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
+server {
+    listen 80;
+    server_name sunlingyue.cn www.sunlingyue.cn;
+
+    # CodeLens API 代理
+    location /code-api/ {
+        rewrite ^/code-api/(.*)$ /$1 break;
+        proxy_pass http://localhost:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
     }
+
+    # CodeLens Web 前端（代理到 PM2 serve）
+    location /code/ {
+        proxy_pass http://localhost:5173/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # CodeLens Web 前端 (无尾部斜杠重定向)
+    location = /code {
+        return 301 /code/;
+    }
+
+    access_log /var/log/nginx/codelens-access.log;
+    error_log /var/log/nginx/codelens-error.log;
 }
 ```
 
-### API 反向代理
-
-```nginx
-location /code-api/ {
-    proxy_pass http://localhost:8787/;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection 'upgrade';
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_cache_bypass $http_upgrade;
-}
-```
-
-### HTTPS 配置
-
-```nginx
-listen 443 ssl http2;
-ssl_certificate /www/server/panel/vhost/cert/47.116.6.132/fullchain.pem;
-ssl_certificate_key /www/server/panel/vhost/cert/47.116.6.132/privkey.pem;
-ssl_protocols TLSv1.2 TLSv1.3;
-ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:HIGH:!aNULL:!MD5:!RC4:!DHE;
-ssl_prefer_server_ciphers on;
-ssl_session_cache shared:SSL:10m;
-ssl_session_timeout 10m;
-```
+**配置说明**：
+- `/code/` 代理到 `http://localhost:5173/`（PM2 serve 服务）
+- `/code-api/` 代理到 `http://localhost:8787`（Fastify API）
+- Vite 构建时 `base: '/'`，由 Nginx 处理 `/code/` 路径映射
+- `serve -s` 参数确保 SPA 路由正常工作
 
 ## 环境变量配置
 
@@ -309,19 +376,96 @@ tail -f /www/wwwlogs/47.116.6.132.error.log
 
 ## 常见问题
 
-### 1. 前端 404 错误
+### 1. 前端资源 404 错误
 
-**原因**: Nginx 配置中 `try_files` 未正确配置
+**症状**: 访问前端页面时，CSS/JS 文件返回 404
 
-**解决**:
-```nginx
-location /code/ {
-    alias /opt/codelens/apps/web/dist/;
-    try_files $uri $uri/ /code/index.html;
+**原因**: Vite 配置的 `base` 路径与 Nginx 配置不匹配
+
+**解决方案**:
+```typescript
+// vite.config.ts - 使用根路径，由 Nginx 处理 /code/ 映射
+export default defineConfig({
+  base: '/',  // 不要设置为 '/code/' 或 '/code-lens/'
+  // ...
+})
+```
+
+重新构建并部署：
+```bash
+npm run build
+ssh root@47.116.6.132 "rm -rf /opt/codelens/apps/web/dist && mkdir -p /opt/codelens/apps/web/dist"
+scp -r apps/web/dist/* root@47.116.6.132:/opt/codelens/apps/web/dist/
+pm2 restart codelens-web
+```
+
+**验证**:
+```bash
+# 检查 index.html 中的资源路径
+ssh root@47.116.6.132 "grep -o 'src=\"[^\"]*\"' /opt/codelens/apps/web/dist/index.html"
+# 应该看到 src="/assets/..." 而不是 src="/code/assets/..."
+```
+
+### 2. PM2 前端服务启动失败 (ENOTFOUND -p)
+
+**症状**: `pm2 logs codelens-web` 显示 `getaddrinfo ENOTFOUND -p`
+
+**原因**: 
+- PM2 配置中 `args` 参数格式错误
+- 或者 `cwd` 路径指向了错误的目录（如嵌套的 dist/dist/）
+
+**解决方案**:
+```javascript
+// ecosystem.config.js
+{
+  name: 'codelens-web',
+  script: 'serve',
+  args: '-s dist -p 5173',  // 正确格式：参数之间用空格分隔
+  cwd: '/opt/codelens/apps/web',  // 确保路径正确，不是 dist/dist
 }
 ```
 
-### 2. API 502 错误
+确保 `serve` 已全局安装：
+```bash
+ssh root@47.116.6.132 "npm install -g serve"
+```
+
+### 3. 嵌套 dist 目录问题
+
+**症状**: 部署后发现 `/opt/codelens/apps/web/dist/dist/` 嵌套目录
+
+**原因**: 使用 `scp -r dist` 会将整个 dist 目录复制到目标目录下，造成嵌套
+
+**解决方案**:
+```bash
+# 清理旧文件
+ssh root@47.116.6.132 "rm -rf /opt/codelens/apps/web/dist && mkdir -p /opt/codelens/apps/web/dist"
+
+# 上传文件内容（使用 dist/* 而不是 dist）
+scp -r apps/web/dist/* root@47.116.6.132:/opt/codelens/apps/web/dist/
+
+# 验证目录结构
+ssh root@47.116.6.132 "ls -la /opt/codelens/apps/web/dist/"
+# 应该直接看到 index.html 和 assets/ 目录
+```
+
+### 4. SSH 密码认证失败
+
+**症状**: 部署脚本执行时频繁要求输入密码
+
+**解决方案**: 配置 SSH 密钥认证
+```bash
+# 生成密钥（如果没有）
+ssh-keygen -t rsa -b 4096
+
+# 复制公钥到服务器
+ssh-copy-id root@47.116.6.132
+
+# 测试免密登录
+ssh root@47.116.6.132 "echo 'SSH key authentication works!'"
+```
+
+### 5. API 502 错误
 
 **原因**: API 服务未启动或端口不匹配
 
@@ -329,9 +473,10 @@ location /code/ {
 ```bash
 pm2 status
 netstat -tlnp | grep 8787
+pm2 logs codelens-api --lines 50
 ```
 
-### 3. Mixed Content 错误
+### 6. Mixed Content 错误
 
 **原因**: HTTPS 页面请求 HTTP API
 
@@ -340,7 +485,7 @@ netstat -tlnp | grep 8787
 VITE_API_BASE_URL=https://sunlingyue.cn/code-api
 ```
 
-### 4. 静态资源 MIME 类型错误
+### 7. 静态资源 MIME 类型错误
 
 **原因**: Nginx 未正确识别文件类型
 
@@ -350,7 +495,7 @@ include mime.types;
 default_type application/octet-stream;
 ```
 
-### 5. 数据库连接失败
+### 8. 数据库连接失败
 
 **原因**: 数据库密码错误或数据库不存在
 

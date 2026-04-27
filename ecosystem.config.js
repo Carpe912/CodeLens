@@ -35,7 +35,7 @@ module.exports = {
     {
       name: 'codelens-web',
       script: 'serve',
-      args: '-s dist/dist -p 5173',
+      args: '-s dist -p 5173',
       cwd: '/opt/codelens/apps/web',
       instances: 1,
       exec_mode: 'fork',
