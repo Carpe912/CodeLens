@@ -8,7 +8,9 @@
     "dev:web": "pnpm --filter @codelens/web dev",
     "dev:api": "pnpm --filter @codelens/api dev",
     "build": "pnpm -r build",
+    "build:api": "pnpm --filter @codelens/api build",
+    "build:web": "pnpm --filter @codelens/web build",
     "typecheck": "pnpm -r typecheck",
-    "deploy:server": "bash deploy-root.sh"
+    "deploy": "node scripts/deploy.js"
   }
 }
