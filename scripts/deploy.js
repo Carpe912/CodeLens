@@ -60,6 +60,16 @@ function step(title) {
 function checkEnvironment() {
   step('检查环境');
 
+  // 检查 Node 版本
+  const nodeVersion = process.version;
+  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
+  if (majorVersion < 18) {
+    log(`✗ Node 版本过低 (${nodeVersion})，需要 >= 18.12`, 'red');
+    log('请运行: nvm use 22 或 nvm use 18', 'yellow');
+    process.exit(1);
+  }
+  log(`✓ Node 版本: ${nodeVersion}`, 'green');
+
   // 检查 pnpm
   try {
     execSync('pnpm --version', { stdio: 'ignore' });
@@ -146,13 +156,17 @@ function deployOnServer() {
 
   const { host, user, deployPath } = CONFIG.server;
 
+  // 清理旧的 node_modules（可选，加快安装速度）
+  log('清理旧依赖...', 'blue');
+  exec(`ssh ${user}@${host} "cd ${deployPath} && rm -rf node_modules apps/*/node_modules"`);
+
   // 安装依赖
   log('安装生产依赖...', 'blue');
   exec(`ssh ${user}@${host} "cd ${deployPath} && pnpm install --prod"`);
 
   // 重启服务
   log('重启 PM2 服务...', 'blue');
-  exec(`ssh ${user}@${host} "cd ${deployPath} && pm2 restart ecosystem.config.js"`);
+  exec(`ssh ${user}@${host} "cd ${deployPath} && pm2 delete all || true && pm2 start ecosystem.config.js --env production && pm2 save"`);
 
   // 检查服务状态
   log('检查服务状态...', 'blue');
@@ -165,28 +179,32 @@ function deployOnServer() {
 function verifyDeployment() {
   step('验证部署');
 
-  const { host } = CONFIG.server;
+  const { host, user } = CONFIG.server;
 
-  // 检查 API
+  // 等待服务启动
+  log('等待服务启动（5秒）...', 'blue');
+  execSync('sleep 5');
+
+  // 检查 API（在服务器内部检查）
   log('检查 API 服务...', 'blue');
   try {
-    execSync(`curl -f http://${host}:8787/health`, { stdio: 'ignore', timeout: 5000 });
+    execSync(`ssh ${user}@${host} "curl -f http://localhost:8787/health"`, { stdio: 'ignore', timeout: 10000 });
     log('✓ API 服务正常', 'green');
   } catch {
-    log('⚠ API 服务可能未启动，请手动检查: http://' + host + ':8787/health', 'yellow');
+    log('⚠ API 服务可能未启动，请手动检查', 'yellow');
   }
 
-  // 检查前端
+  // 检查前端（在服务器内部检查）
   log('检查前端服务...', 'blue');
   try {
-    execSync(`curl -f http://${host}:5173`, { stdio: 'ignore', timeout: 5000 });
+    execSync(`ssh ${user}@${host} "curl -f http://localhost:5173/code/"`, { stdio: 'ignore', timeout: 10000 });
     log('✓ 前端服务正常', 'green');
   } catch {
-    log('⚠ 前端服务可能未启动，请手动检查: http://' + host + ':5173', 'yellow');
+    log('⚠ 前端服务可能未启动，请手动检查', 'yellow');
   }
 
-  log('\n提示: 部署完成后需要执行数据库迁移:', 'yellow');
-  log(`  curl -X POST http://${host}:8787/admin/migrate-vector-dimension`, 'blue');
+  log('\n✓ 部署验证完成', 'green');
+  log('访问地址: https://sunlingyue.cn/code/', 'blue');
 }
 
 // 主函数
