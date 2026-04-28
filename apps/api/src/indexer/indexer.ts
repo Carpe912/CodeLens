@@ -281,8 +281,20 @@ export async function refreshGitLabRepo(repoId: number, url: string, gitlabToken
   await execAsync(`cd ${repoPath} && git pull`);
 
   // Get list of changed files
-  const { stdout } = await execAsync(`cd ${repoPath} && git diff --name-only HEAD@{1} HEAD`);
-  const changedFiles = stdout.trim().split('\n').filter(f => f && f.match(/\.(ts|tsx|js|jsx|vue)$/));
+  let changedFiles: string[] = [];
+  try {
+    const { stdout } = await execAsync(`cd ${repoPath} && git diff --name-only HEAD@{1} HEAD`);
+    changedFiles = stdout.trim().split('\n').filter(f => f && f.match(/\.(ts|tsx|js|jsx|vue)$/));
+  } catch (error: any) {
+    // If HEAD@{1} doesn't exist (first clone), do a full reindex
+    if (error.stderr?.includes('only has 1 entry') || error.stderr?.includes('仅有 1 个条目')) {
+      console.log(`First time indexing, doing full reindex for repo ${repoId}`);
+      await indexCodebase(repoId, repoPath);
+      await updateRepoStatus(repoId, 'ready');
+      return { filesUpdated: 'full-reindex' };
+    }
+    throw error;
+  }
 
   if (changedFiles.length === 0) {
     console.log(`No code files changed for repo ${repoId}`);
