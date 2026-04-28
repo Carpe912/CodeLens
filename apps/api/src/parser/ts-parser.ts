@@ -14,7 +14,11 @@ export function parseTsFile(filePath: string, code: string): ParseResult {
   try {
     const ast = parse(code, {
       sourceType: 'module',
-      plugins: ['typescript', 'jsx'],
+      plugins: [
+        'typescript',
+        'jsx',
+        ['decorators', { decoratorsBeforeExport: true }],
+      ],
     });
 
   traverse(ast, {

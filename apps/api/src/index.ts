@@ -5,7 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding, getRepo, addQuestionFeedback, getQuestionFeedback, getSimilarQuestionsWithFeedback, clearRepoData, getIndexProgress } from './db/index.js';
-import { enqueueIndexJob, enqueueIncrementalIndexJob, enqueueRefreshJob, startIndexWorker } from './indexer/queue.js';
+import { enqueueIndexJob, enqueueIncrementalIndexJob, enqueueRefreshJob, enqueueReindexJob, startIndexWorker } from './indexer/queue.js';
 import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
 import { searchTTLCache, generateCacheKey } from './cache.js';
@@ -201,7 +201,7 @@ fastify.post<{
     if (!repo.url) {
       return reply.code(400).send({ error: 'Repository URL not found' });
     }
-    jobId = await enqueueRefreshJob({
+    jobId = await enqueueReindexJob({
       repoId,
       url: repo.url,
       gitlabToken: repo.gitlab_token,
@@ -260,11 +260,14 @@ fastify.get<{
   if (total > 0) {
     percentComplete = Math.round((processed / total) * 100);
 
-    if (processed > 0 && startTime) {
+    if (processed > 10 && startTime) { // Only estimate after processing at least 10 files
       const elapsedMs = Date.now() - startTime.getTime();
       const msPerFile = elapsedMs / processed;
       const remainingFiles = total - processed;
-      estimatedTimeRemaining = Math.round((msPerFile * remainingFiles) / 1000); // in seconds
+
+      // Use a more conservative estimate by adding 20% buffer for variability
+      const estimatedMs = msPerFile * remainingFiles * 1.2;
+      estimatedTimeRemaining = Math.round(estimatedMs / 1000); // in seconds
     }
   }
 

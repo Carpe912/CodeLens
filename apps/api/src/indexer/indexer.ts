@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseFile } from '../parser/index.js';
-import { insertFile, insertCodeChunk, updateRepoStatus, getFileByPath, updateFile, deleteFileChunks, deleteFile, updateIndexProgress } from '../db/index.js';
+import { insertFile, insertCodeChunk, updateRepoStatus, getFileByPath, updateFile, deleteFileChunks, deleteFile, updateIndexProgress, pool } from '../db/index.js';
 import { batchGenerateEmbeddings } from '../llm/embeddings.js';
 import type { IndexJobData } from './queue.js';
 
@@ -58,16 +58,32 @@ async function indexCodebase(repoId: number, repoPath: string) {
   const files = await collectFiles(repoPath);
   console.log(`Full indexing ${files.length} files for repo ${repoId}`);
 
-  // Initialize progress
-  await updateIndexProgress(repoId, files.length, 0, new Date());
+  // Check which files are already indexed (for resume capability)
+  const indexedFilesResult = await pool.query(
+    'SELECT path FROM files WHERE repo_id = $1',
+    [repoId]
+  );
+  const indexedPaths = new Set(indexedFilesResult.rows.map((row: any) => row.path));
+
+  // Filter out already indexed files
+  const filesToProcess = files.filter(filePath => {
+    const relativePath = filePath.replace(repoPath, '').replace(/^\//, '');
+    return !indexedPaths.has(relativePath);
+  });
+
+  const alreadyIndexed = files.length - filesToProcess.length;
+  console.log(`Found ${alreadyIndexed} already indexed files, processing ${filesToProcess.length} remaining files`);
+
+  // Initialize or update progress
+  await updateIndexProgress(repoId, files.length, alreadyIndexed, new Date());
 
   // Process files in batches to avoid memory issues
   const BATCH_SIZE = 10;
-  let processedCount = 0;
+  let processedCount = alreadyIndexed;
 
-  for (let i = 0; i < files.length; i += BATCH_SIZE) {
-    const batch = files.slice(i, i + BATCH_SIZE);
-    console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
+  for (let i = 0; i < filesToProcess.length; i += BATCH_SIZE) {
+    const batch = filesToProcess.slice(i, i + BATCH_SIZE);
+    console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(filesToProcess.length / BATCH_SIZE)} (${batch.length} files)`);
 
     for (const filePath of batch) {
       try {
@@ -282,6 +298,29 @@ export async function indexMultipleFiles(repoId: number, repoPath: string, relat
   }
 
   console.log(`Incremental indexing completed for ${relativePaths.length} files`);
+}
+
+// Re-index GitLab repository: delete local copy, re-clone, and do full index
+export async function reindexGitLabRepo(repoId: number, url: string, gitlabToken?: string) {
+  const repoPath = `/tmp/codelens-repos/${repoId}`;
+
+  // Delete existing repository directory if it exists
+  try {
+    await execAsync(`rm -rf ${repoPath}`);
+    console.log(`Deleted existing repository directory for repo ${repoId}`);
+  } catch (error) {
+    console.log(`No existing directory to delete for repo ${repoId}`);
+  }
+
+  // Clone the repository
+  console.log(`Cloning repository for full reindex: ${url}`);
+  await cloneGitLabRepo(url, repoId, gitlabToken);
+
+  // Do full index
+  await indexCodebase(repoId, repoPath);
+  await updateRepoStatus(repoId, 'ready');
+
+  return { filesUpdated: 'full-reindex' };
 }
 
 // Refresh GitLab repository: pull latest changes and index modified files

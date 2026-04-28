@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
-import { indexRepository, indexMultipleFiles, refreshGitLabRepo } from './indexer.js';
+import { indexRepository, indexMultipleFiles, refreshGitLabRepo, reindexGitLabRepo } from './indexer.js';
 import { updateRepoStatus } from '../db/index.js';
 
 const connection = new Redis({
@@ -32,8 +32,14 @@ export type RefreshJobData = {
   gitlabToken?: string;
 };
 
+export type ReindexJobData = {
+  repoId: number;
+  url: string;
+  gitlabToken?: string;
+};
+
 export function startIndexWorker() {
-  const worker = new Worker<IndexJobData | IncrementalIndexJobData | RefreshJobData>(
+  const worker = new Worker<IndexJobData | IncrementalIndexJobData | RefreshJobData | ReindexJobData>(
     'index-repo',
     async (job) => {
       console.log(`Processing index job ${job.id}`);
@@ -51,6 +57,10 @@ export function startIndexWorker() {
           const data = job.data as RefreshJobData;
           console.log(`Refreshing repo ${data.repoId}`);
           await refreshGitLabRepo(data.repoId, data.url, data.gitlabToken);
+        } else if (job.name === 'reindex') {
+          const data = job.data as ReindexJobData;
+          console.log(`Re-indexing repo ${data.repoId}`);
+          await reindexGitLabRepo(data.repoId, data.url, data.gitlabToken);
         }
         console.log(`Index job ${job.id} completed`);
       } catch (error) {
@@ -100,5 +110,10 @@ export async function enqueueIncrementalIndexJob(data: IncrementalIndexJobData) 
 
 export async function enqueueRefreshJob(data: RefreshJobData) {
   const job = await indexQueue.add('refresh', data);
+  return job.id;
+}
+
+export async function enqueueReindexJob(data: ReindexJobData) {
+  const job = await indexQueue.add('reindex', data);
   return job.id;
 }
