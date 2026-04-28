@@ -4,7 +4,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding, getRepo, addQuestionFeedback, getQuestionFeedback, getSimilarQuestionsWithFeedback } from './db/index.js';
+import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding, getRepo, addQuestionFeedback, getQuestionFeedback, getSimilarQuestionsWithFeedback, clearRepoData, getIndexProgress } from './db/index.js';
 import { enqueueIndexJob, enqueueIncrementalIndexJob, enqueueRefreshJob, startIndexWorker } from './indexer/queue.js';
 import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
@@ -171,6 +171,113 @@ fastify.post<{
   });
 
   return { jobId, status: 'refreshing' };
+});
+
+// Re-index repository (clear all data and start fresh)
+fastify.post<{
+  Params: { id: string };
+}>('/repos/:id/reindex', async (request, reply) => {
+  const repoId = parseInt(request.params.id);
+
+  const repo = await getRepo(repoId);
+  if (!repo) {
+    return reply.code(404).send({ error: 'Repository not found' });
+  }
+
+  if (repo.status === 'indexing') {
+    return reply.code(400).send({ error: 'Repository is currently being indexed' });
+  }
+
+  // Clear all existing data
+  console.log(`Clearing data for repo ${repoId}`);
+  await clearRepoData(repoId);
+
+  // Update status to indexing
+  await pool.query('UPDATE repos SET status = $1 WHERE id = $2', ['indexing', repoId]);
+
+  // Enqueue index job based on source
+  let jobId;
+  if (repo.source === 'gitlab') {
+    if (!repo.url) {
+      return reply.code(400).send({ error: 'Repository URL not found' });
+    }
+    jobId = await enqueueRefreshJob({
+      repoId,
+      url: repo.url,
+      gitlabToken: repo.gitlab_token,
+    });
+  } else {
+    // For ZIP repos, we need the original zip path (not available, so return error)
+    return reply.code(400).send({ error: 'Re-indexing ZIP repositories is not supported. Please upload again.' });
+  }
+
+  return { jobId, status: 'reindexing' };
+});
+
+// Delete repository
+fastify.delete<{
+  Params: { id: string };
+}>('/repos/:id', async (request, reply) => {
+  const repoId = parseInt(request.params.id);
+
+  const repo = await getRepo(repoId);
+  if (!repo) {
+    return reply.code(404).send({ error: 'Repository not found' });
+  }
+
+  if (repo.status === 'indexing') {
+    return reply.code(400).send({ error: 'Cannot delete repository while indexing' });
+  }
+
+  // Delete the repository (cascade will delete all related data)
+  await pool.query('DELETE FROM repos WHERE id = $1', [repoId]);
+
+  return { success: true, message: 'Repository deleted' };
+});
+
+// Get indexing progress
+fastify.get<{
+  Params: { id: string };
+}>('/repos/:id/progress', async (request, reply) => {
+  const repoId = parseInt(request.params.id);
+
+  const repo = await getRepo(repoId);
+  if (!repo) {
+    return reply.code(404).send({ error: 'Repository not found' });
+  }
+
+  const progress = await getIndexProgress(repoId);
+  if (!progress) {
+    return { status: repo.status, progress: null };
+  }
+
+  const { total, processed, startTime } = progress;
+
+  // Calculate estimated time remaining
+  let estimatedTimeRemaining = null;
+  let percentComplete = 0;
+
+  if (total > 0) {
+    percentComplete = Math.round((processed / total) * 100);
+
+    if (processed > 0 && startTime) {
+      const elapsedMs = Date.now() - startTime.getTime();
+      const msPerFile = elapsedMs / processed;
+      const remainingFiles = total - processed;
+      estimatedTimeRemaining = Math.round((msPerFile * remainingFiles) / 1000); // in seconds
+    }
+  }
+
+  return {
+    status: repo.status,
+    progress: {
+      total,
+      processed,
+      percentComplete,
+      estimatedTimeRemaining, // in seconds
+      startTime,
+    },
+  };
 });
 
 // Admin endpoint to reset repo status (temporary)

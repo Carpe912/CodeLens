@@ -61,7 +61,7 @@ CodeLens 是一个基于 AI 的代码理解和问答系统，它可以：
 
 | 服务 | 用途 |
 |------|------|
-| **OpenAI API** | 文本嵌入（text-embedding-3-small）|
+| **阿里云 DashScope** | 文本嵌入（text-embedding-v3，1024 维）|
 | **Anthropic Claude** | 代码问答（Claude 3.5 Sonnet）|
 
 ---
@@ -218,14 +218,22 @@ function prepareText(codeBlock: CodeBlock): string {
   return `${codeBlock.name}\n${codeBlock.code}\n${codeBlock.docstring}`;
 }
 
-// 2. 调用 OpenAI API
+// 2. 调用 Embedding API
 async function getEmbedding(text: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
-    input: text,
-    dimensions: 1536
+  const response = await fetch(`${EMBED_BASE_URL}/embeddings`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${EMBED_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'text-embedding-v3',
+      input: text,
+      dimensions: 1024
+    })
   });
-  return response.data[0].embedding;
+  const data = await response.json();
+  return data.data[0].embedding;
 }
 
 // 3. 存储向量
@@ -240,12 +248,13 @@ async function saveEmbedding(blockId: string, vector: number[]) {
 **关键技术**:
 - **文本嵌入**: 将文本转换为高维向量
 - **批量处理**: 减少 API 调用次数
-- **向量维度**: 1536 维（OpenAI text-embedding-3-small）
+- **向量维度**: 1024 维（阿里云 text-embedding-v3）
 
 **学习要点**:
 1. 什么是词嵌入（Word Embedding）
 2. 如何选择合适的嵌入模型
 3. 批量 API 调用的最佳实践
+4. 不同 embedding 模型的对比（OpenAI vs 阿里云）
 
 ### 3. 语义搜索 (Search)
 
@@ -634,6 +643,314 @@ redis-server
 2. 输入 GitHub 仓库 URL，点击索引
 3. 等待索引完成
 4. 尝试搜索和问答功能
+
+---
+
+## 生产部署优化
+
+### 内存优化策略
+
+在小内存服务器（1-2GB）上运行时，需要特别注意内存管理：
+
+#### 1. 分批处理
+
+```typescript
+// apps/api/src/indexer/indexer.ts
+async function indexCodebase(repoId: number, repoPath: string) {
+  const files = await collectFiles(repoPath);
+  
+  // 每批处理 3 个文件，避免内存溢出
+  const BATCH_SIZE = 3;
+  
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE);
+    
+    for (const filePath of batch) {
+      await indexFile(repoId, filePath);
+    }
+    
+    // 手动触发垃圾回收
+    if (global.gc) {
+      global.gc();
+    }
+    
+    // 批次间延迟，让 GC 有时间清理
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+}
+```
+
+**关键点**：
+- 小批次处理（3-5 个文件）
+- 批次间主动触发 GC
+- 添加延迟让内存有时间释放
+
+#### 2. Node.js 内存限制
+
+```javascript
+// ecosystem.config.js
+module.exports = {
+  apps: [{
+    name: 'codelens-api',
+    script: './apps/api/dist/index.js',
+    node_args: '--expose-gc --max-old-space-size=1024',
+    max_memory_restart: '1G'
+  }]
+};
+```
+
+**参数说明**：
+- `--expose-gc`: 允许代码中调用 `global.gc()`
+- `--max-old-space-size=1024`: 限制堆内存为 1GB
+- `max_memory_restart`: 超过限制时自动重启
+
+#### 3. BullMQ 任务超时配置
+
+```typescript
+// apps/api/src/indexer/queue.ts
+const worker = new Worker('index-repo', async (job) => {
+  // 处理任务
+}, {
+  connection,
+  lockDuration: 3600000,      // 1 小时锁定时间
+  stalledInterval: 3600000,   // 1 小时检查间隔
+  maxStalledCount: 1          // 最多重试 1 次
+});
+```
+
+**为什么需要长超时**：
+- 大型仓库索引可能需要 30+ 分钟
+- 默认超时（30 秒）会导致任务被误判为失败
+- 长超时确保任务有足够时间完成
+
+### GitLab 增量索引
+
+支持 GitLab 仓库的智能增量更新：
+
+```typescript
+// apps/api/src/indexer/indexer.ts
+async function refreshGitLabRepo(repoId: number, url: string, token?: string) {
+  const repoPath = `/tmp/codelens-repos/${repoId}`;
+  
+  // 1. 检查是否首次克隆
+  const { stdout: reflogOutput } = await execAsync(
+    `cd ${repoPath} && git reflog --format="%H" | wc -l`
+  );
+  const reflogCount = parseInt(reflogOutput.trim());
+  
+  if (reflogCount <= 1) {
+    // 首次克隆，全量索引
+    await indexCodebase(repoId, repoPath);
+  } else {
+    // 增量更新，只索引变更文件
+    const { stdout } = await execAsync(
+      `cd ${repoPath} && git diff --name-only HEAD@{1} HEAD`
+    );
+    const changedFiles = stdout.trim().split('\n').filter(Boolean);
+    
+    for (const file of changedFiles) {
+      await indexFile(repoId, path.join(repoPath, file));
+    }
+  }
+}
+```
+
+**增量索引优势**：
+- 首次克隆：全量索引所有文件
+- 后续更新：只处理变更文件（通过 `git diff` 检测）
+- 大幅减少索引时间和资源消耗
+
+### 自动化部署
+
+项目提供了一键部署脚本：
+
+```bash
+# scripts/deploy.js
+npm run deploy
+```
+
+**部署流程**：
+1. 检查 Node 版本（>= 18.12）
+2. 本地构建前后端代码
+3. SSH 上传到服务器
+4. 安装生产依赖
+5. PM2 重启服务
+6. 健康检查验证
+
+**部署脚本关键代码**：
+
+```javascript
+// scripts/deploy.js
+async function deploy() {
+  // 1. 本地构建
+  await exec('pnpm build:api');
+  await exec('pnpm build:web');
+  
+  // 2. 上传文件
+  await exec(`scp -r apps/api/dist ${SERVER}:${DEPLOY_PATH}/apps/api/`);
+  await exec(`scp -r apps/web/dist ${SERVER}:${DEPLOY_PATH}/apps/web/`);
+  
+  // 3. 服务器端操作
+  await sshExec(`
+    cd ${DEPLOY_PATH} &&
+    pnpm install --prod &&
+    pm2 delete all || true &&
+    pm2 start ecosystem.config.js --env production &&
+    pm2 save
+  `);
+  
+  // 4. 健康检查
+  await checkHealth();
+}
+```
+
+---
+
+## 故障排除
+
+### 问题 1: 索引任务失败，提示内存溢出
+
+**现象**：
+```
+FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+```
+
+**原因**：
+- 服务器内存不足（< 2GB）
+- 批次大小过大，一次性处理太多文件
+- 没有及时释放内存
+
+**解决方案**：
+1. 减小批次大小（`BATCH_SIZE = 3`）
+2. 添加 Node.js 内存限制：`--max-old-space-size=1024`
+3. 启用手动 GC：`--expose-gc`
+4. 批次间添加延迟：`await new Promise(resolve => setTimeout(resolve, 1000))`
+
+### 问题 2: BullMQ 任务一直显示 "stalled"
+
+**现象**：
+- 任务状态变为 stalled
+- 日志显示 "Job stalled more than allowable limit"
+
+**原因**：
+- 默认超时时间（30 秒）太短
+- 大型仓库索引需要更长时间
+
+**解决方案**：
+```typescript
+const worker = new Worker('index-repo', handler, {
+  connection,
+  lockDuration: 3600000,      // 增加到 1 小时
+  settings: {
+    stalledInterval: 3600000  // 检查间隔也增加到 1 小时
+  }
+});
+```
+
+### 问题 3: 首次克隆仓库时增量索引失败
+
+**现象**：
+```
+fatal: bad revision 'HEAD@{1}'
+```
+
+**原因**：
+- 首次克隆的仓库 reflog 只有 1 条记录
+- `git diff HEAD@{1} HEAD` 无法执行
+
+**解决方案**：
+```typescript
+// 检查 reflog 条目数量
+const { stdout } = await execAsync(
+  `cd ${repoPath} && git reflog --format="%H" | wc -l`
+);
+const reflogCount = parseInt(stdout.trim());
+
+if (reflogCount <= 1) {
+  // 首次克隆，使用全量索引
+  await indexCodebase(repoId, repoPath);
+}
+```
+
+### 问题 4: 向量维度不匹配错误
+
+**现象**：
+```
+expected 1536 dimensions, not 1024
+```
+
+**原因**：
+- 数据库定义的向量维度与 embedding 模型输出不一致
+- OpenAI text-embedding-3-small 默认 1536 维
+- 阿里云 text-embedding-v3 输出 1024 维
+
+**解决方案**：
+```sql
+-- 修改数据库表结构
+ALTER TABLE code_chunks 
+ALTER COLUMN embedding TYPE vector(1024);
+```
+
+或修改代码中的维度配置：
+```typescript
+// apps/api/src/db/index.ts
+embedding: vector('embedding', { dimensions: 1024 })
+```
+
+### 问题 5: PM2 服务启动失败
+
+**常见原因**：
+1. **环境变量缺失**：使用 `pm2 start ecosystem.config.js --env production`
+2. **端口被占用**：检查 `lsof -i :8787` 并杀掉旧进程
+3. **路径错误**：确保 `cwd` 和 `script` 路径正确
+4. **依赖未安装**：运行 `pnpm install --prod`
+
+**调试命令**：
+```bash
+pm2 logs codelens-api --lines 100  # 查看日志
+pm2 describe codelens-api          # 查看详细状态
+pm2 restart codelens-api --update-env  # 重启并更新环境变量
+```
+
+### 问题 6: 部署后前端页面空白
+
+**可能原因**：
+1. **dist 目录嵌套**：`dist/dist/` 导致路径错误
+2. **Nginx 配置错误**：alias 路径不正确
+3. **构建失败**：检查本地构建是否成功
+
+**解决方案**：
+```bash
+# 检查 dist 目录结构
+ls -la apps/web/dist/
+
+# 确保只有一层 dist
+# 正确: dist/index.html, dist/assets/
+# 错误: dist/dist/index.html
+
+# 重新构建
+pnpm build:web
+```
+
+### 问题 7: API 请求返回 404
+
+**检查清单**：
+1. 确认路由路径正确（如 `/api/repos` 而非 `/repos`）
+2. 检查 HTTP 方法（GET vs POST）
+3. 验证 Nginx 反向代理配置
+4. 查看 API 服务日志：`pm2 logs codelens-api`
+
+**测试 API**：
+```bash
+# 健康检查
+curl http://localhost:8787/health
+
+# 获取仓库列表
+curl http://localhost:8787/api/repos
+
+# 搜索代码
+curl "http://localhost:8787/api/search?q=function&repoId=1"
+```
 
 ---
 

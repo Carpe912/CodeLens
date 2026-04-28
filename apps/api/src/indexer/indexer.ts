@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseFile } from '../parser/index.js';
-import { insertFile, insertCodeChunk, updateRepoStatus, getFileByPath, updateFile, deleteFileChunks, deleteFile } from '../db/index.js';
+import { insertFile, insertCodeChunk, updateRepoStatus, getFileByPath, updateFile, deleteFileChunks, deleteFile, updateIndexProgress } from '../db/index.js';
 import { batchGenerateEmbeddings } from '../llm/embeddings.js';
 import type { IndexJobData } from './queue.js';
 
@@ -58,8 +58,13 @@ async function indexCodebase(repoId: number, repoPath: string) {
   const files = await collectFiles(repoPath);
   console.log(`Full indexing ${files.length} files for repo ${repoId}`);
 
+  // Initialize progress
+  await updateIndexProgress(repoId, files.length, 0, new Date());
+
   // Process files in batches to avoid memory issues
-  const BATCH_SIZE = 3;
+  const BATCH_SIZE = 10;
+  let processedCount = 0;
+
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
     const batch = files.slice(i, i + BATCH_SIZE);
     console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
@@ -70,6 +75,7 @@ async function indexCodebase(repoId: number, repoPath: string) {
         const parseResult = parseFile(filePath, content);
 
         if (!parseResult || parseResult.chunks.length === 0) {
+          processedCount++;
           continue;
         }
 
@@ -99,8 +105,14 @@ async function indexCodebase(repoId: number, repoPath: string) {
         }
 
         console.log(`Indexed ${relativePath} with ${parseResult.chunks.length} chunks`);
+        processedCount++;
+
+        // Update progress after each file
+        await updateIndexProgress(repoId, files.length, processedCount);
       } catch (error) {
         console.error(`Failed to index ${filePath}:`, error);
+        processedCount++;
+        await updateIndexProgress(repoId, files.length, processedCount);
       }
     }
 

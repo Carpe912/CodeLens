@@ -31,6 +31,7 @@ export async function initDatabase() {
         gitlab_token TEXT,
         status TEXT NOT NULL,
         description TEXT,
+        index_progress JSONB DEFAULT '{"total": 0, "processed": 0, "startTime": null}'::jsonb,
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
@@ -167,6 +168,33 @@ export async function getRepo(repoId: number): Promise<Repo | null> {
 
 export async function updateRepoStatus(repoId: number, status: 'ready' | 'indexing' | 'failed') {
   await pool.query('UPDATE repos SET status = $1 WHERE id = $2', [status, repoId]);
+}
+
+export async function updateIndexProgress(repoId: number, total: number, processed: number, startTime?: Date) {
+  const progress = {
+    total,
+    processed,
+    startTime: startTime || new Date(),
+  };
+  await pool.query('UPDATE repos SET index_progress = $1 WHERE id = $2', [JSON.stringify(progress), repoId]);
+}
+
+export async function getIndexProgress(repoId: number): Promise<{ total: number; processed: number; startTime: Date | null } | null> {
+  const result = await pool.query('SELECT index_progress FROM repos WHERE id = $1', [repoId]);
+  if (!result.rows[0]) return null;
+  const progress = result.rows[0].index_progress;
+  return {
+    total: progress.total || 0,
+    processed: progress.processed || 0,
+    startTime: progress.startTime ? new Date(progress.startTime) : null,
+  };
+}
+
+export async function clearRepoData(repoId: number): Promise<void> {
+  // Delete all files and their chunks (cascade will handle chunks)
+  await pool.query('DELETE FROM files WHERE repo_id = $1', [repoId]);
+  // Reset progress
+  await pool.query('UPDATE repos SET index_progress = $1 WHERE id = $2', [JSON.stringify({ total: 0, processed: 0, startTime: null }), repoId]);
 }
 
 export async function insertFile(repoId: number, path: string, language: string, content: string): Promise<number> {

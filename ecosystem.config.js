@@ -6,7 +6,7 @@ module.exports = {
       cwd: '/root/CodeLens',
       instances: 1,
       exec_mode: 'fork',
-      node_args: '--expose-gc --max-old-space-size=1024',
+      node_args: '--expose-gc --max-old-space-size=2560',
       env_production: {
         NODE_ENV: 'production',
         PORT: 8787,
@@ -31,7 +31,7 @@ module.exports = {
       autorestart: true,
       max_restarts: 10,
       min_uptime: '10s',
-      max_memory_restart: '1G',
+      max_memory_restart: '2560M',
     },
     {
       name: 'codelens-web',

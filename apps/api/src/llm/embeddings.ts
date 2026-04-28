@@ -58,20 +58,27 @@ export async function batchGenerateEmbeddings(texts: string[]): Promise<number[]
   const model = process.env.EMBED_MODEL || 'text-embedding-3-small';
   const dimensions = process.env.EMBED_DIMENSIONS ? parseInt(process.env.EMBED_DIMENSIONS) : undefined;
 
-  // Generate embeddings for uncached texts
-  const response = await openai.embeddings.create({
-    model,
-    input: uncachedTexts,
-    ...(dimensions && { dimensions }),
-  });
+  // Split into batches of 10 (API limit for Alibaba Cloud)
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < uncachedTexts.length; i += BATCH_SIZE) {
+    const batchTexts = uncachedTexts.slice(i, i + BATCH_SIZE);
+    const batchIndices = uncachedIndices.slice(i, i + BATCH_SIZE);
 
-  // Store results and cache
-  response.data.forEach((item, i) => {
-    const originalIndex = uncachedIndices[i];
-    const text = uncachedTexts[i];
-    results[originalIndex] = item.embedding;
-    embeddingCache.set(text, item.embedding);
-  });
+    // Generate embeddings for this batch
+    const response = await openai.embeddings.create({
+      model,
+      input: batchTexts,
+      ...(dimensions && { dimensions }),
+    });
+
+    // Store results and cache
+    response.data.forEach((item, j) => {
+      const originalIndex = batchIndices[j];
+      const text = batchTexts[j];
+      results[originalIndex] = item.embedding;
+      embeddingCache.set(text, item.embedding);
+    });
+  }
 
   return results;
 }
