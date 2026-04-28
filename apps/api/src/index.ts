@@ -57,6 +57,23 @@ fastify.get('/repos', async () => {
   return repos;
 });
 
+fastify.get<{
+  Params: { id: string };
+}>('/repos/:id', async (request, reply) => {
+  const { id } = request.params;
+  const repo = await getRepo(parseInt(id));
+
+  if (!repo) {
+    return reply.code(404).send({ error: 'Repository not found' });
+  }
+
+  // Mask gitlab_token for security
+  return {
+    ...repo,
+    gitlab_token: repo.gitlab_token ? '***' : null,
+  };
+});
+
 fastify.post<{
   Body: { name: string; source: 'gitlab' | 'zip'; url?: string; gitlabToken?: string };
 }>('/repos', async (request, reply) => {
