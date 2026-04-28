@@ -6,6 +6,7 @@ module.exports = {
       cwd: '/root/CodeLens',
       instances: 1,
       exec_mode: 'fork',
+      node_args: '--expose-gc --max-old-space-size=1024',
       env_production: {
         NODE_ENV: 'production',
         PORT: 8787,

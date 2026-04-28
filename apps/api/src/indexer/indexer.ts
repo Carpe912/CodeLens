@@ -56,46 +56,64 @@ async function extractZip(zipPath: string, repoId: number): Promise<string> {
 
 async function indexCodebase(repoId: number, repoPath: string) {
   const files = await collectFiles(repoPath);
+  console.log(`Full indexing ${files.length} files for repo ${repoId}`);
 
-  for (const filePath of files) {
-    try {
-      const content = await readFile(filePath, 'utf-8');
-      const parseResult = parseFile(filePath, content);
+  // Process files in batches to avoid memory issues
+  const BATCH_SIZE = 3;
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE);
+    console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(files.length / BATCH_SIZE)} (${batch.length} files)`);
 
-      if (!parseResult || parseResult.chunks.length === 0) {
-        continue;
+    for (const filePath of batch) {
+      try {
+        const content = await readFile(filePath, 'utf-8');
+        const parseResult = parseFile(filePath, content);
+
+        if (!parseResult || parseResult.chunks.length === 0) {
+          continue;
+        }
+
+        // Store relative path instead of absolute path
+        const relativePath = filePath.replace(repoPath, '').replace(/^\//, '');
+        const fileId = await insertFile(repoId, relativePath, parseResult.language, content);
+
+        const texts = parseResult.chunks.map((chunk) => {
+          return `${chunk.symbolName} ${chunk.symbolType}\n${chunk.code}`;
+        });
+
+        const embeddings = texts.length > 0 ? await batchGenerateEmbeddings(texts) : [];
+
+        for (let i = 0; i < parseResult.chunks.length; i++) {
+          const chunk = parseResult.chunks[i];
+          const embedding = embeddings[i] || undefined;
+
+          await insertCodeChunk(
+            fileId,
+            chunk.symbolName,
+            chunk.symbolType,
+            chunk.lineStart,
+            chunk.lineEnd,
+            chunk.code,
+            embedding
+          );
+        }
+
+        console.log(`Indexed ${relativePath} with ${parseResult.chunks.length} chunks`);
+      } catch (error) {
+        console.error(`Failed to index ${filePath}:`, error);
       }
-
-      // Store relative path instead of absolute path
-      const relativePath = filePath.replace(repoPath, '').replace(/^\//, '');
-      const fileId = await insertFile(repoId, relativePath, parseResult.language, content);
-
-      const texts = parseResult.chunks.map((chunk) => {
-        return `${chunk.symbolName} ${chunk.symbolType}\n${chunk.code}`;
-      });
-
-      const embeddings = texts.length > 0 ? await batchGenerateEmbeddings(texts) : [];
-
-      for (let i = 0; i < parseResult.chunks.length; i++) {
-        const chunk = parseResult.chunks[i];
-        const embedding = embeddings[i] || undefined;
-
-        await insertCodeChunk(
-          fileId,
-          chunk.symbolName,
-          chunk.symbolType,
-          chunk.lineStart,
-          chunk.lineEnd,
-          chunk.code,
-          embedding
-        );
-      }
-
-      console.log(`Indexed ${relativePath} with ${parseResult.chunks.length} chunks`);
-    } catch (error) {
-      console.error(`Failed to index ${filePath}:`, error);
     }
+
+    // Force garbage collection between batches if available
+    if (global.gc) {
+      global.gc();
+    }
+
+    // Add delay between batches to allow memory cleanup
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
+
+  console.log(`Full indexing completed for ${files.length} files`);
 }
 
 async function collectFiles(dir: string): Promise<string[]> {
@@ -287,7 +305,8 @@ export async function refreshGitLabRepo(repoId: number, url: string, gitlabToken
     changedFiles = stdout.trim().split('\n').filter(f => f && f.match(/\.(ts|tsx|js|jsx|vue)$/));
   } catch (error: any) {
     // If HEAD@{1} doesn't exist (first clone), do a full reindex
-    if (error.stderr?.includes('only has 1 entry') || error.stderr?.includes('仅有 1 个条目')) {
+    const errorMsg = error.stderr || error.message || '';
+    if (errorMsg.includes('only has 1 entr') || errorMsg.includes('仅有 1 个条目')) {
       console.log(`First time indexing, doing full reindex for repo ${repoId}`);
       await indexCodebase(repoId, repoPath);
       await updateRepoStatus(repoId, 'ready');

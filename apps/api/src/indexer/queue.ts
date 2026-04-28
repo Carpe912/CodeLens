@@ -58,7 +58,12 @@ export function startIndexWorker() {
         throw error;
       }
     },
-    { connection }
+    {
+      connection,
+      lockDuration: 3600000, // 1 hour lock duration
+      stalledInterval: 3600000, // Check for stalled jobs every hour
+      maxStalledCount: 1, // Only retry once if stalled
+    }
   );
 
   worker.on('completed', (job) => {
