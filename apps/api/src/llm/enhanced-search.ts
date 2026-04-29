@@ -56,27 +56,42 @@ export async function enhancedSearch(
   }
 
   // Step 2: Hybrid retrieval (keyword + vector search)
+  // 优化：并行化所有搜索操作
+  const searchPromises = queries.map(async (q) => {
+    const results = {
+      keyword: [] as CodeChunkRecord[],
+      vector: [] as CodeChunkRecord[],
+    };
+
+    try {
+      // 并行执行关键词搜索和向量搜索
+      const [kwResults, embedding] = await Promise.all([
+        searchByKeyword(repoId, q),
+        generateEmbedding(q),
+      ]);
+
+      results.keyword = kwResults;
+
+      // 使用生成的 embedding 进行向量搜索
+      const vecResults = await searchByEmbedding(repoId, embedding, 20);
+      results.vector = vecResults;
+    } catch (error) {
+      console.error(`Search failed for "${q}":`, error);
+    }
+
+    return results;
+  });
+
+  // 等待所有搜索完成
+  const allResults = await Promise.all(searchPromises);
+
+  // 合并结果
   const keywordResults: CodeChunkRecord[] = [];
   const vectorResults: CodeChunkRecord[] = [];
 
-  // Perform searches for each query variant
-  for (const q of queries) {
-    // Keyword search
-    try {
-      const kwResults = await searchByKeyword(repoId, q);
-      keywordResults.push(...kwResults);
-    } catch (error) {
-      console.error(`Keyword search failed for "${q}":`, error);
-    }
-
-    // Vector search
-    try {
-      const embedding = await generateEmbedding(q);
-      const vecResults = await searchByEmbedding(repoId, embedding, 20);
-      vectorResults.push(...vecResults);
-    } catch (error) {
-      console.error(`Vector search failed for "${q}":`, error);
-    }
+  for (const result of allResults) {
+    keywordResults.push(...result.keyword);
+    vectorResults.push(...result.vector);
   }
 
   // Step 2.5: HyDE (Hypothetical Document Embeddings) for "how-to" queries

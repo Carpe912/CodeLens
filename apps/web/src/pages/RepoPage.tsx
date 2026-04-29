@@ -10,6 +10,21 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CallGraph } from '../components/CallGraph';
+import Prism from 'prismjs';
+import 'prismjs/themes/prism-tomorrow.css';
+// 导入常用语言支持
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-jsx';
+import 'prismjs/components/prism-tsx';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-go';
+import 'prismjs/components/prism-rust';
+import 'prismjs/components/prism-sql';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-yaml';
 
 const Filter = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,6 +66,7 @@ export function RepoPage() {
   const [conversationHistory, setConversationHistory] = useState<Array<{query: string; answer: string}>>([]);
   const [showFollowUpInput, setShowFollowUpInput] = useState(false);
   const [followUpQuery, setFollowUpQuery] = useState('');
+  const [followUpSubmitted, setFollowUpSubmitted] = useState(false); // 追踪是否已提交请求
 
   // Call graph modal state
   const [showCallGraphModal, setShowCallGraphModal] = useState(false);
@@ -169,6 +185,7 @@ export function RepoPage() {
       if (isFollowUp) {
         setFollowUpQuery('');
         setShowFollowUpInput(false);
+        setFollowUpSubmitted(false);
       }
     } catch (err) {
       // Ignore abort errors
@@ -327,8 +344,8 @@ export function RepoPage() {
         </div>
 
         {/* Search Box */}
-        <div className="mb-8 relative">
-          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+        <div className="mb-6 relative">
+          <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
             <div className="flex gap-3">
               <div className="flex-1 relative">
                 <input
@@ -366,7 +383,7 @@ export function RepoPage() {
                   onFocus={() => setShowHistory(true)}
                   onBlur={() => setTimeout(() => setShowHistory(false), 200)}
                   disabled={loading}
-                  className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 text-gray-900 placeholder-gray-400 text-lg"
+                  className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 text-gray-900 placeholder-gray-400 text-sm"
                 />
 
                 {/* Search history dropdown */}
@@ -426,7 +443,7 @@ export function RepoPage() {
               <button
                 onClick={() => handleSubmit(false)}
                 disabled={loading || !query}
-                className="px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold shadow-sm transition-all flex items-center justify-center min-w-[120px]"
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium shadow-sm transition-all flex items-center justify-center min-w-[100px] text-sm"
               >
                 {loading ? <LoadingSpinner /> : '提交'}
               </button>
@@ -477,15 +494,44 @@ export function RepoPage() {
                         h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2 mt-3" {...props} />,
                         h3: ({node, ...props}) => <h3 className="text-sm font-bold mb-2 mt-3" {...props} />,
                         ul: ({node, ...props}) => <ul className="list-disc list-inside mb-3 text-sm space-y-1" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal list-inside mb-3 text-sm space-y-1" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal mb-3 text-sm space-y-1 pl-5" {...props} />,
                         li: ({node, ...props}) => <li className="text-sm" {...props} />,
-                        code: ({node, ...props}) => {
-                          const isInline = !props.className;
-                          return isInline
-                            ? <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-red-600" {...props} />
-                            : <code className="block bg-gray-100 p-3 rounded text-xs font-mono overflow-x-auto" {...props} />;
+                        code: ({node, className, children, ...props}) => {
+                          const isInline = !className;
+
+                          if (isInline) {
+                            return <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-red-600" {...props}>{children}</code>;
+                          }
+
+                          // 代码块：使用 Prism 高亮
+                          const match = /language-(\w+)/.exec(className || '');
+                          const language = match ? match[1] : 'typescript';
+                          const code = String(children).replace(/\n$/, '');
+
+                          try {
+                            const grammar = Prism.languages[language];
+                            if (grammar) {
+                              const highlighted = Prism.highlight(code, grammar, language);
+                              return (
+                                <code
+                                  className={`language-${language}`}
+                                  dangerouslySetInnerHTML={{ __html: highlighted }}
+                                  {...props}
+                                />
+                              );
+                            }
+                          } catch (e) {
+                            console.error('Prism highlight error:', e);
+                          }
+
+                          // 降级：无高亮
+                          return <code className="block text-xs font-mono" {...props}>{children}</code>;
                         },
-                        pre: ({node, ...props}) => <pre className="bg-gray-100 p-3 rounded mb-3 overflow-x-auto" {...props} />,
+                        pre: ({node, children, ...props}) => (
+                          <pre className="bg-gray-900 p-4 rounded-lg mb-3 overflow-x-auto" {...props}>
+                            {children}
+                          </pre>
+                        ),
                         blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-sm text-gray-600 mb-3" {...props} />,
                         a: ({node, ...props}) => <a className="text-blue-600 hover:underline text-sm" {...props} />,
                         strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
@@ -517,17 +563,15 @@ export function RepoPage() {
                       placeholder="继续提问，例如：能详细说明一下这个函数的实现吗？"
                       value={followUpQuery}
                       onChange={(e) => setFollowUpQuery(e.target.value)}
-                      onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
-                        if (e.key === 'Enter' && followUpQuery.trim() && !loading) {
-                          handleSubmit(true);
-                        }
-                      }}
                       disabled={loading}
                       className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:opacity-50 text-gray-900 placeholder-gray-400 text-sm"
                     />
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleSubmit(true)}
+                        onClick={() => {
+                          setFollowUpSubmitted(true);
+                          handleSubmit(true);
+                        }}
                         disabled={loading || !followUpQuery.trim()}
                         className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-all text-sm"
                       >
@@ -535,11 +579,19 @@ export function RepoPage() {
                       </button>
                       <button
                         onClick={() => {
-                          setShowFollowUpInput(false);
-                          setFollowUpQuery('');
+                          if (followUpSubmitted && loading && abortControllerRef.current) {
+                            // 如果请求已发送且正在加载，取消请求
+                            abortControllerRef.current.abort();
+                            setFollowUpSubmitted(false);
+                          } else {
+                            // 如果请求未发送，折叠输入框
+                            setShowFollowUpInput(false);
+                            setFollowUpQuery('');
+                            setFollowUpSubmitted(false);
+                          }
                         }}
-                        disabled={loading}
-                        className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:cursor-not-allowed transition-all text-sm"
+                        disabled={loading && !followUpSubmitted}
+                        className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
                       >
                         取消
                       </button>

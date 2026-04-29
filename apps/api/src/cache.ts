@@ -125,39 +125,39 @@ export class TTLCache<K, V> {
   }
 }
 
-// TTL cache for search results (5 minutes)
-export const searchTTLCache = new TTLCache<string, any>(300000, 200);
+// TTL cache for search results (15 minutes - 优化：延长缓存时间)
+export const searchTTLCache = new TTLCache<string, any>(900000, 200);
 
 /**
  * 查询结果缓存
  * 用于缓存 enhancedSearch 和 multiStageSearch 的结果
  *
  * 特点：
- * - TTL: 5 分钟（避免返回过时结果）
+ * - TTL: 15 分钟（优化：从 5 分钟延长到 15 分钟，减少重复计算）
  * - 最大容量: 500 个查询
  * - 自动清理过期条目
  */
-export const queryResultCache = new TTLCache<string, any>(300000, 500);
+export const queryResultCache = new TTLCache<string, any>(900000, 500);
 
 /**
  * 查询改写缓存
  * 用于缓存 generateQueryVariants 的结果
  *
  * 特点：
- * - TTL: 1 小时（查询改写结果相对稳定）
+ * - TTL: 2 小时（优化：查询改写结果非常稳定，延长缓存时间）
  * - 最大容量: 1000 个查询
  */
-export const queryRewriteCache = new TTLCache<string, string[]>(3600000, 1000);
+export const queryRewriteCache = new TTLCache<string, string[]>(7200000, 1000);
 
 /**
  * HyDE 缓存
  * 用于缓存 generateHypotheticalCode 的结果
  *
  * 特点：
- * - TTL: 1 小时
+ * - TTL: 2 小时（优化：延长缓存时间）
  * - 最大容量: 500 个查询
  */
-export const hydeCache = new TTLCache<string, string>(3600000, 500);
+export const hydeCache = new TTLCache<string, string>(7200000, 500);
 
 /**
  * 生成查询缓存键

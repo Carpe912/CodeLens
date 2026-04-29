@@ -68,7 +68,7 @@ ${feedbackContext}
 5. 用中文回答`;
 
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-6',
+    model: 'claude-sonnet-4-6', // 优化：使用 Sonnet 提升速度（快 3-5 倍）
     max_tokens: 2000,
     messages: [{ role: 'user', content: prompt }],
   });
@@ -121,7 +121,7 @@ ${evidenceText}
 5. 用中文回答`;
 
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-6',
+    model: 'claude-sonnet-4-6', // 优化：使用 Sonnet 提升速度（快 3-5 倍）
     max_tokens: 2000,
     messages: [{ role: 'user', content: prompt }],
   });

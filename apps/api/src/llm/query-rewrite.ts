@@ -47,7 +47,7 @@ login authentication implementation
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-opus-4-6',
+      model: 'claude-sonnet-4-6', // 优化：使用 Sonnet 提升速度（保持质量）
       max_tokens: 500,
       messages: [{ role: 'user', content: prompt }],
     });
