@@ -496,7 +496,7 @@ fastify.post<{
 
   const questionResult = await pool.query(
     'INSERT INTO questions (repo_id, query, answer, evidence_ids) VALUES ($1, $2, $3, $4) RETURNING id',
-    [repoId, query, answer, evidence.map((e) => e.id)]
+    [repoId, query, answer, evidence.map((e: any) => e.id)]
   );
 
   const questionId = questionResult.rows[0].id;

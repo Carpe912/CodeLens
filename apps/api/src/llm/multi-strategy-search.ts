@@ -11,7 +11,7 @@
 
 import { Pool } from 'pg';
 import Anthropic from '@anthropic-ai/sdk';
-import { DependencyTracker } from './dependency-tracker';
+import { DependencyTracker } from '../indexer/dependency-tracker.js';
 
 // ============================================
 // Type Definitions
@@ -775,7 +775,7 @@ export class MultiStrategySearch {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': this.anthropic.apiKey,
+        'x-api-key': (this.anthropic as any).apiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
@@ -784,7 +784,7 @@ export class MultiStrategySearch {
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
     return data.embedding;
   }
 

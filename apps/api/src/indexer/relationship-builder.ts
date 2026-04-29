@@ -6,7 +6,7 @@
  */
 
 import { Pool } from 'pg';
-import { ASTAnalysisResult, StringConstant, URLPattern, FunctionInfo, ImportInfo } from './ast-analyzer';
+import { ASTAnalysisResult, StringConstant, URLPattern, FunctionInfo, ImportInfo } from './ast-analyzer.js';
 import * as path from 'path';
 
 // ============================================

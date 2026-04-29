@@ -10,10 +10,9 @@
 import { Pool } from 'pg';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 
-dotenv.config();
+// dotenv.config(); // Removed - environment variables should be set externally
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

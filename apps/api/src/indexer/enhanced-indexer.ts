@@ -11,8 +11,8 @@
 
 import { Pool } from 'pg';
 import Anthropic from '@anthropic-ai/sdk';
-import { ASTAnalyzer, ASTAnalysisResult } from './ast-analyzer';
-import { RelationshipBuilder } from './relationship-builder';
+import { ASTAnalyzer, ASTAnalysisResult } from './ast-analyzer.js';
+import { RelationshipBuilder } from './relationship-builder.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -334,7 +334,7 @@ export class EnhancedIndexer {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.anthropic.apiKey,
+          'x-api-key': (this.anthropic as any).apiKey || '',
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
@@ -347,7 +347,7 @@ export class EnhancedIndexer {
         throw new Error(`Embedding API error: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
       return data.embedding;
     } catch (error) {
       console.error('Error generating embedding:', error);
@@ -365,7 +365,7 @@ export class EnhancedIndexer {
     entityId: string,
     embedding: number[]
   ): Promise<void> {
-    const embeddingVector = `[${embedding.join(',')]}]`;
+    const embeddingVector = '[' + embedding.join(',') + ']';
 
     try {
       switch (entityType) {

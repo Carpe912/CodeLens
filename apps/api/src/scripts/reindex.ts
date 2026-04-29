@@ -11,10 +11,9 @@
  */
 
 import { Pool } from 'pg';
-import { EnhancedIndexer } from './indexer/enhanced-indexer.js';
-import * as dotenv from 'dotenv';
+import { EnhancedIndexer } from '../indexer/enhanced-indexer.js';
 
-dotenv.config();
+// dotenv.config(); // Removed - environment variables should be set externally
 
 // Database connection
 const pool = new Pool({
@@ -87,7 +86,7 @@ async function main() {
 
     const progress = await indexer.reindexRepository(repoId, repoPath, {
       batchSize: 5, // Process 5 files in parallel
-      onProgress: (p) => {
+      onProgress: (p: any) => {
         const percent = Math.floor((p.processedFiles / p.totalFiles) * 100);
         if (percent !== lastProgress && percent % 10 === 0) {
           console.log(`Progress: ${percent}% (${p.processedFiles}/${p.totalFiles} files)`);

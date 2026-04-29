@@ -284,7 +284,7 @@ export class ASTAnalyzer {
   private extractTemplatePattern(node: Node): string {
     if (!Node.isTemplateExpression(node)) return '';
 
-    let pattern = node.getHead().getLiteralValue();
+    let pattern = (node.getHead() as any).getLiteralValue();
 
     node.getTemplateSpans().forEach((span) => {
       const expr = span.getExpression();
@@ -296,7 +296,7 @@ export class ASTAnalyzer {
         pattern += '${...}';
       }
 
-      pattern += span.getLiteral().getLiteralValue();
+      pattern += (span.getLiteral() as any).getLiteralValue();
     });
 
     return pattern;
@@ -436,7 +436,7 @@ export class ASTAnalyzer {
     if (Node.isTemplateExpression(node)) {
       let pattern = '';
 
-      const head = node.getHead().getLiteralValue();
+      const head = (node.getHead() as any).getLiteralValue();
       pattern += head;
       components.push({ type: 'literal', value: head });
 
@@ -448,7 +448,7 @@ export class ASTAnalyzer {
         components.push({ type: 'variable', value: exprText });
         pathParams.push(exprText);
 
-        const literal = span.getLiteral().getLiteralValue();
+        const literal = (span.getLiteral() as any).getLiteralValue();
         pattern += literal;
         if (literal) {
           components.push({ type: 'literal', value: literal });

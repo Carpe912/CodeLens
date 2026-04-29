@@ -26,6 +26,7 @@ export interface ImportChain {
   fileId: number;
   filePath: string;
   symbol: string;
+  alias?: string;
   importType: string;
   depth: number;
 }
