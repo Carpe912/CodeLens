@@ -139,6 +139,11 @@ function uploadToServer() {
   ];
 
   log('上传文件...', 'blue');
+
+  // 先清空 dist 目录，避免旧文件残留
+  log('清空旧的 dist 目录...', 'blue');
+  exec(`ssh ${user}@${host} "rm -rf ${deployPath}/apps/web/dist ${deployPath}/apps/api/dist"`);
+
   filesToUpload.forEach(file => {
     const dir = path.dirname(file);
     if (dir !== '.') {
