@@ -289,10 +289,10 @@ export function RepoPage() {
           </button>
           <button
             onClick={() => setMode('ask')}
-            className={`px-6 py-2.5 rounded-lg font-medium transition-all ${
+            className={`px-6 py-3 rounded-xl font-medium transition-all ${
               mode === 'ask'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/50'
+                : 'text-gray-400 hover:text-gray-300 hover:bg-slate-700/50'
             }`}
           >
             <div className="flex items-center gap-2">
@@ -304,10 +304,10 @@ export function RepoPage() {
           </button>
           <button
             onClick={() => setMode('root-cause')}
-            className={`px-6 py-2.5 rounded-lg font-medium transition-all ${
+            className={`px-6 py-3 rounded-xl font-medium transition-all ${
               mode === 'root-cause'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg shadow-purple-500/50'
+                : 'text-gray-400 hover:text-gray-300 hover:bg-slate-700/50'
             }`}
           >
             <div className="flex items-center gap-2">
@@ -321,7 +321,7 @@ export function RepoPage() {
 
         {/* Search Box */}
         <div className="mb-8 relative">
-          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-6 border border-slate-700/50 shadow-2xl">
             <div className="flex gap-3">
               <div className="flex-1 relative">
                 <input
@@ -359,20 +359,20 @@ export function RepoPage() {
                   onFocus={() => setShowHistory(true)}
                   onBlur={() => setTimeout(() => setShowHistory(false), 200)}
                   disabled={loading}
-                  className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all disabled:opacity-50 text-gray-900 placeholder-gray-400 text-lg"
+                  className="w-full px-6 py-4 bg-slate-900/50 border-2 border-slate-600 rounded-xl focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/50 transition-all disabled:opacity-50 text-gray-200 placeholder-gray-500 text-lg"
                 />
 
                 {/* Search history dropdown */}
                 {showHistory && searchHistory.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-10 max-h-60 overflow-y-auto">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-                      <span className="text-sm text-gray-600 font-medium">搜索历史</span>
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-10 max-h-60 overflow-y-auto">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                      <span className="text-sm text-gray-400 font-medium">搜索历史</span>
                       <button
                         onClick={() => {
                           clearSearchHistory();
                           setSearchHistory([]);
                         }}
-                        className="text-xs text-red-600 hover:text-red-700 transition-colors"
+                        className="text-xs text-red-400 hover:text-red-300 transition-colors"
                       >
                         清空
                       </button>
@@ -393,19 +393,19 @@ export function RepoPage() {
                           }
                           setShowHistory(false);
                         }}
-                        className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors border-b border-gray-100 last:border-b-0"
+                        className="px-4 py-3 hover:bg-slate-700/50 cursor-pointer transition-colors border-b border-slate-700/30 last:border-b-0"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <div className="text-gray-900 text-sm truncate">{item.query}</div>
+                            <div className="text-gray-300 text-sm truncate">{item.query}</div>
                             <div className="text-xs text-gray-500 mt-1">
                               {new Date(item.timestamp).toLocaleString('zh-CN')}
                             </div>
                           </div>
                           <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
-                            item.mode === 'search' ? 'bg-blue-100 text-blue-700' :
-                            item.mode === 'ask' ? 'bg-green-100 text-green-700' :
-                            'bg-purple-100 text-purple-700'
+                            item.mode === 'search' ? 'bg-cyan-500/20 text-cyan-400' :
+                            item.mode === 'ask' ? 'bg-emerald-500/20 text-emerald-400' :
+                            'bg-purple-500/20 text-purple-400'
                           }`}>
                             {item.mode === 'search' ? '搜索' : item.mode === 'ask' ? '问答' : '根因'}
                           </span>
@@ -419,7 +419,7 @@ export function RepoPage() {
               <button
                 onClick={() => handleSubmit(false)}
                 disabled={loading || !query}
-                className="px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold shadow-sm transition-all flex items-center justify-center min-w-[120px]"
+                className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl hover:from-cyan-600 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-cyan-500/50 transition-all flex items-center justify-center min-w-[120px]"
               >
                 {loading ? <LoadingSpinner /> : '提交'}
               </button>
@@ -429,16 +429,16 @@ export function RepoPage() {
 
         {/* Loading status indicator */}
         {loading && searchStatus && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl backdrop-blur-xl">
             <div className="flex items-center gap-3">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-              <span className="text-blue-700 font-medium">{searchStatus}</span>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400"></div>
+              <span className="text-blue-300 font-medium">{searchStatus}</span>
             </div>
           </div>
         )}
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-400 backdrop-blur-xl">
             <div className="flex items-center gap-2">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -451,25 +451,25 @@ export function RepoPage() {
         {result && (
           <div className="space-y-6">
             {result.answer && (
-              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+              <div className="bg-slate-800/40 backdrop-blur-xl rounded-xl p-6 border border-slate-700/50 shadow-xl">
+                <h3 className="text-xl font-semibold text-gray-100 mb-4 flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
                     <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                     </svg>
                   </div>
                   回答
                 </h3>
-                <div className="prose max-w-none">
-                  <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">{result.answer}</div>
+                <div className="prose prose-invert max-w-none">
+                  <div className="text-gray-300 leading-relaxed whitespace-pre-wrap">{result.answer}</div>
                 </div>
 
                 {/* Follow-up question section */}
                 {!showFollowUpInput ? (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="mt-4 pt-4 border-t border-slate-600/30">
                     <button
                       onClick={() => setShowFollowUpInput(true)}
-                      className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
+                      className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm font-medium transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -478,7 +478,7 @@ export function RepoPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
+                  <div className="mt-4 pt-4 border-t border-slate-600/30 space-y-3">
                     <input
                       type="text"
                       placeholder="继续提问，例如：能详细说明一下这个函数的实现吗？"
@@ -490,13 +490,13 @@ export function RepoPage() {
                         }
                       }}
                       disabled={loading}
-                      className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:opacity-50 text-gray-900 placeholder-gray-400 text-sm"
+                      className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-lg focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all disabled:opacity-50 text-gray-200 placeholder-gray-500 text-sm"
                     />
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleSubmit(true)}
                         disabled={loading || !followUpQuery.trim()}
-                        className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-all text-sm"
+                        className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-2 px-4 rounded-lg hover:from-cyan-600 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed font-medium transition-all text-sm"
                       >
                         {loading ? <LoadingSpinner /> : '提交'}
                       </button>
@@ -506,7 +506,7 @@ export function RepoPage() {
                           setFollowUpQuery('');
                         }}
                         disabled={loading}
-                        className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:cursor-not-allowed transition-all text-sm"
+                        className="px-4 py-2 border border-slate-600 rounded-lg hover:bg-slate-700/50 disabled:cursor-not-allowed transition-all text-gray-300 text-sm"
                       >
                         取消
                       </button>
@@ -516,23 +516,23 @@ export function RepoPage() {
 
                 {/* Historical Feedback Display */}
                 {result.historicalFeedback && result.historicalFeedback.length > 0 && (
-                  <div className="mt-6 pt-6 border-t border-gray-200">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-                      <svg className="w-4 h-4 mr-2 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                  <div className="mt-6 pt-6 border-t border-slate-600/30">
+                    <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                       </svg>
                       历史相关反馈
                     </h4>
                     <div className="space-y-2">
                       {result.historicalFeedback.map((item, idx) => (
-                        <div key={idx} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                          <p className="text-xs text-gray-600 mb-2">相关问题: {item.query}</p>
+                        <div key={idx} className="bg-slate-700/20 rounded-lg p-3 border border-slate-600/30">
+                          <p className="text-xs text-gray-400 mb-2">相关问题: {item.query}</p>
                           {item.feedback.map((fb, fbIdx) => (
                             <div key={fbIdx} className="flex items-start gap-2 text-sm">
-                              <span className={`mt-0.5 ${fb.is_helpful ? 'text-green-600' : 'text-orange-600'}`}>
+                              <span className={`mt-0.5 ${fb.is_helpful ? 'text-green-400' : 'text-orange-400'}`}>
                                 {fb.is_helpful ? '✓' : '⚠'}
                               </span>
-                              <span className="text-gray-700">{fb.feedback_text}</span>
+                              <span className="text-gray-300">{fb.feedback_text}</span>
                             </div>
                           ))}
                         </div>
@@ -543,11 +543,11 @@ export function RepoPage() {
 
                 {/* Feedback Form */}
                 {result.questionId && (
-                  <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="mt-6 pt-6 border-t border-slate-600/30">
                     {!showFeedbackForm ? (
                       <button
                         onClick={() => setShowFeedbackForm(true)}
-                        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium transition-colors text-sm"
+                        className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300 font-medium transition-colors text-sm"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
@@ -556,7 +556,7 @@ export function RepoPage() {
                       </button>
                     ) : (
                       <div className="space-y-3">
-                        <label className="block text-sm font-medium text-gray-900">
+                        <label className="block text-sm font-medium text-gray-300">
                           您的反馈
                         </label>
                         <textarea
@@ -564,21 +564,21 @@ export function RepoPage() {
                           onChange={(e) => setFeedbackText(e.target.value)}
                           placeholder="例如：这个登录流程已经被废弃，现在使用 OAuth2.0 方式"
                           disabled={feedbackSubmitting}
-                          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:opacity-50 text-gray-900 placeholder-gray-400 resize-none text-sm"
+                          className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-lg focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all disabled:opacity-50 text-gray-200 placeholder-gray-500 resize-none text-sm"
                           rows={3}
                         />
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleFeedbackSubmit(true)}
                             disabled={feedbackSubmitting || !feedbackText.trim()}
-                            className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-all text-sm"
+                            className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-2 px-4 rounded-lg hover:from-green-600 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed font-medium transition-all text-sm"
                           >
                             {feedbackSubmitting ? <LoadingSpinner /> : '✓ 有帮助'}
                           </button>
                           <button
                             onClick={() => handleFeedbackSubmit(false)}
                             disabled={feedbackSubmitting || !feedbackText.trim()}
-                            className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium transition-all text-sm"
+                            className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white py-2 px-4 rounded-lg hover:from-orange-600 hover:to-red-700 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed font-medium transition-all text-sm"
                           >
                             {feedbackSubmitting ? <LoadingSpinner /> : '⚠ 需修正'}
                           </button>
@@ -588,7 +588,7 @@ export function RepoPage() {
                               setFeedbackText('');
                             }}
                             disabled={feedbackSubmitting}
-                            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:cursor-not-allowed transition-all text-sm"
+                            className="px-4 py-2 border border-slate-600 rounded-lg hover:bg-slate-700/50 disabled:cursor-not-allowed transition-all text-gray-300 text-sm"
                           >
                             取消
                           </button>
@@ -600,10 +600,10 @@ export function RepoPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <div className="bg-slate-800/40 backdrop-blur-xl rounded-xl p-6 border border-slate-700/50 shadow-xl">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
+              <h3 className="text-xl font-semibold text-gray-100 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
                   <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                   </svg>
@@ -614,11 +614,11 @@ export function RepoPage() {
               {/* Filters */}
               <div className="flex gap-2">
                 <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-gray-500" />
+                  <Filter className="w-4 h-4 text-gray-400" />
                   <select
                     value={fileTypeFilter}
                     onChange={(e: ChangeEvent<HTMLSelectElement>) => setFileTypeFilter(e.target.value)}
-                    className="px-3 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    className="px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded-lg text-sm text-gray-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
                   >
                     <option value="all">所有文件类型</option>
                     {fileTypes.map(type => (
@@ -631,7 +631,7 @@ export function RepoPage() {
                   <select
                     value={symbolTypeFilter}
                     onChange={(e: ChangeEvent<HTMLSelectElement>) => setSymbolTypeFilter(e.target.value)}
-                    className="px-3 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                    className="px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded-lg text-sm text-gray-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
                   >
                     <option value="all">所有符号类型</option>
                     {symbolTypes.map(type => (
@@ -643,7 +643,7 @@ export function RepoPage() {
             </div>
 
             {filteredEvidence.length === 0 ? (
-              <div className="text-gray-500 text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="text-gray-400 text-center py-8 bg-slate-900/20 rounded-lg border border-slate-700/30">
                 {result.evidence.length === 0 ? '未找到相关代码' : '没有符合筛选条件的结果'}
               </div>
             ) : (
@@ -654,7 +654,7 @@ export function RepoPage() {
                     const isExpanded = expandedItems.has(itemId);
 
                     return (
-                      <div key={hit.id} className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden hover:border-blue-400 transition-all">
+                      <div key={hit.id} className="bg-slate-900/30 border border-slate-700/40 rounded-lg overflow-hidden hover:border-cyan-500/40 transition-all">
                         <div
                           className="p-4 cursor-pointer"
                           onClick={() => {
@@ -669,19 +669,19 @@ export function RepoPage() {
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-blue-600 text-white text-xs font-bold flex-shrink-0">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-xs font-bold flex-shrink-0">
                                 {startIndex + i + 1}
                               </span>
                               <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <span className="px-2 py-0.5 bg-blue-100 border border-blue-200 rounded text-blue-700 font-mono text-xs flex-shrink-0">
+                                <span className="px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded text-blue-400 font-mono text-xs flex-shrink-0">
                                   {hit.symbol_type}
                                 </span>
-                                <span className="text-gray-900 text-sm font-medium truncate">{highlightText(hit.symbol_name, query)}</span>
+                                <span className="text-gray-300 text-sm font-medium truncate">{highlightText(hit.symbol_name, query)}</span>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0 ml-3">
                               {hit.similarity && (
-                                <div className="px-2 py-0.5 bg-green-100 border border-green-200 rounded text-xs text-green-700 font-medium">
+                                <div className="px-2 py-0.5 bg-green-500/20 border border-green-500/30 rounded text-xs text-green-400 font-medium">
                                   {(hit.similarity * 100).toFixed(0)}%
                                 </div>
                               )}
@@ -690,12 +690,12 @@ export function RepoPage() {
                                   e.stopPropagation();
                                   navigate(`/repo/${repoId}/call-graph/${encodeURIComponent(hit.symbol_name)}`);
                                 }}
-                                className="px-3 py-1 bg-purple-100 border border-purple-200 text-purple-700 rounded hover:bg-purple-200 transition-all text-xs font-medium"
+                                className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 text-purple-400 rounded hover:bg-purple-500/30 transition-all text-xs font-medium"
                               >
                                 调用图
                               </button>
                               <svg
-                                className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -704,17 +704,17 @@ export function RepoPage() {
                               </svg>
                             </div>
                           </div>
-                          <div className="mt-2 text-xs text-gray-600 flex items-center gap-1">
+                          <div className="mt-2 text-xs text-gray-400 flex items-center gap-1">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                             <span className="truncate">{highlightText(hit.file_path, query)}</span>
-                            <span className="text-gray-400 flex-shrink-0">:{hit.line_start}-{hit.line_end}</span>
+                            <span className="text-gray-500 flex-shrink-0">:{hit.line_start}-{hit.line_end}</span>
                           </div>
                         </div>
 
                         {isExpanded && (
-                          <div className="px-4 pb-4 border-t border-gray-200">
+                          <div className="px-4 pb-4 border-t border-slate-700/30">
                             <div className="mt-3">
                               <CodeBlock
                                 code={hit.code_text}
@@ -737,7 +737,7 @@ export function RepoPage() {
                     <button
                       onClick={() => setCurrentPage((prev: number) => Math.max(1, prev - 1))}
                       disabled={currentPage === 1}
-                      className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 transition-all text-sm"
+                      className="px-3 py-1.5 bg-slate-700/40 border border-slate-600 rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-300 transition-all text-sm"
                     >
                       上一页
                     </button>
@@ -756,15 +756,15 @@ export function RepoPage() {
                               onClick={() => setCurrentPage(page)}
                               className={`px-3 py-1.5 rounded-lg font-medium transition-all text-sm ${
                                 currentPage === page
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white'
+                                  : 'bg-slate-700/40 border border-slate-600 text-gray-300 hover:bg-slate-700'
                               }`}
                             >
                               {page}
                             </button>
                           );
                         } else if (page === currentPage - 2 || page === currentPage + 2) {
-                          return <span key={page} className="px-2 text-gray-400 text-sm">...</span>;
+                          return <span key={page} className="px-2 text-gray-500 text-sm">...</span>;
                         }
                         return null;
                       })}
@@ -773,12 +773,12 @@ export function RepoPage() {
                     <button
                       onClick={() => setCurrentPage((prev: number) => Math.min(totalPages, prev + 1))}
                       disabled={currentPage === totalPages}
-                      className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 transition-all text-sm"
+                      className="px-3 py-1.5 bg-slate-700/40 border border-slate-600 rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-300 transition-all text-sm"
                     >
                       下一页
                     </button>
 
-                    <span className="text-xs text-gray-500 ml-2">
+                    <span className="text-xs text-gray-400 ml-2">
                       {currentPage} / {totalPages}
                     </span>
                   </div>
