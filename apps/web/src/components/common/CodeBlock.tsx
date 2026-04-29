@@ -23,8 +23,8 @@ export function CodeBlock({ code, language, lineStart, filePath, repoUrl }: Code
 
   const lines = code.split('\n');
 
-  // 构建 GitLab URL，确保 repoUrl 不以斜杠结尾
-  const cleanRepoUrl = repoUrl?.replace(/\/$/, '');
+  // 构建 GitLab URL，去掉 .git 后缀和尾部斜杠
+  const cleanRepoUrl = repoUrl?.replace(/\.git$/, '').replace(/\/$/, '');
   const gitlabUrl = cleanRepoUrl && filePath
     ? `${cleanRepoUrl}/tree/master/${filePath}#L${lineStart}-${(lineStart || 0) + lines.length - 1}`
     : null;
