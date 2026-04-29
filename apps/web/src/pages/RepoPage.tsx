@@ -7,6 +7,9 @@ import { SearchHistoryItem } from '../types';
 import { highlightText } from '../utils/textUtils';
 import { CodeBlock } from '../components/common/CodeBlock';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { CallGraph } from '../components/CallGraph';
 
 const Filter = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -48,6 +51,10 @@ export function RepoPage() {
   const [conversationHistory, setConversationHistory] = useState<Array<{query: string; answer: string}>>([]);
   const [showFollowUpInput, setShowFollowUpInput] = useState(false);
   const [followUpQuery, setFollowUpQuery] = useState('');
+
+  // Call graph modal state
+  const [showCallGraphModal, setShowCallGraphModal] = useState(false);
+  const [callGraphSymbol, setCallGraphSymbol] = useState<string>('');
 
   // Refs for debounce and abort controller
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -460,8 +467,34 @@ export function RepoPage() {
                   </div>
                   回答
                 </h3>
-                <div className="prose max-w-none">
-                  <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">{result.answer}</div>
+                <div className="prose prose-sm max-w-none">
+                  <div className="text-gray-700 leading-relaxed">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({node, ...props}) => <p className="mb-3 text-sm" {...props} />,
+                        h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-3 mt-4" {...props} />,
+                        h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2 mt-3" {...props} />,
+                        h3: ({node, ...props}) => <h3 className="text-sm font-bold mb-2 mt-3" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc list-inside mb-3 text-sm space-y-1" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal list-inside mb-3 text-sm space-y-1" {...props} />,
+                        li: ({node, ...props}) => <li className="text-sm" {...props} />,
+                        code: ({node, ...props}) => {
+                          const isInline = !props.className;
+                          return isInline
+                            ? <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-red-600" {...props} />
+                            : <code className="block bg-gray-100 p-3 rounded text-xs font-mono overflow-x-auto" {...props} />;
+                        },
+                        pre: ({node, ...props}) => <pre className="bg-gray-100 p-3 rounded mb-3 overflow-x-auto" {...props} />,
+                        blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-sm text-gray-600 mb-3" {...props} />,
+                        a: ({node, ...props}) => <a className="text-blue-600 hover:underline text-sm" {...props} />,
+                        strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
+                        em: ({node, ...props}) => <em className="italic" {...props} />,
+                      }}
+                    >
+                      {result.answer}
+                    </ReactMarkdown>
+                  </div>
                 </div>
 
                 {/* Follow-up question section */}
@@ -688,7 +721,8 @@ export function RepoPage() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate(`/repo/${repoId}/call-graph/${encodeURIComponent(hit.symbol_name)}`);
+                                  setCallGraphSymbol(hit.symbol_name);
+                                  setShowCallGraphModal(true);
                                 }}
                                 className="px-3 py-1 bg-purple-100 border border-purple-200 text-purple-700 rounded hover:bg-purple-200 transition-all text-xs font-medium"
                               >
@@ -789,6 +823,45 @@ export function RepoPage() {
         </div>
       )}
       </div>
+
+      {/* Call Graph Modal */}
+      {showCallGraphModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[80vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                调用图: {callGraphSymbol}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowCallGraphModal(false);
+                  setCallGraphSymbol('');
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-hidden">
+              <CallGraph
+                repoId={repoId}
+                symbolName={callGraphSymbol}
+                onSymbolClick={(newSymbol) => {
+                  setCallGraphSymbol(newSymbol);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

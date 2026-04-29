@@ -91,8 +91,17 @@ export async function initDatabase() {
       );
     `);
 
+    // Drop old IVFFlat index if exists
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_code_chunks_embedding ON code_chunks USING ivfflat (embedding vector_cosine_ops);
+      DROP INDEX IF EXISTS idx_code_chunks_embedding;
+    `);
+
+    // Create HNSW index for better performance (faster queries, higher recall)
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_code_chunks_embedding_hnsw
+      ON code_chunks
+      USING hnsw (embedding vector_cosine_ops)
+      WITH (m = 16, ef_construction = 64);
     `);
 
     // Additional indexes for query optimization
@@ -234,6 +243,9 @@ export async function searchByKeyword(repoId: number, keyword: string): Promise<
 }
 
 export async function searchByEmbedding(repoId: number, embedding: number[], limit = 10): Promise<CodeChunkRecord[]> {
+  // Set HNSW search parameter for better recall
+  await pool.query('SET hnsw.ef_search = 40');
+
   const result = await pool.query(
     `SELECT c.*, f.path as file_path, 1 - (c.embedding <=> $1::vector) as similarity
      FROM code_chunks c
@@ -312,3 +324,62 @@ export async function getSimilarQuestionsWithFeedback(repoId: number, query: str
   );
   return result.rows;
 }
+
+/**
+ * 获取代码块的扩展上下文
+ * 包含前后若干行代码，提供更完整的上下文
+ *
+ * @param chunkId 代码块 ID
+ * @param linesBefore 前面包含的行数（默认 5 行）
+ * @param linesAfter 后面包含的行数（默认 5 行）
+ */
+export async function getChunkWithContext(
+  chunkId: number,
+  linesBefore: number = 5,
+  linesAfter: number = 5
+): Promise<(CodeChunkRecord & { file_path?: string; extended_code?: string }) | null> {
+  const result = await pool.query(
+    `SELECT c.*, f.content, f.path as file_path
+     FROM code_chunks c
+     JOIN files f ON c.file_id = f.id
+     WHERE c.id = $1`,
+    [chunkId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const chunk = result.rows[0];
+  const lines = chunk.content.split('\n');
+
+  // 计算扩展范围（注意：line_start 和 line_end 是 1-based）
+  const start = Math.max(0, chunk.line_start - linesBefore - 1);
+  const end = Math.min(lines.length, chunk.line_end + linesAfter);
+
+  const extendedCode = lines.slice(start, end).join('\n');
+
+  return {
+    ...chunk,
+    extended_code: extendedCode,
+  };
+}
+
+/**
+ * 批量获取代码块的扩展上下文
+ */
+export async function getChunksWithContext(
+  chunks: Array<CodeChunkRecord & { file_path?: string }>,
+  linesBefore: number = 5,
+  linesAfter: number = 5
+): Promise<Array<CodeChunkRecord & { file_path?: string; extended_code?: string }>> {
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const withContext = await getChunkWithContext(chunk.id, linesBefore, linesAfter);
+      return withContext || chunk;
+    })
+  );
+
+  return results;
+}
+

@@ -16,6 +16,7 @@ module.exports = {
         EMBED_BASE_URL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
         EMBED_MODEL: 'text-embedding-v3',
         EMBED_DIMENSIONS: '1024',
+        DASHSCOPE_RERANK_MODEL: 'qwen3-rerank',
         DB_HOST: 'localhost',
         DB_PORT: '5432',
         DB_NAME: 'codelens',

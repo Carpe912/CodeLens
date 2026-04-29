@@ -126,6 +126,22 @@ export function HomePage() {
     },
   });
 
+  const clearCacheMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_BASE}/admin/cache/clear`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error('Failed to clear cache');
+      return res.json();
+    },
+    onSuccess: () => {
+      setToast({ message: '缓存已清空', type: 'success' });
+    },
+    onError: (error: Error) => {
+      setToast({ message: `清空缓存失败: ${error.message}`, type: 'error' });
+    },
+  });
+
   const { data: progressData } = useQuery({
     queryKey: ['progress', repos?.filter(r => r.status === 'indexing').map(r => r.id)],
     queryFn: async () => {
@@ -160,9 +176,30 @@ export function HomePage() {
 
       <div className="flex-1 flex flex-col max-w-6xl mx-auto w-full p-6">
         <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-transparent mb-2">
-            CodeLens
-          </h1>
+          <div className="flex items-center justify-center gap-4 mb-2">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">
+              CodeLens
+            </h1>
+            <button
+              onClick={() => {
+                if (confirm('确定要清空所有查询缓存吗？这将清除所有已缓存的搜索结果、查询改写和 HyDE 结果。')) {
+                  clearCacheMutation.mutate();
+                }
+              }}
+              disabled={clearCacheMutation.isPending}
+              className="p-2 rounded-lg bg-slate-800/50 hover:bg-yellow-500/20 border border-slate-600 hover:border-yellow-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed group/clear"
+              title="清空查询缓存"
+            >
+              <svg
+                className="w-5 h-5 text-gray-400 group-hover/clear:text-yellow-400 transition-colors"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
           <p className="text-base text-gray-300">代码智能问答平台 - 让代码理解更简单</p>
         </div>
 

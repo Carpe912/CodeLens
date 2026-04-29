@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { CodeChunkRecord } from '../db/index.js';
+import { getChunksWithContext } from '../db/index.js';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY,
@@ -9,15 +10,29 @@ const anthropic = new Anthropic({
 export async function answerQuestion(
   query: string,
   evidence: Array<CodeChunkRecord & { file_path?: string }>,
-  historicalFeedback?: Array<{ query: string; answer: string; feedback: Array<{ feedback_text: string; is_helpful: boolean }> }>
+  historicalFeedback?: Array<{ query: string; answer: string; feedback: Array<{ feedback_text: string; is_helpful: boolean }> }>,
+  useExtendedContext: boolean = true
 ): Promise<string> {
-  const evidenceText = evidence
+  // 优化：使用扩展上下文（前后各 5 行）
+  let evidenceWithContext: Array<CodeChunkRecord & { file_path?: string; extended_code?: string }> = evidence;
+  if (useExtendedContext) {
+    try {
+      evidenceWithContext = await getChunksWithContext(evidence, 5, 5);
+      console.log('Using extended context for evidence');
+    } catch (error) {
+      console.log('Extended context unavailable, using original evidence');
+    }
+  }
+
+  const evidenceText = evidenceWithContext
     .map((e, i) => {
+      // 优先使用扩展上下文，如果没有则使用原始代码
+      const codeToShow = e.extended_code || e.code_text;
       return `[证据 ${i + 1}] ${e.file_path || 'unknown'}:${e.line_start}-${e.line_end}
 符号: ${e.symbol_name} (${e.symbol_type})
 代码:
 \`\`\`
-${e.code_text}
+${codeToShow}
 \`\`\`
 `;
     })
@@ -62,14 +77,30 @@ ${feedbackContext}
   return content.type === 'text' ? content.text : '';
 }
 
-export async function analyzeRootCause(query: string, evidence: Array<CodeChunkRecord & { file_path?: string }>): Promise<string> {
-  const evidenceText = evidence
+export async function analyzeRootCause(
+  query: string,
+  evidence: Array<CodeChunkRecord & { file_path?: string }>,
+  useExtendedContext: boolean = true
+): Promise<string> {
+  // 优化：使用扩展上下文（前后各 5 行）
+  let evidenceWithContext: Array<CodeChunkRecord & { file_path?: string; extended_code?: string }> = evidence;
+  if (useExtendedContext) {
+    try {
+      evidenceWithContext = await getChunksWithContext(evidence, 5, 5);
+      console.log('Using extended context for root cause analysis');
+    } catch (error) {
+      console.log('Extended context unavailable, using original evidence');
+    }
+  }
+
+  const evidenceText = evidenceWithContext
     .map((e, i) => {
+      const codeToShow = e.extended_code || e.code_text;
       return `[证据 ${i + 1}] ${e.file_path || 'unknown'}:${e.line_start}-${e.line_end}
 符号: ${e.symbol_name} (${e.symbol_type})
 代码:
 \`\`\`
-${e.code_text}
+${codeToShow}
 \`\`\`
 `;
     })

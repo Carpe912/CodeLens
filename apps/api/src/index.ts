@@ -8,7 +8,8 @@ import { initDatabase, createRepo, pool, searchByKeyword, searchByEmbedding, get
 import { enqueueIndexJob, enqueueIncrementalIndexJob, enqueueRefreshJob, enqueueReindexJob, startIndexWorker } from './indexer/queue.js';
 import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
-import { searchTTLCache, generateCacheKey } from './cache.js';
+import { searchTTLCache, generateCacheKey, getAllCacheStats, clearAllCaches } from './cache.js';
+import { enhancedSearch } from './llm/enhanced-search.js';
 
 // Validate required environment variables
 function validateEnv() {
@@ -178,6 +179,10 @@ fastify.post<{
 
   // Allow refresh even if status is 'failed' - the refresh function will handle re-cloning if needed
 
+  // Clear query cache (important: avoid returning stale search results)
+  console.log('Clearing query cache after refresh');
+  clearAllCaches();
+
   // Update status to indexing
   await pool.query('UPDATE repos SET status = $1 WHERE id = $2', ['indexing', repoId]);
 
@@ -208,6 +213,10 @@ fastify.post<{
   // Clear all existing data
   console.log(`Clearing data for repo ${repoId}`);
   await clearRepoData(repoId);
+
+  // Clear query cache (important: avoid returning stale search results)
+  console.log('Clearing query cache after reindex');
+  clearAllCaches();
 
   // Update status to indexing
   await pool.query('UPDATE repos SET status = $1 WHERE id = $2', ['indexing', repoId]);
@@ -350,33 +359,46 @@ fastify.post('/admin/migrate-vector-dimension', async (request, reply) => {
 });
 
 fastify.get<{
-  Querystring: { repoId: string; q: string };
+  Querystring: { repoId: string; q: string; enhanced?: string };
 }>('/search', async (request, reply) => {
-  const { repoId, q } = request.query;
+  const { repoId, q, enhanced } = request.query;
 
   if (!repoId || !q) {
     return reply.code(400).send({ error: 'Missing repoId or q' });
   }
 
   // Check cache first
-  const cacheKey = generateCacheKey('search', repoId, q);
+  const cacheKey = generateCacheKey('search', repoId, q, enhanced || 'false');
   const cached = searchTTLCache.get(cacheKey);
   if (cached) {
     console.log('Search cache hit');
     return cached;
   }
 
-  const keywordResults = await searchByKeyword(parseInt(repoId), q);
+  let unique;
 
-  const embedding = await generateEmbedding(q);
-  const semanticResults = await searchByEmbedding(parseInt(repoId), embedding, 10);
+  // Use enhanced search if requested
+  if (enhanced === 'true') {
+    console.log('Using enhanced search with query rewriting and reranking');
+    unique = await enhancedSearch(parseInt(repoId), q, {
+      useQueryRewrite: true,
+      useReranking: true,
+      topK: 20,
+    });
+  } else {
+    // Original search logic
+    const keywordResults = await searchByKeyword(parseInt(repoId), q);
+    const embedding = await generateEmbedding(q);
+    const semanticResults = await searchByEmbedding(parseInt(repoId), embedding, 10);
 
-  const combined = [...keywordResults, ...semanticResults];
-  const unique = Array.from(new Map(combined.map((item) => [item.id, item])).values());
+    const combined = [...keywordResults, ...semanticResults];
+    unique = Array.from(new Map(combined.map((item) => [item.id, item])).values()).slice(0, 20);
+  }
 
   const result = {
     query: q,
-    hits: unique.slice(0, 20),
+    hits: unique,
+    enhanced: enhanced === 'true',
   };
 
   // Cache the result
@@ -386,23 +408,36 @@ fastify.get<{
 });
 
 fastify.post<{
-  Body: { repoId: number; query: string };
+  Body: { repoId: number; query: string; enhanced?: boolean };
 }>('/ask', async (request, reply) => {
-  const { repoId, query } = request.body;
+  const { repoId, query, enhanced = true } = request.body;
 
   if (!repoId || !query) {
     return reply.code(400).send({ error: 'Missing repoId or query' });
   }
 
   // Check cache first
-  const cacheKey = generateCacheKey('ask', repoId.toString(), query);
+  const cacheKey = generateCacheKey('ask', repoId.toString(), query, enhanced.toString());
   const cached = searchTTLCache.get(cacheKey);
   if (cached) {
     return cached;
   }
 
-  const embedding = await generateEmbedding(query);
-  const evidence = await searchByEmbedding(repoId, embedding, 10);
+  let evidence;
+
+  // Use enhanced search for better retrieval
+  if (enhanced) {
+    console.log('Using enhanced search for Q&A');
+    evidence = await enhancedSearch(repoId, query, {
+      useQueryRewrite: true,
+      useReranking: true,
+      topK: 10,
+    });
+  } else {
+    // Original search logic
+    const embedding = await generateEmbedding(query);
+    evidence = await searchByEmbedding(repoId, embedding, 10);
+  }
 
   // Get similar historical questions with feedback
   const historicalFeedback = await getSimilarQuestionsWithFeedback(repoId, query, 3);
@@ -422,6 +457,7 @@ fastify.post<{
     answer,
     evidence,
     historicalFeedback: historicalFeedback.length > 0 ? historicalFeedback : undefined,
+    enhanced,
   };
 
   // Cache the result
@@ -431,16 +467,29 @@ fastify.post<{
 });
 
 fastify.post<{
-  Body: { repoId: number; query: string };
+  Body: { repoId: number; query: string; enhanced?: boolean };
 }>('/root-cause', async (request, reply) => {
-  const { repoId, query } = request.body;
+  const { repoId, query, enhanced = true } = request.body;
 
   if (!repoId || !query) {
     return reply.code(400).send({ error: 'Missing repoId or query' });
   }
 
-  const embedding = await generateEmbedding(query);
-  const evidence = await searchByEmbedding(repoId, embedding, 15);
+  let evidence;
+
+  // Use enhanced search for better root cause analysis
+  if (enhanced) {
+    console.log('Using enhanced search for root cause analysis');
+    evidence = await enhancedSearch(repoId, query, {
+      useQueryRewrite: true,
+      useReranking: true,
+      topK: 15,
+    });
+  } else {
+    // Original search logic
+    const embedding = await generateEmbedding(query);
+    evidence = await searchByEmbedding(repoId, embedding, 15);
+  }
 
   const rootCause = await analyzeRootCause(query, evidence);
 
@@ -448,6 +497,7 @@ fastify.post<{
     query,
     rootCause,
     evidence,
+    enhanced,
   };
 });
 
@@ -554,6 +604,16 @@ fastify.get<{
     console.error('Call graph error:', error);
     return reply.code(500).send({ error: 'Failed to fetch call graph' });
   }
+});
+
+// Cache management endpoints
+fastify.get('/admin/cache/stats', async () => {
+  return getAllCacheStats();
+});
+
+fastify.post('/admin/cache/clear', async () => {
+  clearAllCaches();
+  return { message: 'All caches cleared successfully' };
 });
 
 const port = parseInt(process.env.PORT || '8787');

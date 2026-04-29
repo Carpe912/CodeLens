@@ -127,3 +127,141 @@ export class TTLCache<K, V> {
 
 // TTL cache for search results (5 minutes)
 export const searchTTLCache = new TTLCache<string, any>(300000, 200);
+
+/**
+ * 查询结果缓存
+ * 用于缓存 enhancedSearch 和 multiStageSearch 的结果
+ *
+ * 特点：
+ * - TTL: 5 分钟（避免返回过时结果）
+ * - 最大容量: 500 个查询
+ * - 自动清理过期条目
+ */
+export const queryResultCache = new TTLCache<string, any>(300000, 500);
+
+/**
+ * 查询改写缓存
+ * 用于缓存 generateQueryVariants 的结果
+ *
+ * 特点：
+ * - TTL: 1 小时（查询改写结果相对稳定）
+ * - 最大容量: 1000 个查询
+ */
+export const queryRewriteCache = new TTLCache<string, string[]>(3600000, 1000);
+
+/**
+ * HyDE 缓存
+ * 用于缓存 generateHypotheticalCode 的结果
+ *
+ * 特点：
+ * - TTL: 1 小时
+ * - 最大容量: 500 个查询
+ */
+export const hydeCache = new TTLCache<string, string>(3600000, 500);
+
+/**
+ * 生成查询缓存键
+ * 包含 repoId 和查询参数，确保不同仓库和配置的查询不会冲突
+ */
+export function generateQueryCacheKey(
+  repoId: number,
+  query: string,
+  options?: Record<string, any>
+): string {
+  const optionsStr = options ? JSON.stringify(options) : '';
+  return `query:${repoId}:${query}:${optionsStr}`;
+}
+
+/**
+ * 缓存统计信息
+ */
+export interface CacheStats {
+  hits: number;
+  misses: number;
+  hitRate: number;
+  size: number;
+  maxSize: number;
+}
+
+class CacheStatsTracker {
+  private stats: Map<string, { hits: number; misses: number }> = new Map();
+
+  recordHit(cacheName: string): void {
+    const stat = this.stats.get(cacheName) || { hits: 0, misses: 0 };
+    stat.hits++;
+    this.stats.set(cacheName, stat);
+  }
+
+  recordMiss(cacheName: string): void {
+    const stat = this.stats.get(cacheName) || { hits: 0, misses: 0 };
+    stat.misses++;
+    this.stats.set(cacheName, stat);
+  }
+
+  getStats(cacheName: string): { hits: number; misses: number; hitRate: number } {
+    const stat = this.stats.get(cacheName) || { hits: 0, misses: 0 };
+    const total = stat.hits + stat.misses;
+    const hitRate = total > 0 ? stat.hits / total : 0;
+    return { ...stat, hitRate };
+  }
+
+  getAllStats(): Record<string, { hits: number; misses: number; hitRate: number }> {
+    const result: Record<string, any> = {};
+    for (const [name, stat] of this.stats.entries()) {
+      const total = stat.hits + stat.misses;
+      const hitRate = total > 0 ? stat.hits / total : 0;
+      result[name] = { ...stat, hitRate };
+    }
+    return result;
+  }
+
+  reset(): void {
+    this.stats.clear();
+  }
+}
+
+export const cacheStatsTracker = new CacheStatsTracker();
+
+/**
+ * 获取所有缓存的统计信息
+ */
+export function getAllCacheStats(): Record<string, CacheStats> {
+  const stats = cacheStatsTracker.getAllStats();
+
+  return {
+    queryResult: {
+      ...stats.queryResult,
+      size: queryResultCache.size(),
+      maxSize: 500,
+    },
+    queryRewrite: {
+      ...stats.queryRewrite,
+      size: queryRewriteCache.size(),
+      maxSize: 1000,
+    },
+    hyde: {
+      ...stats.hyde,
+      size: hydeCache.size(),
+      maxSize: 500,
+    },
+    embedding: {
+      ...stats.embedding,
+      size: embeddingCache.size(),
+      maxSize: 500,
+    },
+  };
+}
+
+/**
+ * 清空所有缓存
+ */
+export function clearAllCaches(): void {
+  queryResultCache.clear();
+  queryRewriteCache.clear();
+  hydeCache.clear();
+  embeddingCache.clear();
+  searchCache.clear();
+  searchTTLCache.clear();
+  cacheStatsTracker.reset();
+  console.log('All caches cleared');
+}

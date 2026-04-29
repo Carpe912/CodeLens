@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { embeddingCache } from '../cache.js';
+import { embeddingCache, cacheStatsTracker } from '../cache.js';
 
 const openai = new OpenAI({
   apiKey: process.env.EMBED_API_KEY || process.env.OPENAI_API_KEY,
@@ -10,9 +10,12 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   // Check cache first
   const cached = embeddingCache.get(text);
   if (cached) {
+    cacheStatsTracker.recordHit('embedding');
     console.log('Embedding cache hit');
     return cached;
   }
+
+  cacheStatsTracker.recordMiss('embedding');
 
   const model = process.env.EMBED_MODEL || 'text-embedding-3-small';
   const dimensions = process.env.EMBED_DIMENSIONS ? parseInt(process.env.EMBED_DIMENSIONS) : undefined;
