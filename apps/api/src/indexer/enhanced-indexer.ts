@@ -492,7 +492,17 @@ export class EnhancedIndexer {
       await this.db.query('DELETE FROM search_logs WHERE repo_id = $1', [repoId]);
       await this.db.query('DELETE FROM url_usages WHERE repo_id = $1', [repoId]);
       await this.db.query('DELETE FROM constant_references WHERE repo_id = $1', [repoId]);
-      await this.db.query('DELETE FROM call_graph WHERE repo_id = $1', [repoId]);
+
+      // call_graph doesn't have repo_id, delete via code_chunks -> files join
+      await this.db.query(`
+        DELETE FROM call_graph
+        WHERE from_chunk_id IN (
+          SELECT cc.id FROM code_chunks cc
+          JOIN files f ON cc.file_id = f.id
+          WHERE f.repo_id = $1
+        )
+      `, [repoId]);
+
       await this.db.query('DELETE FROM import_relations WHERE repo_id = $1', [repoId]);
       await this.db.query('DELETE FROM file_dependencies WHERE repo_id = $1', [repoId]);
       await this.db.query('DELETE FROM url_patterns WHERE repo_id = $1', [repoId]);
