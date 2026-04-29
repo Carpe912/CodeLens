@@ -10,6 +10,7 @@ import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
 import { searchTTLCache, generateCacheKey, getAllCacheStats, clearAllCaches } from './cache.js';
 import { enhancedSearch } from './llm/enhanced-search.js';
+import { MultiStrategySearch } from './llm/multi-strategy-search.js';
 
 // Validate required environment variables
 function validateEnv() {
@@ -43,6 +44,10 @@ await fastify.register(rateLimit, {
 
 await initDatabase();
 startIndexWorker();
+
+// Initialize multi-strategy search engine
+const anthropicApiKey = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY || '';
+const multiStrategySearch = new MultiStrategySearch(pool, anthropicApiKey);
 
 fastify.get('/health', async () => {
   return { ok: true, service: 'codelens-api' };
@@ -359,16 +364,16 @@ fastify.post('/admin/migrate-vector-dimension', async (request, reply) => {
 });
 
 fastify.get<{
-  Querystring: { repoId: string; q: string; enhanced?: string };
+  Querystring: { repoId: string; q: string; enhanced?: string; strategy?: string };
 }>('/search', async (request, reply) => {
-  const { repoId, q, enhanced } = request.query;
+  const { repoId, q, enhanced, strategy } = request.query;
 
   if (!repoId || !q) {
     return reply.code(400).send({ error: 'Missing repoId or q' });
   }
 
   // Check cache first
-  const cacheKey = generateCacheKey('search', repoId, q, enhanced || 'false');
+  const cacheKey = generateCacheKey('search', repoId, q, enhanced || 'false', strategy || 'default');
   const cached = searchTTLCache.get(cacheKey);
   if (cached) {
     console.log('Search cache hit');
@@ -377,8 +382,29 @@ fastify.get<{
 
   let unique;
 
-  // Use enhanced search if requested
-  if (enhanced === 'true') {
+  // Use multi-strategy search if requested
+  if (strategy === 'multi') {
+    console.log('Using multi-strategy search (vector + exact + fuzzy + dependency)');
+    const searchResults = await multiStrategySearch.search(parseInt(repoId), q, {
+      limit: 20,
+      threshold: 0.3,
+      strategies: ['vector', 'exact', 'fuzzy', 'dependency'],
+      includeContext: true,
+      followDependencies: false,
+    });
+
+    // Convert to legacy format
+    unique = searchResults.map((result) => ({
+      id: result.id,
+      file_path: result.filePath,
+      line_start: result.lineStart,
+      line_end: result.lineEnd,
+      content: result.content,
+      score: result.score,
+      symbol_name: result.context.symbolName,
+      metadata: result.metadata,
+    }));
+  } else if (enhanced === 'true') {
     console.log('Using enhanced search with query rewriting and reranking');
     unique = await enhancedSearch(parseInt(repoId), q, {
       useQueryRewrite: true,
@@ -399,6 +425,7 @@ fastify.get<{
     query: q,
     hits: unique,
     enhanced: enhanced === 'true',
+    strategy: strategy || 'default',
   };
 
   // Cache the result
@@ -408,16 +435,16 @@ fastify.get<{
 });
 
 fastify.post<{
-  Body: { repoId: number; query: string; enhanced?: boolean };
+  Body: { repoId: number; query: string; enhanced?: boolean; strategy?: string };
 }>('/ask', async (request, reply) => {
-  const { repoId, query, enhanced = true } = request.body;
+  const { repoId, query, enhanced = true, strategy = 'enhanced' } = request.body;
 
   if (!repoId || !query) {
     return reply.code(400).send({ error: 'Missing repoId or query' });
   }
 
   // Check cache first
-  const cacheKey = generateCacheKey('ask', repoId.toString(), query, enhanced.toString());
+  const cacheKey = generateCacheKey('ask', repoId.toString(), query, enhanced.toString(), strategy);
   const cached = searchTTLCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -425,8 +452,31 @@ fastify.post<{
 
   let evidence;
 
-  // Use enhanced search for better retrieval
-  if (enhanced) {
+  // Use multi-strategy search for best results
+  if (strategy === 'multi') {
+    console.log('Using multi-strategy search for Q&A');
+    const searchResults = await multiStrategySearch.search(repoId, query, {
+      limit: 10,
+      threshold: 0.3,
+      strategies: ['vector', 'exact', 'dependency'],
+      includeContext: true,
+      followDependencies: true,
+    });
+
+    // Convert to legacy format with required fields
+    evidence = searchResults.map((result) => ({
+      id: parseInt(result.id.split(':')[1]) || 0, // Extract numeric ID from "table:id" format
+      file_id: 0, // placeholder
+      file_path: result.filePath,
+      line_start: result.lineStart,
+      line_end: result.lineEnd,
+      content: result.content,
+      code_text: result.content,
+      symbol_name: result.context.symbolName || '',
+      symbol_type: result.metadata?.nodeType || 'unknown',
+      score: result.score,
+    })) as any;
+  } else if (enhanced) {
     console.log('Using enhanced search for Q&A');
     evidence = await enhancedSearch(repoId, query, {
       useQueryRewrite: true,
@@ -458,6 +508,7 @@ fastify.post<{
     evidence,
     historicalFeedback: historicalFeedback.length > 0 ? historicalFeedback : undefined,
     enhanced,
+    strategy,
   };
 
   // Cache the result
@@ -467,9 +518,9 @@ fastify.post<{
 });
 
 fastify.post<{
-  Body: { repoId: number; query: string; enhanced?: boolean };
+  Body: { repoId: number; query: string; enhanced?: boolean; strategy?: string };
 }>('/root-cause', async (request, reply) => {
-  const { repoId, query, enhanced = true } = request.body;
+  const { repoId, query, enhanced = true, strategy = 'enhanced' } = request.body;
 
   if (!repoId || !query) {
     return reply.code(400).send({ error: 'Missing repoId or query' });
@@ -477,8 +528,31 @@ fastify.post<{
 
   let evidence;
 
-  // Use enhanced search for better root cause analysis
-  if (enhanced) {
+  // Use multi-strategy search for comprehensive root cause analysis
+  if (strategy === 'multi') {
+    console.log('Using multi-strategy search for root cause analysis');
+    const searchResults = await multiStrategySearch.search(repoId, query, {
+      limit: 15,
+      threshold: 0.3,
+      strategies: ['vector', 'exact', 'fuzzy', 'dependency', 'graph'],
+      includeContext: true,
+      followDependencies: true,
+    });
+
+    // Convert to legacy format with required fields
+    evidence = searchResults.map((result) => ({
+      id: parseInt(result.id.split(':')[1]) || 0, // Extract numeric ID from "table:id" format
+      file_id: 0, // placeholder
+      file_path: result.filePath,
+      line_start: result.lineStart,
+      line_end: result.lineEnd,
+      content: result.content,
+      code_text: result.content,
+      symbol_name: result.context.symbolName || '',
+      symbol_type: result.metadata?.nodeType || 'unknown',
+      score: result.score,
+    })) as any;
+  } else if (enhanced) {
     console.log('Using enhanced search for root cause analysis');
     evidence = await enhancedSearch(repoId, query, {
       useQueryRewrite: true,
@@ -498,6 +572,7 @@ fastify.post<{
     rootCause,
     evidence,
     enhanced,
+    strategy,
   };
 });
 
