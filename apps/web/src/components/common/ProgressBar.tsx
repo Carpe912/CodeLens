@@ -5,32 +5,52 @@ type ProgressBarProps = {
 };
 
 export function ProgressBar({ progress }: ProgressBarProps) {
-  const { percentComplete, processed, total, estimatedTimeRemaining } = progress;
+  const { percentComplete, processed, total, phase } = progress;
 
-  const formatTime = (seconds: number | null) => {
-    if (seconds === null) return '计算中...';
-    if (seconds < 60) return `${seconds}秒`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)}分钟`;
-    return `${Math.round(seconds / 3600)}小时`;
-  };
+  const phaseText = phase === 'enhanced' ? '增强索引' : '基础索引';
 
   return (
     <div className="mt-2 space-y-1">
       <div className="flex justify-between text-xs text-gray-400">
-        <span>{processed} / {total} 文件</span>
+        <span>{phaseText}: {processed} / {total} 文件</span>
         <span>{percentComplete}%</span>
       </div>
-      <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+      <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden relative">
         <div
-          className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full transition-all duration-300 ease-out"
-          style={{ width: `${percentComplete}%` }}
+          className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-400 h-full transition-all duration-500 ease-in-out"
+          style={{
+            width: `${percentComplete}%`,
+            animation: 'progress-pulse 2s ease-in-out infinite'
+          }}
+        />
+        <div
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent h-full"
+          style={{
+            width: '30%',
+            animation: 'progress-shimmer 2s ease-in-out infinite',
+            left: '-30%'
+          }}
         />
       </div>
-      {estimatedTimeRemaining !== null && (
-        <div className="text-xs text-gray-500">
-          预计剩余: {formatTime(estimatedTimeRemaining)}
-        </div>
-      )}
+      <style>{`
+        @keyframes progress-pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.8;
+          }
+        }
+
+        @keyframes progress-shimmer {
+          0% {
+            left: -30%;
+          }
+          100% {
+            left: 100%;
+          }
+        }
+      `}</style>
     </div>
   );
 }

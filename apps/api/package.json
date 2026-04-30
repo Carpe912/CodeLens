@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx src/scripts/migrate.ts",
-    "reindex": "tsx src/scripts/reindex.ts"
+    "reindex": "tsx src/scripts/reindex.ts",
+    "rebuild-references": "tsx src/scripts/rebuild-references.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

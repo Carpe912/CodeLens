@@ -188,7 +188,7 @@ export async function updateIndexProgress(repoId: number, total: number, process
   await pool.query('UPDATE repos SET index_progress = $1 WHERE id = $2', [JSON.stringify(progress), repoId]);
 }
 
-export async function getIndexProgress(repoId: number): Promise<{ total: number; processed: number; startTime: Date | null } | null> {
+export async function getIndexProgress(repoId: number): Promise<{ total: number; processed: number; startTime: Date | null; phase?: 'basic' | 'enhanced' } | null> {
   const result = await pool.query('SELECT index_progress FROM repos WHERE id = $1', [repoId]);
   if (!result.rows[0]) return null;
   const progress = result.rows[0].index_progress;
@@ -196,6 +196,7 @@ export async function getIndexProgress(repoId: number): Promise<{ total: number;
     total: progress.total || 0,
     processed: progress.processed || 0,
     startTime: progress.startTime ? new Date(progress.startTime) : null,
+    phase: progress.phase,
   };
 }
 
@@ -231,11 +232,17 @@ export async function insertCodeChunk(
 }
 
 export async function searchByKeyword(repoId: number, keyword: string): Promise<CodeChunkRecord[]> {
+  // Skip keyword search for very long queries (e.g., URLs) as ILIKE is too slow
+  if (keyword.length > 100) {
+    return [];
+  }
+
+  // Only search in symbol_name to avoid slow ILIKE on code_text
   const result = await pool.query(
     `SELECT c.*, f.path as file_path
      FROM code_chunks c
      JOIN files f ON c.file_id = f.id
-     WHERE f.repo_id = $1 AND (c.symbol_name ILIKE $2 OR c.code_text ILIKE $2)
+     WHERE f.repo_id = $1 AND c.symbol_name ILIKE $2
      LIMIT 20`,
     [repoId, `%${keyword}%`]
   );
@@ -254,6 +261,100 @@ export async function searchByEmbedding(repoId: number, embedding: number[], lim
      ORDER BY c.embedding <=> $1::vector
      LIMIT $3`,
     [`[${embedding.join(',')}]`, repoId, limit]
+  );
+  return result.rows;
+}
+
+// Search for string constants (URLs, API endpoints, etc.)
+export async function searchStringConstants(repoId: number, pattern: string, limit = 20): Promise<any[]> {
+  const result = await pool.query(
+    `SELECT
+       sc.id,
+       sc.value,
+       sc.symbol_name,
+       sc.export_type,
+       f.path as file_path,
+       c.start_line,
+       c.end_line,
+       c.code_text
+     FROM string_constants sc
+     JOIN code_chunks c ON sc.chunk_id = c.id
+     JOIN files f ON c.file_id = f.id
+     WHERE f.repo_id = $1 AND sc.value ILIKE $2
+     ORDER BY LENGTH(sc.value) DESC
+     LIMIT $3`,
+    [repoId, `%${pattern}%`, limit]
+  );
+  return result.rows;
+}
+
+// Find where a constant is used (by symbol name or value)
+export async function findConstantUsages(repoId: number, constantId: number): Promise<any[]> {
+  const result = await pool.query(
+    `SELECT
+       c.id,
+       c.code_text,
+       c.start_line,
+       c.end_line,
+       f.path as file_path,
+       sc.value as constant_value,
+       sc.symbol_name
+     FROM constant_references cr
+     JOIN code_chunks c ON cr.chunk_id = c.id
+     JOIN files f ON c.file_id = f.id
+     JOIN string_constants sc ON cr.constant_id = sc.id
+     WHERE f.repo_id = $1 AND cr.constant_id = $2
+     ORDER BY f.path, c.start_line`,
+    [repoId, constantId]
+  );
+  return result.rows;
+}
+
+// Find call chain for a function
+export async function findCallChain(repoId: number, functionName: string, maxDepth = 3): Promise<any[]> {
+  const result = await pool.query(
+    `WITH RECURSIVE call_chain AS (
+       -- Base case: find the target function
+       SELECT
+         cg.caller_chunk_id,
+         cg.callee_chunk_id,
+         cg.caller_name,
+         cg.callee_name,
+         1 as depth,
+         ARRAY[cg.callee_name] as path
+       FROM call_graph cg
+       JOIN code_chunks c ON cg.callee_chunk_id = c.id
+       JOIN files f ON c.file_id = f.id
+       WHERE f.repo_id = $1 AND cg.callee_name ILIKE $2
+
+       UNION ALL
+
+       -- Recursive case: find callers
+       SELECT
+         cg.caller_chunk_id,
+         cg.callee_chunk_id,
+         cg.caller_name,
+         cg.callee_name,
+         cc.depth + 1,
+         cc.path || cg.caller_name
+       FROM call_graph cg
+       JOIN call_chain cc ON cg.callee_chunk_id = cc.caller_chunk_id
+       JOIN code_chunks c ON cg.caller_chunk_id = c.id
+       JOIN files f ON c.file_id = f.id
+       WHERE f.repo_id = $1 AND cc.depth < $3
+         AND NOT (cg.caller_name = ANY(cc.path)) -- Prevent cycles
+     )
+     SELECT DISTINCT
+       cc.*,
+       c.code_text,
+       c.start_line,
+       c.end_line,
+       f.path as file_path
+     FROM call_chain cc
+     JOIN code_chunks c ON cc.caller_chunk_id = c.id
+     JOIN files f ON c.file_id = f.id
+     ORDER BY cc.depth, f.path, c.start_line`,
+    [repoId, `%${functionName}%`, maxDepth]
   );
   return result.rows;
 }

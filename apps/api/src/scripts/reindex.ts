@@ -74,8 +74,11 @@ async function main() {
     console.log('Initializing enhanced indexer...');
     const indexer = new EnhancedIndexer(pool, anthropicApiKey);
 
-    // Update status to indexing
-    await pool.query('UPDATE repos SET status = $1 WHERE id = $2', ['indexing', repoId]);
+    // Reset progress and update status to indexing
+    await pool.query(
+      'UPDATE repos SET status = $1, index_progress = $2 WHERE id = $3',
+      ['indexing', JSON.stringify({ total: 0, processed: 0, startTime: new Date() }), repoId]
+    );
 
     // Start re-indexing with progress tracking
     console.log('Starting re-indexing...');

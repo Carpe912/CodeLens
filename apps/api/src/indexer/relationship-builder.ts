@@ -172,10 +172,19 @@ export class RelationshipBuilder {
 
         const constantId = constantResult.rows[0].id;
 
-        // Find references to this constant in other files
-        // This is done by searching for the symbol name in code chunks
-        if (constant.symbolName && constant.exportType !== 'none') {
-          const references = await this.findConstantReferences(repoId, fileId, constant.symbolName);
+        // Find references to this constant
+        // For exported constants: search in files that import this file
+        // For non-exported constants: search within the same file
+        if (constant.symbolName) {
+          let references;
+
+          if (constant.exportType !== 'none') {
+            // Exported constant: search in importing files
+            references = await this.findConstantReferences(repoId, fileId, constant.symbolName);
+          } else {
+            // Non-exported constant: search within the same file
+            references = await this.findLocalConstantReferences(repoId, fileId, constant.symbolName);
+          }
 
           for (const ref of references) {
             await this.db.query(
@@ -259,6 +268,47 @@ export class RelationshipBuilder {
           }
         });
       }
+    }
+
+    return references;
+  }
+
+  /**
+   * Find references to a constant within the same file (for non-exported constants)
+   */
+  private async findLocalConstantReferences(
+    repoId: number,
+    fileId: number,
+    symbolName: string
+  ): Promise<Array<{ fileId: number; chunkId: number; line: number; context: string; type: string }>> {
+    const references: Array<{ fileId: number; chunkId: number; line: number; context: string; type: string }> = [];
+
+    // Search for usage in code chunks within the same file
+    const chunks = await this.db.query(
+      `
+      SELECT id, code_text, line_start
+      FROM code_chunks
+      WHERE file_id = $1
+    `,
+      [fileId]
+    );
+
+    for (const chunk of chunks.rows) {
+      const lines = chunk.code_text.split('\n');
+
+      lines.forEach((line: string, index: number) => {
+        // Skip the definition line itself
+        const regex = new RegExp(`\\b${this.escapeRegex(symbolName)}\\b`);
+        if (regex.test(line) && !line.includes(`const ${symbolName}`) && !line.includes(`let ${symbolName}`) && !line.includes(`var ${symbolName}`)) {
+          references.push({
+            fileId: fileId,
+            chunkId: chunk.id,
+            line: chunk.line_start + index,
+            context: line.trim().slice(0, 200),
+            type: 'local_reference',
+          });
+        }
+      });
     }
 
     return references;

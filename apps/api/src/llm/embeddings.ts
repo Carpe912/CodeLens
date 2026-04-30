@@ -17,18 +17,21 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
   cacheStatsTracker.recordMiss('embedding');
 
-  const model = process.env.EMBED_MODEL || 'text-embedding-3-small';
+  const model = process.env.EMBED_MODEL || 'text-embedding-v4';
   const dimensions = process.env.EMBED_DIMENSIONS ? parseInt(process.env.EMBED_DIMENSIONS) : undefined;
+
+  // Truncate text to max 8000 characters (roughly 8192 tokens for Chinese/English mix)
+  const truncatedText = text.length > 8000 ? text.substring(0, 8000) : text;
 
   const response = await openai.embeddings.create({
     model,
-    input: text,
+    input: truncatedText,
     ...(dimensions && { dimensions }),
   });
 
   const embedding = response.data[0].embedding;
 
-  // Cache the result
+  // Cache the result (use original text as key)
   embeddingCache.set(text, embedding);
 
   return embedding;
@@ -58,7 +61,7 @@ export async function batchGenerateEmbeddings(texts: string[]): Promise<number[]
 
   console.log(`Generating ${uncachedTexts.length}/${texts.length} embeddings`);
 
-  const model = process.env.EMBED_MODEL || 'text-embedding-3-small';
+  const model = process.env.EMBED_MODEL || 'text-embedding-v4';
   const dimensions = process.env.EMBED_DIMENSIONS ? parseInt(process.env.EMBED_DIMENSIONS) : undefined;
 
   // Split into batches of 10 (API limit for Alibaba Cloud)
@@ -67,19 +70,24 @@ export async function batchGenerateEmbeddings(texts: string[]): Promise<number[]
     const batchTexts = uncachedTexts.slice(i, i + BATCH_SIZE);
     const batchIndices = uncachedIndices.slice(i, i + BATCH_SIZE);
 
+    // Truncate each text to max 8000 characters (roughly 8192 tokens)
+    const truncatedBatchTexts = batchTexts.map(text =>
+      text.length > 8000 ? text.substring(0, 8000) : text
+    );
+
     // Generate embeddings for this batch
     const response = await openai.embeddings.create({
       model,
-      input: batchTexts,
+      input: truncatedBatchTexts,
       ...(dimensions && { dimensions }),
     });
 
-    // Store results and cache
+    // Store results and cache (use original text as key)
     response.data.forEach((item, j) => {
       const originalIndex = batchIndices[j];
-      const text = batchTexts[j];
+      const originalText = batchTexts[j];
       results[originalIndex] = item.embedding;
-      embeddingCache.set(text, item.embedding);
+      embeddingCache.set(originalText, item.embedding);
     });
   }
 

@@ -6,6 +6,7 @@ import { parseFile } from '../parser/index.js';
 import { insertFile, insertCodeChunk, updateRepoStatus, getFileByPath, updateFile, deleteFileChunks, deleteFile, updateIndexProgress, pool } from '../db/index.js';
 import { batchGenerateEmbeddings } from '../llm/embeddings.js';
 import type { IndexJobData } from './queue.js';
+import { EnhancedIndexer } from './enhanced-indexer.js';
 
 const execAsync = promisify(exec);
 
@@ -74,12 +75,13 @@ async function indexCodebase(repoId: number, repoPath: string) {
   const alreadyIndexed = files.length - filesToProcess.length;
   console.log(`Found ${alreadyIndexed} already indexed files, processing ${filesToProcess.length} remaining files`);
 
-  // Initialize or update progress
-  await updateIndexProgress(repoId, files.length, alreadyIndexed, new Date());
+  // Initialize progress - always start from 0 for display purposes
+  // But track actual processed count internally for resume capability
+  await updateIndexProgress(repoId, files.length, 0, new Date());
 
   // Process files in batches to avoid memory issues
   const BATCH_SIZE = 10;
-  let processedCount = alreadyIndexed;
+  let processedCount = 0; // Start from 0 for progress display
 
   for (let i = 0; i < filesToProcess.length; i += BATCH_SIZE) {
     const batch = filesToProcess.slice(i, i + BATCH_SIZE);
@@ -123,12 +125,12 @@ async function indexCodebase(repoId: number, repoPath: string) {
         console.log(`Indexed ${relativePath} with ${parseResult.chunks.length} chunks`);
         processedCount++;
 
-        // Update progress after each file
-        await updateIndexProgress(repoId, files.length, processedCount);
+        // Update progress: add already indexed files to show total progress
+        await updateIndexProgress(repoId, files.length, alreadyIndexed + processedCount);
       } catch (error) {
         console.error(`Failed to index ${filePath}:`, error);
         processedCount++;
-        await updateIndexProgress(repoId, files.length, processedCount);
+        await updateIndexProgress(repoId, files.length, alreadyIndexed + processedCount);
       }
     }
 
@@ -142,6 +144,49 @@ async function indexCodebase(repoId: number, repoPath: string) {
   }
 
   console.log(`Full indexing completed for ${files.length} files`);
+
+  // Run enhanced indexing to extract AST information
+  console.log('Starting enhanced indexing (AST analysis)...');
+  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicApiKey) {
+    console.warn('⚠ ANTHROPIC_API_KEY not found, skipping enhanced indexing');
+  } else {
+    const enhancedIndexer = new EnhancedIndexer(pool, anthropicApiKey);
+
+    // Update progress to indicate enhanced indexing phase
+    await pool.query(
+      `UPDATE repos
+       SET index_progress = jsonb_set(
+         index_progress,
+         '{phase}',
+         '"enhanced"'
+       )
+       WHERE id = $1`,
+      [repoId]
+    );
+
+    await enhancedIndexer.reindexRepository(repoId, repoPath, {
+      onProgress: async (progress) => {
+        // Update progress with enhanced indexing info
+        await pool.query(
+          `UPDATE repos
+           SET index_progress = jsonb_set(
+             jsonb_set(
+               index_progress,
+               '{enhancedProcessed}',
+               $1::text::jsonb
+             ),
+             '{enhancedTotal}',
+             $2::text::jsonb
+           )
+           WHERE id = $3`,
+          [progress.processedFiles, progress.totalFiles, repoId]
+        );
+      }
+    });
+
+    console.log('Enhanced indexing completed');
+  }
 }
 
 async function collectFiles(dir: string): Promise<string[]> {
@@ -316,7 +361,7 @@ export async function reindexGitLabRepo(repoId: number, url: string, gitlabToken
   console.log(`Cloning repository for full reindex: ${url}`);
   await cloneGitLabRepo(url, repoId, gitlabToken);
 
-  // Do full index
+  // Do full index (indexCodebase will handle progress from 0)
   await indexCodebase(repoId, repoPath);
   await updateRepoStatus(repoId, 'ready');
 

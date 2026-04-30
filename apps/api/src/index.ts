@@ -282,14 +282,14 @@ fastify.get<{
     return { status: repo.status, progress: null };
   }
 
-  const { total, processed, startTime } = progress;
+  const { total, processed, startTime, phase } = progress;
 
   // Calculate estimated time remaining
   let estimatedTimeRemaining = null;
   let percentComplete = 0;
 
   if (total > 0) {
-    percentComplete = Math.round((processed / total) * 100);
+    percentComplete = Math.floor((processed / total) * 100);
 
     if (processed > 10 && startTime) { // Only estimate after processing at least 10 files
       const elapsedMs = Date.now() - startTime.getTime();
@@ -310,6 +310,7 @@ fastify.get<{
       percentComplete,
       estimatedTimeRemaining, // in seconds
       startTime,
+      phase,
     },
   };
 });
@@ -382,8 +383,28 @@ fastify.get<{
 
   let unique;
 
-  // Use multi-strategy search if requested
-  if (strategy === 'multi') {
+  // Detect if query is a URL
+  const isURL = q.match(/^https?:\/\//) || q.match(/\/[a-z]+\/[a-z]+/i);
+
+  // Use URL-specific search for URL queries
+  if (isURL) {
+    console.log('Detected URL query, using specialized URL search');
+    const { searchURL } = await import('./llm/url-search.js');
+    const urlResults = await searchURL(pool, parseInt(repoId), q, 20);
+
+    // Convert to legacy format
+    unique = urlResults.map((result) => ({
+      id: result.id,
+      file_path: result.filePath,
+      line_start: result.lineStart,
+      line_end: result.lineEnd,
+      content: result.content,
+      code_text: result.content,
+      score: result.score,
+      symbol_name: result.context.constantName,
+      metadata: result.context,
+    }));
+  } else if (strategy === 'multi') {
     console.log('Using multi-strategy search (vector + exact + fuzzy + dependency)');
     const searchResults = await multiStrategySearch.search(parseInt(repoId), q, {
       limit: 20,

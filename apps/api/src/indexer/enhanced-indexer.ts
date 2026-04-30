@@ -13,6 +13,7 @@ import { Pool } from 'pg';
 import Anthropic from '@anthropic-ai/sdk';
 import { ASTAnalyzer, ASTAnalysisResult } from './ast-analyzer.js';
 import { RelationshipBuilder } from './relationship-builder.js';
+import { generateEmbedding } from '../llm/embeddings.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -314,7 +315,7 @@ export class EnhancedIndexer {
       await Promise.all(
         batch.map(async (task) => {
           try {
-            const embedding = await this.generateEmbedding(task.text);
+            const embedding = await this.generateEmbeddingVector(task.text);
             await this.storeEmbedding(repoId, fileId, task.type, task.id, embedding);
           } catch (error) {
             console.error(`Error generating embedding for ${task.type} ${task.id}:`, error);
@@ -325,30 +326,14 @@ export class EnhancedIndexer {
   }
 
   /**
-   * Generate a single embedding using text-embedding-v4
+   * Generate a single embedding using the configured embedding model
+   * Uses the existing embeddings.ts implementation which supports OpenAI-compatible APIs
    */
-  private async generateEmbedding(text: string): Promise<number[]> {
+  private async generateEmbeddingVector(text: string): Promise<number[]> {
     try {
-      // Use Anthropic's text-embedding-v4 model (1536 dimensions)
-      const response = await fetch('https://api.anthropic.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': (this.anthropic as any).apiKey || '',
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'text-embedding-v4',
-          input: text.slice(0, 8000), // Limit input length
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Embedding API error: ${response.statusText}`);
-      }
-
-      const data = await response.json() as any;
-      return data.embedding;
+      // Use the existing embedding implementation from embeddings.ts
+      // This supports OpenAI-compatible APIs like DashScope (Alibaba Cloud)
+      return await generateEmbedding(text.slice(0, 8000));
     } catch (error) {
       console.error('Error generating embedding:', error);
       throw error;
@@ -371,6 +356,11 @@ export class EnhancedIndexer {
       switch (entityType) {
         case 'constant':
           const [constantName, constantLine] = entityId.split(':');
+          const constantLineNum = parseInt(constantLine, 10);
+          if (isNaN(constantLineNum)) {
+            console.error(`Invalid line number for constant ${constantName}: ${constantLine}`);
+            return;
+          }
           await this.db.query(
             `
             UPDATE string_constants
@@ -380,12 +370,17 @@ export class EnhancedIndexer {
               AND symbol_name = $4
               AND line_start = $5
           `,
-            [embeddingVector, repoId, fileId, constantName, parseInt(constantLine)]
+            [embeddingVector, repoId, fileId, constantName, constantLineNum]
           );
           break;
 
         case 'function':
           const [funcName, funcLine] = entityId.split(':');
+          const funcLineNum = parseInt(funcLine, 10);
+          if (isNaN(funcLineNum)) {
+            console.error(`Invalid line number for function ${funcName}: ${funcLine}`);
+            return;
+          }
           await this.db.query(
             `
             UPDATE functions
@@ -395,12 +390,17 @@ export class EnhancedIndexer {
               AND full_name = $4
               AND line_start = $5
           `,
-            [embeddingVector, repoId, fileId, funcName, parseInt(funcLine)]
+            [embeddingVector, repoId, fileId, funcName, funcLineNum]
           );
           break;
 
         case 'class':
           const [className, classLine] = entityId.split(':');
+          const classLineNum = parseInt(classLine, 10);
+          if (isNaN(classLineNum)) {
+            console.error(`Invalid line number for class ${className}: ${classLine}`);
+            return;
+          }
           await this.db.query(
             `
             UPDATE classes
@@ -410,12 +410,17 @@ export class EnhancedIndexer {
               AND full_name = $4
               AND line_start = $5
           `,
-            [embeddingVector, repoId, fileId, className, parseInt(classLine)]
+            [embeddingVector, repoId, fileId, className, classLineNum]
           );
           break;
 
         case 'url':
           const [urlPattern, urlLine] = entityId.split(':');
+          const urlLineNum = parseInt(urlLine, 10);
+          if (isNaN(urlLineNum)) {
+            console.error(`Invalid line number for URL ${urlPattern}: ${urlLine}`);
+            return;
+          }
           await this.db.query(
             `
             UPDATE url_patterns
@@ -425,7 +430,7 @@ export class EnhancedIndexer {
               AND normalized_pattern = $4
               AND definition_line = $5
           `,
-            [embeddingVector, repoId, fileId, urlPattern, parseInt(urlLine)]
+            [embeddingVector, repoId, fileId, urlPattern, urlLineNum]
           );
           break;
       }

@@ -11,6 +11,7 @@
 
 import { Pool } from 'pg';
 import Anthropic from '@anthropic-ai/sdk';
+import { generateEmbedding } from './embeddings.js';
 import { DependencyTracker } from '../indexer/dependency-tracker.js';
 
 // ============================================
@@ -294,7 +295,7 @@ export class MultiStrategySearch {
     limit: number
   ): Promise<SearchResult[]> {
     // Generate query embedding
-    const queryEmbedding = await this.generateEmbedding(query);
+    const queryEmbedding = await this.generateQueryEmbedding(query);
     const embeddingVector = `[${queryEmbedding.join(',')}]`;
 
     const results: SearchResult[] = [];
@@ -768,24 +769,11 @@ export class MultiStrategySearch {
   }
 
   /**
-   * Generate embedding for query
+   * Generate embedding for query using the configured embedding model
    */
-  private async generateEmbedding(text: string): Promise<number[]> {
-    const response = await fetch('https://api.anthropic.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': (this.anthropic as any).apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'text-embedding-v4',
-        input: text.slice(0, 8000),
-      }),
-    });
-
-    const data = await response.json() as any;
-    return data.embedding;
+  private async generateQueryEmbedding(text: string): Promise<number[]> {
+    // Use the existing embedding implementation from embeddings.ts
+    return await generateEmbedding(text.slice(0, 8000));
   }
 
   /**

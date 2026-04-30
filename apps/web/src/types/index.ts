@@ -12,6 +12,7 @@ export type IndexProgress = {
   percentComplete: number;
   estimatedTimeRemaining: number | null;
   startTime: string | null;
+  phase?: 'basic' | 'enhanced';
 };
 
 export type SearchHit = {
