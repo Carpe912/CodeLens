@@ -11,7 +11,7 @@ import { matchURLTemplate, isTemplate, calculateURLSimilarity } from './url-temp
 
 export interface URLSearchResult {
   id: string;
-  type: 'constant' | 'pattern' | 'usage' | 'chunk' | 'template';
+  type: 'constant' | 'pattern' | 'usage' | 'chunk' | 'template' | 'derivation';
   score: number;
   filePath: string;
   lineStart: number;
@@ -58,6 +58,10 @@ export async function searchURL(
   const vectorResults = await searchURLVector(db, repoId, urlQuery);
   results.push(...vectorResults);
 
+  // URL Derivation 功能已移除
+  // 如果需要深度分析，请使用独立的命令行工具：
+  // npm run url-derivation <repo_id> <url>
+
   // Deduplicate and sort by score
   const deduped = deduplicateResults(results);
   const sorted = deduped.sort((a, b) => b.score - a.score);
@@ -71,17 +75,34 @@ export async function searchURL(
 
 /**
  * Extract meaningful path segments from a URL
+ * 优化：更智能地识别和过滤 ID 段
  */
 function extractPathSegments(url: string): string[] {
   // Remove protocol and domain
   let path = url.replace(/^https?:\/\/[^\/]+/, '');
 
+  // Remove query string and hash
+  path = path.split('?')[0].split('#')[0];
+
   // Split by / and filter out empty segments and IDs
   const segments = path.split('/').filter(seg => {
     if (!seg) return false;
-    // Skip segments that look like IDs (long hex strings, UUIDs, etc.)
+
+    // Skip pure numeric IDs
+    if (/^\d+$/.test(seg)) return false;
+
+    // Skip long hex strings (SHA, tokens, etc.)
     if (/^[0-9a-f]{20,}$/i.test(seg)) return false;
+
+    // Skip UUIDs
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return false;
+
+    // Skip MongoDB ObjectIds (24 hex chars)
+    if (/^[0-9a-f]{24}$/i.test(seg)) return false;
+
+    // Skip short random strings (likely IDs)
+    if (seg.length <= 3 && /^[a-z0-9]+$/i.test(seg)) return false;
+
     return true;
   });
 

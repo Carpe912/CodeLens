@@ -1,10 +1,17 @@
 import OpenAI from 'openai';
 import { embeddingCache, cacheStatsTracker } from '../cache.js';
 
-const openai = new OpenAI({
-  apiKey: process.env.EMBED_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.EMBED_BASE_URL,
-});
+let openai: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: process.env.EMBED_API_KEY || process.env.OPENAI_API_KEY,
+      baseURL: process.env.EMBED_BASE_URL,
+    });
+  }
+  return openai;
+}
 
 export async function generateEmbedding(text: string): Promise<number[]> {
   // Check cache first
@@ -23,7 +30,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   // Truncate text to max 8000 characters (roughly 8192 tokens for Chinese/English mix)
   const truncatedText = text.length > 8000 ? text.substring(0, 8000) : text;
 
-  const response = await openai.embeddings.create({
+  const response = await getOpenAI().embeddings.create({
     model,
     input: truncatedText,
     ...(dimensions && { dimensions }),
@@ -76,7 +83,7 @@ export async function batchGenerateEmbeddings(texts: string[]): Promise<number[]
     );
 
     // Generate embeddings for this batch
-    const response = await openai.embeddings.create({
+    const response = await getOpenAI().embeddings.create({
       model,
       input: truncatedBatchTexts,
       ...(dimensions && { dimensions }),

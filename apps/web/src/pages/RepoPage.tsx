@@ -37,7 +37,7 @@ export function RepoPage() {
   const { id } = useParams<{ id: string }>();
   const repoId = id || '';
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<'search' | 'ask' | 'root-cause'>('search');
+  const [mode, setMode] = useState<'search' | 'ask' | 'root-cause'>('ask'); // 默认问答模式
   const [result, setResult] = useState<QAResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +45,8 @@ export function RepoPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [repoUrl, setRepoUrl] = useState<string>('');
   const [searchStatus, setSearchStatus] = useState<string>('');
+  const [showThinkingProcess, setShowThinkingProcess] = useState(false); // 思考过程开关
+  const [thinkingSteps, setThinkingSteps] = useState<string[]>([]); // 思考步骤
 
   // Feedback states
   const [feedbackText, setFeedbackText] = useState('');
@@ -126,6 +128,7 @@ export function RepoPage() {
     setError(null);
     setShowHistory(false);
     setSearchStatus('');
+    setThinkingSteps([]); // 清空之前的思考步骤
 
     try {
       if (mode === 'search') {
@@ -143,6 +146,20 @@ export function RepoPage() {
         addToSearchHistory(searchQuery, mode, repoId, newResult);
         setSearchHistory(getSearchHistory());
       } else if (mode === 'ask') {
+        // 如果启用思考过程，显示思考步骤
+        if (showThinkingProcess) {
+          setThinkingSteps(['正在分析问题...']);
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          setThinkingSteps(prev => [...prev, '正在搜索相关代码...']);
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          setThinkingSteps(prev => [...prev, '正在理解代码上下文...']);
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          setThinkingSteps(prev => [...prev, '正在生成回答...']);
+        }
+
         setSearchStatus('正在分析问题...');
         const res = await fetch(`${API_BASE}/ask`, {
           method: 'POST',
@@ -193,6 +210,7 @@ export function RepoPage() {
         return;
       }
       setError((err as Error).message);
+      setThinkingSteps([]); // 出错时清空思考步骤
     } finally {
       setLoading(false);
       setSearchStatus('');
@@ -294,8 +312,8 @@ export function RepoPage() {
           <div className="w-24"></div>
         </div>
 
-        {/* Mode Selector */}
-        <div className="mb-6 bg-white rounded-xl p-1.5 border border-gray-200 inline-flex gap-1.5 shadow-sm">
+        {/* Mode Selector - 隐藏但保留功能 */}
+        <div className="hidden mb-6 bg-white rounded-xl p-1.5 border border-gray-200 inline-flex gap-1.5 shadow-sm">
           <button
             onClick={() => setMode('search')}
             className={`px-6 py-2.5 rounded-lg font-medium transition-all ${
@@ -346,17 +364,28 @@ export function RepoPage() {
         {/* Search Box */}
         <div className="mb-6 relative">
           <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+            {/* 思考过程开关 */}
+            <div className="mb-3 flex items-center justify-end">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={showThinkingProcess}
+                  onChange={(e) => setShowThinkingProcess(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                />
+                <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  思考过程
+                </span>
+              </label>
+            </div>
             <div className="flex gap-3">
               <div className="flex-1 relative">
                 <input
                   type="text"
-                  placeholder={
-                    mode === 'search'
-                      ? '🔍 搜索代码片段、函数、类...'
-                      : mode === 'ask'
-                      ? '💬 提问：登录方案是什么？'
-                      : '🔧 描述 bug：登录一天要登录好几次'
-                  }
+                  placeholder="💬 提问：登录方案是什么？"
                   value={query}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => {
                     const newQuery = e.target.value;
@@ -476,6 +505,26 @@ export function RepoPage() {
           <div className="space-y-6">
             {result.answer && (
               <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                {/* 思考过程 - DeepSeek 风格 */}
+                {showThinkingProcess && thinkingSteps.length > 0 && (
+                  <div className="mb-6 pb-6 border-b border-gray-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">思考过程</span>
+                    </div>
+                    <div className="space-y-2">
+                      {thinkingSteps.map((step, index) => (
+                        <div key={index} className="flex items-start gap-2">
+                          <span className="text-xs text-gray-400 mt-0.5 flex-shrink-0">{index + 1}.</span>
+                          <p className="text-xs text-gray-500 leading-relaxed">{step}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
                     <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

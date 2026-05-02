@@ -9,7 +9,6 @@ import { enqueueIndexJob, enqueueIncrementalIndexJob, enqueueRefreshJob, enqueue
 import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
 import { searchTTLCache, generateCacheKey, getAllCacheStats, clearAllCaches } from './cache.js';
-import { enhancedSearch } from './llm/enhanced-search.js';
 import { MultiStrategySearch } from './llm/multi-strategy-search.js';
 
 // Validate required environment variables
@@ -427,11 +426,18 @@ fastify.get<{
     }));
   } else if (enhanced === 'true') {
     console.log('Using enhanced search with query rewriting and reranking');
-    unique = await enhancedSearch(parseInt(repoId), q, {
-      useQueryRewrite: true,
-      useReranking: true,
-      topK: 20,
-    });
+    const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
+    const multiSearch = new MultiStrategySearch(pool, anthropicApiKey);
+    const results = await multiSearch.search(parseInt(repoId), q, { limit: 20 });
+    unique = results.map(r => ({
+      file_path: r.filePath,
+      line_start: r.lineStart,
+      line_end: r.lineEnd,
+      code: r.content,
+      symbol_name: r.context.symbolName || '',
+      symbol_type: r.type || 'unknown',
+      score: r.score,
+    }));
   } else {
     // Original search logic
     const keywordResults = await searchByKeyword(parseInt(repoId), q);
@@ -499,11 +505,21 @@ fastify.post<{
     })) as any;
   } else if (enhanced) {
     console.log('Using enhanced search for Q&A');
-    evidence = await enhancedSearch(repoId, query, {
-      useQueryRewrite: true,
-      useReranking: true,
-      topK: 10,
-    });
+    const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
+    const multiSearch = new MultiStrategySearch(pool, anthropicApiKey);
+    const results = await multiSearch.search(repoId, query, { limit: 10 });
+    evidence = results.map(r => ({
+      id: 0, // placeholder
+      file_id: 0, // placeholder
+      file_path: r.filePath,
+      line_start: r.lineStart,
+      line_end: r.lineEnd,
+      content: r.content,
+      code_text: r.content,
+      symbol_name: r.context.symbolName || '',
+      symbol_type: r.type || 'unknown',
+      score: r.score,
+    })) as any;
   } else {
     // Original search logic
     const embedding = await generateEmbedding(query);
@@ -575,11 +591,21 @@ fastify.post<{
     })) as any;
   } else if (enhanced) {
     console.log('Using enhanced search for root cause analysis');
-    evidence = await enhancedSearch(repoId, query, {
-      useQueryRewrite: true,
-      useReranking: true,
-      topK: 15,
-    });
+    const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
+    const multiSearch = new MultiStrategySearch(pool, anthropicApiKey);
+    const results = await multiSearch.search(repoId, query, { limit: 15 });
+    evidence = results.map(r => ({
+      id: 0, // placeholder
+      file_id: 0, // placeholder
+      file_path: r.filePath,
+      line_start: r.lineStart,
+      line_end: r.lineEnd,
+      content: r.content,
+      code_text: r.content,
+      symbol_name: r.context.symbolName || '',
+      symbol_type: r.type || 'unknown',
+      score: r.score,
+    })) as any;
   } else {
     // Original search logic
     const embedding = await generateEmbedding(query);
@@ -721,7 +747,8 @@ signals.forEach((signal) => {
     console.log(`Received ${signal}, closing server gracefully...`);
     try {
       await fastify.close();
-      await pool.end();
+      // Don't close pool - let background workers (BullMQ) continue using it
+      // Pool will be cleaned up when process exits
       console.log('Server closed successfully');
       process.exit(0);
     } catch (err) {

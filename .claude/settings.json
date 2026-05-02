@@ -58,7 +58,42 @@
       "Bash(ssh -o StrictHostKeyChecking=no root@47.116.6.132 \"PGPASSWORD=666666 psql -U postgres -d codelens -c \\\\\"UPDATE repos SET status = 'ready' WHERE id = 3; SELECT id, name, status FROM repos WHERE id = 3;\\\\\"\")",
       "Bash(grep -E \"\\(sending|sent|total size|\\\\.js$\\)\")",
       "Bash(pm2 restart:*)",
-      "Bash(npx pm2:*)"
+      "Bash(npx pm2:*)",
+      "Bash(cat migrations/*.sql)",
+      "Bash(find migrations:*)",
+      "Bash(tsx src/scripts/test-url-derivation.ts)",
+      "Bash(npx tsx:*)",
+      "Bash(node -e \"const seg = require\\('segmentit'\\); console.log\\(typeof seg, Object.keys\\(seg\\)\\)\")",
+      "Bash(scp -r /Users/coopwire-test/remote-project/CodeLens/apps/api/dist/* root@47.116.6.132:/opt/codelens/apps/api/dist/)",
+      "Bash(scp -r dist/* root@47.116.6.132:/opt/codelens/apps/api/dist/)",
+      "Bash(scp /Users/coopwire-test/remote-project/CodeLens/apps/api/dist/utils/multilingual-tokenizer.js root@47.116.6.132:/opt/codelens/apps/api/dist/utils/)",
+      "Bash(scp dist/utils/multilingual-tokenizer.js root@47.116.6.132:/opt/codelens/apps/api/dist/utils/)",
+      "Bash(scp /Users/coopwire-test/remote-project/CodeLens/apps/api/package.json /Users/coopwire-test/remote-project/CodeLens/apps/api/package-lock.json root@47.116.6.132:/opt/codelens/apps/api/)",
+      "Bash(scp -r apps/api/dist root@47.116.6.132:/opt/codelens/apps/api/)",
+      "Bash(scp -r /Users/coopwire-test/remote-project/CodeLens/apps/api/dist root@47.116.6.132:/root/CodeLens/apps/api/)",
+      "Bash(kill %1)",
+      "Bash(scp -r dist root@47.116.6.132:/root/CodeLens/apps/api/)",
+      "Bash(time curl *)",
+      "Bash(nvm exec *)",
+      "Bash(scp -r apps/api/dist root@47.116.6.132:/root/CodeLens/apps/api/)",
+      "Bash(scp /Users/coopwire-test/remote-project/CodeLens/apps/api/src/db/index.ts root@47.116.6.132:/root/CodeLens/apps/api/src/db/index.ts)",
+      "Bash(PGPASSWORD='666666' psql -U postgres -d codelens -c \"SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'code_chunks';\")",
+      "Bash(ssh root@8.138.115.223 \"psql -U postgres -d codelens -c \\\\\"SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN \\('functions', 'classes', 'call_graph'\\) ORDER BY table_name, ordinal_position;\\\\\"\")",
+      "Bash(grep -E \"\\\\.\\(md|ts|tsx|json\\)$\")",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "Bash(awk '{print $9, $5}')",
+      "Bash(awk '{print $9}')",
+      "Bash(xargs -n1 basename)",
+      "Bash(rsync -avz --exclude 'node_modules' --exclude '.git' --exclude 'dist' src/ root@47.116.6.132:/root/CodeLens/apps/api/src/)",
+      "Bash(rsync -avz dist/ root@47.116.6.132:/root/CodeLens/apps/api/dist/)",
+      "Bash(rsync -avz --exclude 'node_modules' --exclude 'dist' --exclude '.git' apps/api/src/index.ts root@47.116.6.132:/root/CodeLens/apps/api/src/)",
+      "Bash(rsync -avz apps/api/dist/ root@47.116.6.132:/root/CodeLens/apps/api/dist/)",
+      "Bash(grep -E \"\\\\.md$\")",
+      "Bash(chmod +x /tmp/diagnose-codelens.sh)",
+      "Bash(curl -k -I https://sunlingyue.cn/code/)"
+    ],
+    "additionalDirectories": [
+      "/Users/coopwire-test/remote-project/CodeLens/apps/api"
     ]
   }
 }

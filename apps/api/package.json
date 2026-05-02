@@ -8,7 +8,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx src/scripts/migrate.ts",
     "reindex": "tsx src/scripts/reindex.ts",
-    "rebuild-references": "tsx src/scripts/rebuild-references.ts"
+    "rebuild-references": "tsx src/scripts/rebuild-references.ts",
+    "url-derivation": "tsx src/scripts/url-derivation-analyzer.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
@@ -24,6 +25,7 @@
     "ioredis": "^5.4.2",
     "openai": "^4.77.3",
     "pg": "^8.13.1",
+    "segmentit": "^2.0.3",
     "ts-morph": "^24.0.0"
   },
   "devDependencies": {

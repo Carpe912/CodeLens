@@ -84,7 +84,7 @@ export class EnhancedIndexer {
     files: Array<{ id: number; path: string; content: string }>,
     options: IndexingOptions = {}
   ): Promise<IndexingProgress> {
-    const { batchSize = 10, onProgress } = options;
+    const { batchSize = 3, onProgress } = options;
 
     const progress: IndexingProgress = {
       totalFiles: files.length,
@@ -264,65 +264,151 @@ export class EnhancedIndexer {
   }
 
   /**
+   * Query existing embeddings to avoid regenerating them
+   */
+  private async getExistingEmbeddings(repoId: number, fileId: number): Promise<Set<string>> {
+    const existing = new Set<string>();
+
+    try {
+      // Query string_constants with embeddings
+      const constantsResult = await this.db.query(
+        `SELECT symbol_name, line_start FROM string_constants
+         WHERE repo_id = $1 AND file_id = $2 AND embedding IS NOT NULL`,
+        [repoId, fileId]
+      );
+      for (const row of constantsResult.rows) {
+        existing.add(`constant:${row.symbol_name}:${row.line_start}`);
+      }
+
+      // Query functions with embeddings
+      const functionsResult = await this.db.query(
+        `SELECT full_name, line_start FROM functions
+         WHERE repo_id = $1 AND file_id = $2 AND embedding IS NOT NULL`,
+        [repoId, fileId]
+      );
+      for (const row of functionsResult.rows) {
+        existing.add(`function:${row.full_name}:${row.line_start}`);
+      }
+
+      // Query classes with embeddings
+      const classesResult = await this.db.query(
+        `SELECT full_name, line_start FROM classes
+         WHERE repo_id = $1 AND file_id = $2 AND embedding IS NOT NULL`,
+        [repoId, fileId]
+      );
+      for (const row of classesResult.rows) {
+        existing.add(`class:${row.full_name}:${row.line_start}`);
+      }
+
+      // Query urls with embeddings
+      const urlsResult = await this.db.query(
+        `SELECT normalized_pattern, definition_line FROM urls
+         WHERE repo_id = $1 AND file_id = $2 AND embedding IS NOT NULL`,
+        [repoId, fileId]
+      );
+      for (const row of urlsResult.rows) {
+        existing.add(`url:${row.normalized_pattern}:${row.definition_line}`);
+      }
+
+      console.log(`Found ${existing.size} existing embeddings for file ${fileId}`);
+    } catch (error) {
+      console.error('Error querying existing embeddings:', error);
+    }
+
+    return existing;
+  }
+
+  /**
    * Generate embeddings for all entities using text-embedding-v4
    */
   private async generateEmbeddings(repoId: number, fileId: number, astResult: ASTAnalysisResult): Promise<void> {
     const embeddingTasks: Array<{ type: string; id: string; text: string }> = [];
 
+    // Query existing embeddings to skip already processed items
+    const existingEmbeddings = await this.getExistingEmbeddings(repoId, fileId);
+
     // Prepare embedding tasks for constants
     for (const constant of astResult.stringConstants) {
       if (constant.symbolName) {
-        embeddingTasks.push({
-          type: 'constant',
-          id: `${constant.symbolName}:${constant.lineStart}`,
-          text: `${constant.symbolName}: ${constant.stringValue} (${constant.constantType})`,
-        });
+        const key = `constant:${constant.symbolName}:${constant.lineStart}`;
+        if (!existingEmbeddings.has(key)) {
+          embeddingTasks.push({
+            type: 'constant',
+            id: `${constant.symbolName}:${constant.lineStart}`,
+            text: `${constant.symbolName}: ${constant.stringValue} (${constant.constantType})`,
+          });
+        }
       }
     }
 
     // Prepare embedding tasks for functions
     for (const func of astResult.functions) {
-      embeddingTasks.push({
-        type: 'function',
-        id: `${func.fullName}:${func.lineStart}`,
-        text: `${func.signature}\n${func.code.slice(0, 500)}`, // Limit to 500 chars
-      });
+      const key = `function:${func.fullName}:${func.lineStart}`;
+      if (!existingEmbeddings.has(key)) {
+        embeddingTasks.push({
+          type: 'function',
+          id: `${func.fullName}:${func.lineStart}`,
+          text: `${func.signature}\n${func.code.slice(0, 500)}`, // Limit to 500 chars
+        });
+      }
     }
 
     // Prepare embedding tasks for classes
     for (const cls of astResult.classes) {
-      embeddingTasks.push({
-        type: 'class',
-        id: `${cls.fullName}:${cls.lineStart}`,
-        text: `${cls.classType} ${cls.fullName}\n${cls.code.slice(0, 500)}`,
-      });
+      const key = `class:${cls.fullName}:${cls.lineStart}`;
+      if (!existingEmbeddings.has(key)) {
+        embeddingTasks.push({
+          type: 'class',
+          id: `${cls.fullName}:${cls.lineStart}`,
+          text: `${cls.classType} ${cls.fullName}\n${cls.code.slice(0, 500)}`,
+        });
+      }
     }
 
     // Prepare embedding tasks for URL patterns
     for (const url of astResult.urlPatterns) {
-      embeddingTasks.push({
-        type: 'url',
-        id: `${url.normalizedPattern}:${url.definitionLine}`,
-        text: `${url.method || 'HTTP'} ${url.pattern}\n${url.definitionCode}`,
-      });
+      const key = `url:${url.normalizedPattern}:${url.definitionLine}`;
+      if (!existingEmbeddings.has(key)) {
+        embeddingTasks.push({
+          type: 'url',
+          id: `${url.normalizedPattern}:${url.definitionLine}`,
+          text: `${url.method || 'HTTP'} ${url.pattern}\n${url.definitionCode}`,
+        });
+      }
     }
 
-    // Generate embeddings in batches
-    const batchSize = 20;
+    // Skip if all embeddings already exist
+    if (embeddingTasks.length === 0) {
+      console.log(`All embeddings already exist for file ${fileId}, skipping...`);
+      return;
+    }
+
+    console.log(`Generating ${embeddingTasks.length} new embeddings for file ${fileId}...`);
+
+    // Generate embeddings in batches and collect results
+    const batchSize = 5;
+    const embeddingResults: Array<{ type: string; id: string; embedding: number[] }> = [];
+
     for (let i = 0; i < embeddingTasks.length; i += batchSize) {
       const batch = embeddingTasks.slice(i, i + batchSize);
 
-      await Promise.all(
+      const results = await Promise.all(
         batch.map(async (task) => {
           try {
             const embedding = await this.generateEmbeddingVector(task.text);
-            await this.storeEmbedding(repoId, fileId, task.type, task.id, embedding);
+            return { type: task.type, id: task.id, embedding };
           } catch (error) {
             console.error(`Error generating embedding for ${task.type} ${task.id}:`, error);
+            return null;
           }
         })
       );
+
+      embeddingResults.push(...results.filter((r): r is { type: string; id: string; embedding: number[] } => r !== null));
     }
+
+    // Batch store embeddings by type
+    await this.batchStoreEmbeddings(repoId, fileId, embeddingResults);
   }
 
   /**
@@ -337,6 +423,102 @@ export class EnhancedIndexer {
     } catch (error) {
       console.error('Error generating embedding:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Batch store embeddings by type to reduce database round trips
+   */
+  private async batchStoreEmbeddings(
+    repoId: number,
+    fileId: number,
+    results: Array<{ type: string; id: string; embedding: number[] }>
+  ): Promise<void> {
+    // Group by type
+    const byType = new Map<string, Array<{ id: string; embedding: number[] }>>();
+    for (const result of results) {
+      if (!byType.has(result.type)) {
+        byType.set(result.type, []);
+      }
+      byType.get(result.type)!.push({ id: result.id, embedding: result.embedding });
+    }
+
+    // Batch update each type
+    for (const [type, items] of byType.entries()) {
+      try {
+        await this.batchUpdateEmbeddingsByType(repoId, fileId, type, items);
+      } catch (error) {
+        console.error(`Error batch updating ${type} embeddings:`, error);
+      }
+    }
+  }
+
+  /**
+   * Batch update embeddings for a specific entity type
+   */
+  private async batchUpdateEmbeddingsByType(
+    repoId: number,
+    fileId: number,
+    entityType: string,
+    items: Array<{ id: string; embedding: number[] }>
+  ): Promise<void> {
+    if (items.length === 0) return;
+
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+
+      for (const item of items) {
+        const embeddingVector = '[' + item.embedding.join(',') + ']';
+        const [name, line] = item.id.split(':');
+        const lineNum = parseInt(line, 10);
+
+        if (isNaN(lineNum)) {
+          console.error(`Invalid line number for ${entityType} ${name}: ${line}`);
+          continue;
+        }
+
+        switch (entityType) {
+          case 'constant':
+            await client.query(
+              `UPDATE string_constants SET embedding = $1::vector
+               WHERE repo_id = $2 AND file_id = $3 AND symbol_name = $4 AND line_start = $5`,
+              [embeddingVector, repoId, fileId, name, lineNum]
+            );
+            break;
+
+          case 'function':
+            await client.query(
+              `UPDATE functions SET embedding = $1::vector
+               WHERE repo_id = $2 AND file_id = $3 AND full_name = $4 AND line_start = $5`,
+              [embeddingVector, repoId, fileId, name, lineNum]
+            );
+            break;
+
+          case 'class':
+            await client.query(
+              `UPDATE classes SET embedding = $1::vector
+               WHERE repo_id = $2 AND file_id = $3 AND full_name = $4 AND line_start = $5`,
+              [embeddingVector, repoId, fileId, name, lineNum]
+            );
+            break;
+
+          case 'url':
+            await client.query(
+              `UPDATE url_patterns SET embedding = $1::vector
+               WHERE repo_id = $2 AND definition_file_id = $3 AND normalized_pattern = $4 AND definition_line = $5`,
+              [embeddingVector, repoId, fileId, name, lineNum]
+            );
+            break;
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
   }
 
