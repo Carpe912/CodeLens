@@ -8,6 +8,7 @@
 import { Pool } from 'pg';
 import { generateEmbedding } from './embeddings.js';
 import { matchURLTemplate, isTemplate, calculateURLSimilarity } from './url-template-matcher.js';
+import { parseQueryIntent, ParsedIntent } from './query-intent-parser.js';
 
 export interface URLSearchResult {
   id: string;
@@ -33,6 +34,10 @@ export interface URLSearchResult {
  * 1. String constants (URL templates)
  * 2. URL patterns (extracted during indexing)
  * 3. Code chunks (vector search for semantic matching)
+ *
+ * 支持自然语言意图：
+ * - "/api/users 位置" -> 查找调用位置
+ * - "/api/users 定义" -> 查找定义位置
  */
 export async function searchURL(
   db: Pool,
@@ -42,25 +47,61 @@ export async function searchURL(
 ): Promise<URLSearchResult[]> {
   const results: URLSearchResult[] = [];
 
-  // Extract path segments from the URL
-  const pathSegments = extractPathSegments(urlQuery);
+  // 1. 解析用户意图
+  const intent = parseQueryIntent(urlQuery);
+  console.log(`🔍 Parsed intent:`, {
+    target: intent.target,
+    action: intent.action,
+    original: intent.originalQuery
+  });
+
+  // 2. 提取 URL 的路径段（使用解析后的 target，而不是原始 query）
+  const pathSegments = extractPathSegments(intent.target);
   console.log(`URL search: extracted segments: ${pathSegments.join(', ')}`);
 
-  // Strategy 1: Search string constants for URL patterns
-  const constantResults = await searchURLConstants(db, repoId, pathSegments, urlQuery);
-  results.push(...constantResults);
+  // 3. 根据用户意图选择搜索策略
+  if (intent.action === 'find_usages') {
+    // 用户想找调用位置 - 优先搜索 URL patterns 和使用位置
+    console.log('🎯 User wants to find usages, prioritizing URL patterns...');
 
-  // Strategy 2: Search URL patterns table
-  const patternResults = await searchURLPatterns(db, repoId, pathSegments, urlQuery);
-  results.push(...patternResults);
+    // Strategy 1: Search URL patterns table (highest priority)
+    const patternResults = await searchURLPatterns(db, repoId, pathSegments, intent.target);
+    results.push(...patternResults);
 
-  // Strategy 3: Vector search for semantic matching
-  const vectorResults = await searchURLVector(db, repoId, urlQuery);
-  results.push(...vectorResults);
+    // Strategy 2: Search for usages in code chunks
+    const usageResults = await searchURLUsages(db, repoId, pathSegments, intent.target);
+    results.push(...usageResults);
 
-  // URL Derivation 功能已移除
-  // 如果需要深度分析，请使用独立的命令行工具：
-  // npm run url-derivation <repo_id> <url>
+    // Strategy 3: Search string constants (lower priority)
+    const constantResults = await searchURLConstants(db, repoId, pathSegments, intent.target);
+    results.push(...constantResults);
+
+  } else if (intent.action === 'find_definition') {
+    // 用户想找定义位置 - 优先搜索 string constants
+    console.log('🎯 User wants to find definitions, prioritizing constants...');
+
+    const constantResults = await searchURLConstants(db, repoId, pathSegments, intent.target);
+    results.push(...constantResults);
+
+    const patternResults = await searchURLPatterns(db, repoId, pathSegments, intent.target);
+    results.push(...patternResults);
+
+  } else {
+    // 通用搜索 - 使用原有的策略
+    console.log('🎯 General search, using all strategies...');
+
+    // Strategy 1: Search string constants for URL patterns
+    const constantResults = await searchURLConstants(db, repoId, pathSegments, intent.target);
+    results.push(...constantResults);
+
+    // Strategy 2: Search URL patterns table
+    const patternResults = await searchURLPatterns(db, repoId, pathSegments, intent.target);
+    results.push(...patternResults);
+
+    // Strategy 3: Vector search for semantic matching
+    const vectorResults = await searchURLVector(db, repoId, intent.target);
+    results.push(...vectorResults);
+  }
 
   // Deduplicate and sort by score
   const deduped = deduplicateResults(results);
@@ -75,7 +116,7 @@ export async function searchURL(
 
 /**
  * Extract meaningful path segments from a URL
- * 优化：更智能地识别和过滤 ID 段
+ * 注意：此函数现在接收的是已经清理过的 URL（由 parseQueryIntent 处理）
  */
 function extractPathSegments(url: string): string[] {
   // Remove protocol and domain
@@ -100,8 +141,12 @@ function extractPathSegments(url: string): string[] {
     // Skip MongoDB ObjectIds (24 hex chars)
     if (/^[0-9a-f]{24}$/i.test(seg)) return false;
 
-    // Skip short random strings (likely IDs)
-    if (seg.length <= 3 && /^[a-z0-9]+$/i.test(seg)) return false;
+    // Keep common API path segments even if short
+    const commonSegments = ['api', 'v1', 'v2', 'v3', 'v4', 'v5', 'app', 'web', 'p'];
+    if (commonSegments.includes(seg.toLowerCase())) return true;
+
+    // Skip short random strings (likely IDs) - but only if not a common segment
+    if (seg.length <= 2 && /^[a-z0-9]+$/i.test(seg)) return false;
 
     return true;
   });
@@ -143,11 +188,31 @@ async function searchURLConstants(
     const result = await db.query(query, [repoId, `%${segment}%`]);
 
     for (const row of result.rows) {
-      // Calculate score based on how many segments match
-      const matchCount = pathSegments.filter(seg =>
-        row.string_value.toLowerCase().includes(seg.toLowerCase())
-      ).length;
-      const score = 0.9 * (matchCount / pathSegments.length);
+      const stringValue = row.string_value.toLowerCase();
+      const targetUrl = fullURL.toLowerCase();
+
+      // 计算匹配精确度
+      let score = 0;
+
+      // 1. 完全匹配（最高优先级）
+      if (stringValue === targetUrl) {
+        score = 1.0;
+      }
+      // 2. 包含完整目标 URL（高优先级）
+      else if (stringValue.includes(targetUrl)) {
+        score = 0.95;
+      }
+      // 3. 目标 URL 包含此常量（中等优先级）
+      else if (targetUrl.includes(stringValue)) {
+        score = 0.85;
+      }
+      // 4. 部分段匹配（较低优先级）
+      else {
+        const matchCount = pathSegments.filter(seg =>
+          stringValue.includes(seg.toLowerCase())
+        ).length;
+        score = 0.7 * (matchCount / pathSegments.length);
+      }
 
       results.push({
         id: `constant:${row.id}`,
@@ -299,11 +364,37 @@ async function searchURLPatterns(
     const result = await db.query(query, [repoId, `%${segment}%`]);
 
     for (const row of result.rows) {
-      const matchCount = pathSegments.filter(seg =>
-        row.pattern.toLowerCase().includes(seg.toLowerCase()) ||
-        row.normalized_pattern?.toLowerCase().includes(seg.toLowerCase())
-      ).length;
-      const score = 0.95 * (matchCount / pathSegments.length);
+      const pattern = row.pattern.toLowerCase();
+      const normalizedPattern = row.normalized_pattern?.toLowerCase() || '';
+      const targetUrl = fullURL.toLowerCase();
+
+      // 计算匹配精确度
+      let score = 0;
+      let matchType = 'partial';
+
+      // 1. 完全匹配（最高优先级）
+      if (pattern === targetUrl || normalizedPattern === targetUrl) {
+        score = 1.0;
+        matchType = 'exact';
+      }
+      // 2. 包含完整目标 URL（高优先级）
+      else if (pattern.includes(targetUrl) || normalizedPattern.includes(targetUrl)) {
+        score = 0.95;
+        matchType = 'contains_full';
+      }
+      // 3. 目标 URL 包含此模式（中等优先级）
+      else if (targetUrl.includes(pattern) || (normalizedPattern && targetUrl.includes(normalizedPattern))) {
+        score = 0.85;
+        matchType = 'contained_in';
+      }
+      // 4. 部分段匹配（较低优先级）
+      else {
+        const matchCount = pathSegments.filter(seg =>
+          pattern.includes(seg.toLowerCase()) || normalizedPattern.includes(seg.toLowerCase())
+        ).length;
+        score = 0.7 * (matchCount / pathSegments.length);
+        matchType = 'segment';
+      }
 
       results.push({
         id: `pattern:${row.id}`,
@@ -316,6 +407,73 @@ async function searchURLPatterns(
         context: {
           constantValue: row.pattern,
         },
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Search for URL usages in code chunks
+ * 专门用于查找 URL 的调用位置
+ */
+async function searchURLUsages(
+  db: Pool,
+  repoId: number,
+  pathSegments: string[],
+  fullURL: string
+): Promise<URLSearchResult[]> {
+  const results: URLSearchResult[] = [];
+
+  // Strategy 1: Search in code_chunks for URL usage patterns
+  // Look for common patterns like: fetch('/api/users'), axios.get('/api/users'), etc.
+  for (const segment of pathSegments) {
+    const query = `
+      SELECT
+        c.id,
+        c.code_text,
+        c.line_start,
+        c.line_end,
+        f.path as file_path
+      FROM code_chunks c
+      JOIN files f ON c.file_id = f.id
+      WHERE f.repo_id = $1
+        AND c.code_text ILIKE $2
+      ORDER BY c.line_start
+      LIMIT 20
+    `;
+
+    const result = await db.query(query, [repoId, `%${segment}%`]);
+
+    for (const row of result.rows) {
+      const codeText = row.code_text.toLowerCase();
+      const targetUrl = fullURL.toLowerCase();
+
+      // 计算匹配精确度
+      let score = 0;
+
+      // 1. 完全匹配（最高优先级）
+      if (codeText.includes(targetUrl)) {
+        score = 0.95;
+      }
+      // 2. 部分段匹配（较低优先级）
+      else {
+        const matchCount = pathSegments.filter(seg =>
+          codeText.includes(seg.toLowerCase())
+        ).length;
+        score = 0.75 * (matchCount / pathSegments.length);
+      }
+
+      results.push({
+        id: `usage:${row.id}`,
+        type: 'usage',
+        score,
+        filePath: row.file_path,
+        lineStart: row.line_start,
+        lineEnd: row.line_end,
+        content: row.code_text,
+        context: {},
       });
     }
   }

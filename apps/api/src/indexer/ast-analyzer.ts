@@ -284,7 +284,8 @@ export class ASTAnalyzer {
   private extractTemplatePattern(node: Node): string {
     if (!Node.isTemplateExpression(node)) return '';
 
-    let pattern = (node.getHead() as any).getLiteralValue();
+    const head = node.getHead();
+    let pattern = Node.isTemplateHead(head) ? head.getLiteralText() : '';
 
     node.getTemplateSpans().forEach((span) => {
       const expr = span.getExpression();
@@ -296,7 +297,10 @@ export class ASTAnalyzer {
         pattern += '${...}';
       }
 
-      pattern += (span.getLiteral() as any).getLiteralValue();
+      const literal = span.getLiteral();
+      if (Node.isTemplateMiddle(literal) || Node.isTemplateTail(literal)) {
+        pattern += literal.getLiteralText();
+      }
     });
 
     return pattern;
@@ -350,10 +354,22 @@ export class ASTAnalyzer {
       const expr = callExpr.getExpression();
       const exprText = expr.getText();
 
-      // Check if it's an HTTP call
-      const httpMethods = ['get', 'post', 'put', 'delete', 'patch', 'axios', 'fetch'];
-      const isHttpCall = httpMethods.some((method) => exprText.includes(method));
+      // Check if it's an HTTP call (more strict matching)
+      // Exclude Cypress commands (cy.get, cy.post, etc.)
+      if (exprText.startsWith('cy.')) return;
 
+      // Check for axios/fetch patterns
+      const isAxiosCall = exprText.includes('axios.');
+      const isFetchCall = exprText === 'fetch' || exprText.endsWith('.fetch');
+
+      // Check for HTTP method calls (must be property access, not just substring)
+      const httpMethods = ['get', 'post', 'put', 'delete', 'patch'];
+      const isHttpMethodCall = httpMethods.some((method) => {
+        // Match patterns like: axios.get, client.post, api.delete, etc.
+        return exprText.endsWith(`.${method}`) || exprText === method;
+      });
+
+      const isHttpCall = isAxiosCall || isFetchCall || isHttpMethodCall;
       if (!isHttpCall) return;
 
       // Extract URL argument
@@ -364,6 +380,7 @@ export class ASTAnalyzer {
       const urlPattern = this.extractURLFromExpression(urlArg);
 
       if (urlPattern) {
+        console.log(`[AST] Extracted URL pattern: ${urlPattern.pattern} at line ${callExpr.getStartLineNumber()}`);
         patterns.push({
           pattern: urlPattern.pattern,
           normalizedPattern: this.normalizeURLPattern(urlPattern.pattern),
@@ -374,6 +391,8 @@ export class ASTAnalyzer {
           definitionLine: callExpr.getStartLineNumber(),
           definitionCode: callExpr.getText().slice(0, 200), // Limit length
         });
+      } else {
+        console.log(`[AST] Failed to extract URL from ${exprText} at line ${callExpr.getStartLineNumber()}, arg kind: ${urlArg.getKindName()}`);
       }
     });
 
@@ -436,9 +455,10 @@ export class ASTAnalyzer {
     if (Node.isTemplateExpression(node)) {
       let pattern = '';
 
-      const head = (node.getHead() as any).getLiteralValue();
-      pattern += head;
-      components.push({ type: 'literal', value: head });
+      const head = node.getHead();
+      const headText = Node.isTemplateHead(head) ? head.getLiteralText() : '';
+      pattern += headText;
+      components.push({ type: 'literal', value: headText });
 
       node.getTemplateSpans().forEach((span) => {
         const expr = span.getExpression();
@@ -448,10 +468,14 @@ export class ASTAnalyzer {
         components.push({ type: 'variable', value: exprText });
         pathParams.push(exprText);
 
-        const literal = (span.getLiteral() as any).getLiteralValue();
-        pattern += literal;
-        if (literal) {
-          components.push({ type: 'literal', value: literal });
+        const literal = span.getLiteral();
+        let literalText = '';
+        if (Node.isTemplateMiddle(literal) || Node.isTemplateTail(literal)) {
+          literalText = literal.getLiteralText();
+        }
+        pattern += literalText;
+        if (literalText) {
+          components.push({ type: 'literal', value: literalText });
         }
       });
 

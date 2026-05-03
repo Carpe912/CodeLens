@@ -133,6 +133,7 @@ function uploadToServer() {
     'apps/api/package.json',
     'apps/web/dist',
     'apps/web/.env.production',
+    '.env.production',  // 根目录的环境变量（API 会读取这个）
     'package.json',
     'pnpm-workspace.yaml',
     'ecosystem.config.js'
@@ -171,7 +172,9 @@ function deployOnServer() {
 
   // 重启服务
   log('重启 PM2 服务...', 'blue');
-  exec(`ssh ${user}@${host} "cd ${deployPath} && pm2 delete all || true && pm2 start ecosystem.config.js --env production && pm2 save"`);
+  // 先尝试重启现有进程，如果不存在则启动新进程
+  const restartCmd = `cd ${deployPath} && (pm2 restart ecosystem.config.js --env production --update-env || pm2 start ecosystem.config.js --env production) && pm2 save`;
+  exec(`ssh ${user}@${host} "${restartCmd}"`);
 
   // 检查服务状态
   log('检查服务状态...', 'blue');

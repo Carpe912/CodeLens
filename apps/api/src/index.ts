@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
@@ -470,6 +471,12 @@ fastify.post<{
     return reply.code(400).send({ error: 'Missing repoId or query' });
   }
 
+  // Verify repo exists
+  const repo = await getRepo(repoId);
+  if (!repo) {
+    return reply.code(404).send({ error: `Repository with id ${repoId} not found` });
+  }
+
   // Check cache first
   const cacheKey = generateCacheKey('ask', repoId.toString(), query, enhanced.toString(), strategy);
   const cached = searchTTLCache.get(cacheKey);
@@ -508,8 +515,8 @@ fastify.post<{
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
     const multiSearch = new MultiStrategySearch(pool, anthropicApiKey);
     const results = await multiSearch.search(repoId, query, { limit: 10 });
-    evidence = results.map(r => ({
-      id: 0, // placeholder
+    evidence = results.map((r, index) => ({
+      id: index + 1, // Generate unique ID for each result
       file_id: 0, // placeholder
       file_path: r.filePath,
       line_start: r.lineStart,
@@ -563,6 +570,12 @@ fastify.post<{
     return reply.code(400).send({ error: 'Missing repoId or query' });
   }
 
+  // Verify repo exists
+  const repo = await getRepo(repoId);
+  if (!repo) {
+    return reply.code(404).send({ error: `Repository with id ${repoId} not found` });
+  }
+
   let evidence;
 
   // Use multi-strategy search for comprehensive root cause analysis
@@ -594,8 +607,8 @@ fastify.post<{
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
     const multiSearch = new MultiStrategySearch(pool, anthropicApiKey);
     const results = await multiSearch.search(repoId, query, { limit: 15 });
-    evidence = results.map(r => ({
-      id: 0, // placeholder
+    evidence = results.map((r, index) => ({
+      id: index + 1, // Generate unique ID for each result
       file_id: 0, // placeholder
       file_path: r.filePath,
       line_start: r.lineStart,

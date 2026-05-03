@@ -314,15 +314,39 @@ function deriveFromEntryPoint(
  * Extract path segments from URL
  */
 function extractPathSegments(url: string): string[] {
+  // Remove protocol and domain
   let path = url.replace(/^https?:\/\/[^\/]+/, '');
-  return path.split('/').filter(seg => {
+
+  // Remove query string and hash
+  path = path.split('?')[0].split('#')[0];
+
+  // Split by / and filter out empty segments and IDs
+  const segments = path.split('/').filter(seg => {
     if (!seg) return false;
-    // Skip IDs
-    if (/^[0-9a-f]{20,}$/i.test(seg)) return false;
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return false;
+
+    // Skip pure numeric IDs
     if (/^\d+$/.test(seg)) return false;
+
+    // Skip long hex strings (SHA, tokens, etc.)
+    if (/^[0-9a-f]{20,}$/i.test(seg)) return false;
+
+    // Skip UUIDs
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return false;
+
+    // Skip MongoDB ObjectIds (24 hex chars)
+    if (/^[0-9a-f]{24}$/i.test(seg)) return false;
+
+    // Keep common API path segments even if short
+    const commonSegments = ['api', 'v1', 'v2', 'v3', 'v4', 'v5', 'app', 'web', 'p'];
+    if (commonSegments.includes(seg.toLowerCase())) return true;
+
+    // Skip short random strings (likely IDs) - but only if not a common segment
+    if (seg.length <= 2 && /^[a-z0-9]+$/i.test(seg)) return false;
+
     return true;
   });
+
+  return segments;
 }
 
 /**

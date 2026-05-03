@@ -63,11 +63,11 @@ export class EnhancedIndexer {
       // Step 2: Store entities in database
       await this.storeEntities(repoId, fileId, filePath, astResult);
 
-      // Step 3: Generate embeddings for entities
-      await this.generateEmbeddings(repoId, fileId, astResult);
-
-      // Step 4: Build relationships
+      // Step 3: Build relationships (must be before embeddings so URL patterns are in DB)
       await this.relationshipBuilder.buildRelationships(repoId, fileId, filePath, astResult);
+
+      // Step 4: Generate embeddings for entities (including URL patterns)
+      await this.generateEmbeddings(repoId, fileId, astResult);
 
       console.log(`✓ Indexed ${filePath}`);
     } catch (error) {
@@ -84,7 +84,7 @@ export class EnhancedIndexer {
     files: Array<{ id: number; path: string; content: string }>,
     options: IndexingOptions = {}
   ): Promise<IndexingProgress> {
-    const { batchSize = 3, onProgress } = options;
+    const { batchSize = 5, onProgress } = options;
 
     const progress: IndexingProgress = {
       totalFiles: files.length,
@@ -300,14 +300,14 @@ export class EnhancedIndexer {
         existing.add(`class:${row.full_name}:${row.line_start}`);
       }
 
-      // Query urls with embeddings
+      // Query url_patterns with embeddings
       const urlsResult = await this.db.query(
-        `SELECT normalized_pattern, definition_line FROM urls
-         WHERE repo_id = $1 AND file_id = $2 AND embedding IS NOT NULL`,
+        `SELECT normalized_pattern, definition_line FROM url_patterns
+         WHERE repo_id = $1 AND definition_file_id = $2 AND embedding IS NOT NULL`,
         [repoId, fileId]
       );
       for (const row of urlsResult.rows) {
-        existing.add(`url:${row.normalized_pattern}:${row.definition_line}`);
+        existing.add(`url:${row.normalized_pattern}|||${row.definition_line}`);
       }
 
       console.log(`Found ${existing.size} existing embeddings for file ${fileId}`);
@@ -366,14 +366,36 @@ export class EnhancedIndexer {
     }
 
     // Prepare embedding tasks for URL patterns
-    for (const url of astResult.urlPatterns) {
-      const key = `url:${url.normalizedPattern}:${url.definitionLine}`;
+    // Query from database to get the correct normalized_pattern
+    const urlPatternsResult = await this.db.query(
+      `SELECT normalized_pattern, pattern, method, definition_line, definition_code
+       FROM url_patterns
+       WHERE repo_id = $1 AND definition_file_id = $2`,
+      [repoId, fileId]
+    );
+
+    console.log(`Found ${urlPatternsResult.rows.length} URL patterns for file ${fileId}`);
+
+    for (const url of urlPatternsResult.rows) {
+      console.log(`Processing URL pattern: ${url.normalized_pattern} (line ${url.definition_line})`);
+
+      // Skip incomplete URL patterns (e.g., :param, :param:param)
+      // Only process complete paths that start with /
+      if (!url.normalized_pattern || !url.normalized_pattern.startsWith('/')) {
+        console.log(`  Skipping incomplete pattern: ${url.normalized_pattern}`);
+        continue;
+      }
+
+      const key = `url:${url.normalized_pattern}|||${url.definition_line}`;
       if (!existingEmbeddings.has(key)) {
+        console.log(`  Adding URL embedding task: ${key}`);
         embeddingTasks.push({
           type: 'url',
-          id: `${url.normalizedPattern}:${url.definitionLine}`,
-          text: `${url.method || 'HTTP'} ${url.pattern}\n${url.definitionCode}`,
+          id: `${url.normalized_pattern}|||${url.definition_line}`,
+          text: `${url.method || 'HTTP'} ${url.pattern}\n${url.definition_code}`,
         });
+      } else {
+        console.log(`  URL embedding already exists: ${key}`);
       }
     }
 
@@ -386,7 +408,7 @@ export class EnhancedIndexer {
     console.log(`Generating ${embeddingTasks.length} new embeddings for file ${fileId}...`);
 
     // Generate embeddings in batches and collect results
-    const batchSize = 5;
+    const batchSize = 10;
     const embeddingResults: Array<{ type: string; id: string; embedding: number[] }> = [];
 
     for (let i = 0; i < embeddingTasks.length; i += batchSize) {
@@ -466,54 +488,75 @@ export class EnhancedIndexer {
 
     const client = await this.db.connect();
     try {
-      await client.query('BEGIN');
+      // Process in smaller transaction batches to reduce lock time
+      const txBatchSize = 50;
+      for (let i = 0; i < items.length; i += txBatchSize) {
+        const batch = items.slice(i, i + txBatchSize);
 
-      for (const item of items) {
-        const embeddingVector = '[' + item.embedding.join(',') + ']';
-        const [name, line] = item.id.split(':');
-        const lineNum = parseInt(line, 10);
+        await client.query('BEGIN');
 
-        if (isNaN(lineNum)) {
-          console.error(`Invalid line number for ${entityType} ${name}: ${line}`);
-          continue;
+        for (const item of batch) {
+          const embeddingVector = '[' + item.embedding.join(',') + ']';
+
+          // URL patterns use '|||' separator, others use ':'
+          let name: string;
+          let lineNum: number;
+          let lineStr: string;
+
+          if (entityType === 'url') {
+            const [pattern, line] = item.id.split('|||');
+            name = pattern;
+            lineStr = line;
+            lineNum = parseInt(line, 10);
+          } else {
+            const [n, line] = item.id.split(':');
+            name = n;
+            lineStr = line;
+            lineNum = parseInt(line, 10);
+          }
+
+          if (isNaN(lineNum)) {
+            console.error(`Invalid line number for ${entityType} ${name}: ${lineStr}`);
+            continue;
+          }
+
+          switch (entityType) {
+            case 'constant':
+              await client.query(
+                `UPDATE string_constants SET embedding = $1::vector
+                 WHERE repo_id = $2 AND file_id = $3 AND symbol_name = $4 AND line_start = $5`,
+                [embeddingVector, repoId, fileId, name, lineNum]
+              );
+              break;
+
+            case 'function':
+              await client.query(
+                `UPDATE functions SET embedding = $1::vector
+                 WHERE repo_id = $2 AND file_id = $3 AND full_name = $4 AND line_start = $5`,
+                [embeddingVector, repoId, fileId, name, lineNum]
+              );
+              break;
+
+            case 'class':
+              await client.query(
+                `UPDATE classes SET embedding = $1::vector
+                 WHERE repo_id = $2 AND file_id = $3 AND full_name = $4 AND line_start = $5`,
+                [embeddingVector, repoId, fileId, name, lineNum]
+              );
+              break;
+
+            case 'url':
+              await client.query(
+                `UPDATE url_patterns SET embedding = $1::vector
+                 WHERE repo_id = $2 AND definition_file_id = $3 AND normalized_pattern = $4 AND definition_line = $5`,
+                [embeddingVector, repoId, fileId, name, lineNum]
+              );
+              break;
+          }
         }
 
-        switch (entityType) {
-          case 'constant':
-            await client.query(
-              `UPDATE string_constants SET embedding = $1::vector
-               WHERE repo_id = $2 AND file_id = $3 AND symbol_name = $4 AND line_start = $5`,
-              [embeddingVector, repoId, fileId, name, lineNum]
-            );
-            break;
-
-          case 'function':
-            await client.query(
-              `UPDATE functions SET embedding = $1::vector
-               WHERE repo_id = $2 AND file_id = $3 AND full_name = $4 AND line_start = $5`,
-              [embeddingVector, repoId, fileId, name, lineNum]
-            );
-            break;
-
-          case 'class':
-            await client.query(
-              `UPDATE classes SET embedding = $1::vector
-               WHERE repo_id = $2 AND file_id = $3 AND full_name = $4 AND line_start = $5`,
-              [embeddingVector, repoId, fileId, name, lineNum]
-            );
-            break;
-
-          case 'url':
-            await client.query(
-              `UPDATE url_patterns SET embedding = $1::vector
-               WHERE repo_id = $2 AND definition_file_id = $3 AND normalized_pattern = $4 AND definition_line = $5`,
-              [embeddingVector, repoId, fileId, name, lineNum]
-            );
-            break;
-        }
+        await client.query('COMMIT');
       }
-
-      await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -597,7 +640,14 @@ export class EnhancedIndexer {
           break;
 
         case 'url':
-          const [urlPattern, urlLine] = entityId.split(':');
+          // Use '|||' as separator to handle patterns with colons (e.g., CSS selectors)
+          const separatorIndex = entityId.indexOf('|||');
+          if (separatorIndex === -1) {
+            console.error(`Invalid URL entity ID format (missing separator): ${entityId}`);
+            return;
+          }
+          const urlPattern = entityId.substring(0, separatorIndex);
+          const urlLine = entityId.substring(separatorIndex + 3);
           const urlLineNum = parseInt(urlLine, 10);
           if (isNaN(urlLineNum)) {
             console.error(`Invalid line number for URL ${urlPattern}: ${urlLine}`);

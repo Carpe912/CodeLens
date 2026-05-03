@@ -26,11 +26,13 @@ export const pool = new Pool({
 
 /**
  * 处理连接池错误
- * 如果连接池出现意外错误，记录日志并退出进程
+ * 如果连接池出现意外错误，记录日志但不退出进程
+ * 这样可以避免单个查询错误导致整个服务崩溃
  */
 pool.on('error', (err) => {
   console.error('Unexpected database pool error:', err);
-  process.exit(1);
+  // 不要调用 process.exit(1)，因为这会导致连接池被关闭
+  // 后续的索引任务将无法使用数据库连接
 });
 
 /**
@@ -228,32 +230,56 @@ export async function initDatabase() {
      */
 
     // files 表索引：加速按仓库查询文件
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_files_repo_id ON files(repo_id);
-    `);
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_files_repo_id ON files(repo_id);
+      `);
+    } catch (err: any) {
+      if (err.code !== '23505') throw err; // 忽略重复键错误
+    }
 
     // code_chunks 表索引：加速各种查询场景
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_code_chunks_file_id ON code_chunks(file_id);
-    `);
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_code_chunks_file_id ON code_chunks(file_id);
+      `);
+    } catch (err: any) {
+      if (err.code !== '23505') throw err;
+    }
 
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_name ON code_chunks(symbol_name);
-    `);
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_name ON code_chunks(symbol_name);
+      `);
+    } catch (err: any) {
+      if (err.code !== '23505') throw err;
+    }
 
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_type ON code_chunks(symbol_type);
-    `);
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_type ON code_chunks(symbol_type);
+      `);
+    } catch (err: any) {
+      if (err.code !== '23505') throw err;
+    }
 
     // call_graph 表索引：加速调用关系查询
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_call_graph_from_chunk_id ON call_graph(from_chunk_id);
-    `);
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_call_graph_from_chunk_id ON call_graph(from_chunk_id);
+      `);
+    } catch (err: any) {
+      if (err.code !== '23505') throw err;
+    }
 
     // questions 表索引：加速按仓库查询问题
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_questions_repo_id ON questions(repo_id);
-    `);
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_questions_repo_id ON questions(repo_id);
+      `);
+    } catch (err: any) {
+      if (err.code !== '23505') throw err;
+    }
 
     // question_feedback 表索引：加速按问题查询反馈
     await pool.query(`
@@ -360,9 +386,13 @@ export async function getIndexProgress(repoId: number): Promise<{ total: number;
   const result = await pool.query('SELECT index_progress FROM repos WHERE id = $1', [repoId]);
   if (!result.rows[0]) return null;
   const progress = result.rows[0].index_progress;
+
+  // 根据当前阶段返回对应的进度字段
+  const isEnhanced = progress.phase === 'enhanced';
+
   return {
-    total: progress.total || 0,
-    processed: progress.processed || 0,
+    total: isEnhanced ? (progress.enhancedTotal || 0) : (progress.total || 0),
+    processed: isEnhanced ? (progress.enhancedProcessed || 0) : (progress.processed || 0),
     startTime: progress.startTime ? new Date(progress.startTime) : null,
     phase: progress.phase,
   };
@@ -510,69 +540,80 @@ export async function clearRepoData(repoId: number): Promise<void> {
   console.log('Recreating indexes and constraints...');
 
   // 重建 code_chunks 表的索引
-  await pool.query('CREATE INDEX idx_code_chunks_file_id ON code_chunks (file_id)');
-  await pool.query('CREATE INDEX idx_code_chunks_symbol_name ON code_chunks (symbol_name)');
-  await pool.query('CREATE INDEX idx_code_chunks_symbol_type ON code_chunks (symbol_type)');
-  await pool.query('CREATE INDEX idx_code_chunks_node_type ON code_chunks (node_type)');
-  await pool.query('CREATE INDEX idx_code_chunks_metadata ON code_chunks USING gin (metadata)');
-  await pool.query('CREATE INDEX idx_code_chunks_repo ON code_chunks (repo_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_code_chunks_file_id ON code_chunks (file_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_name ON code_chunks (symbol_name)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_type ON code_chunks (symbol_type)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_code_chunks_node_type ON code_chunks (node_type)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_code_chunks_metadata ON code_chunks USING gin (metadata)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_code_chunks_repo ON code_chunks (repo_id)');
 
   // 重建 HNSW 向量索引（最耗时的索引）
   await pool.query(`
-    CREATE INDEX idx_code_chunks_embedding_hnsw
+    CREATE INDEX IF NOT EXISTS idx_code_chunks_embedding_hnsw
     ON code_chunks
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64)
   `);
 
   // 重建外键约束，恢复数据完整性
-  await pool.query(`
-    ALTER TABLE code_chunks
-    ADD CONSTRAINT code_chunks_parent_chunk_id_fkey
-    FOREIGN KEY (parent_chunk_id) REFERENCES code_chunks(id) ON DELETE SET NULL
-  `);
+  // 使用 DO 块来安全地添加约束（如果不存在）
+  const constraints = [
+    {
+      table: 'code_chunks',
+      name: 'code_chunks_parent_chunk_id_fkey',
+      definition: 'FOREIGN KEY (parent_chunk_id) REFERENCES code_chunks(id) ON DELETE SET NULL'
+    },
+    {
+      table: 'string_constants',
+      name: 'string_constants_chunk_id_fkey',
+      definition: 'FOREIGN KEY (chunk_id) REFERENCES code_chunks(id) ON DELETE CASCADE'
+    },
+    {
+      table: 'string_constants',
+      name: 'string_constants_file_id_fkey',
+      definition: 'FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE'
+    },
+    {
+      table: 'string_constants',
+      name: 'string_constants_repo_id_fkey',
+      definition: 'FOREIGN KEY (repo_id) REFERENCES repos(id) ON DELETE CASCADE'
+    },
+    {
+      table: 'call_graph',
+      name: 'call_graph_from_chunk_id_fkey',
+      definition: 'FOREIGN KEY (from_chunk_id) REFERENCES code_chunks(id) ON DELETE CASCADE'
+    },
+    {
+      table: 'url_patterns',
+      name: 'url_patterns_definition_chunk_id_fkey',
+      definition: 'FOREIGN KEY (definition_chunk_id) REFERENCES code_chunks(id) ON DELETE SET NULL'
+    },
+    {
+      table: 'functions',
+      name: 'functions_chunk_id_fkey',
+      definition: 'FOREIGN KEY (chunk_id) REFERENCES code_chunks(id) ON DELETE CASCADE'
+    },
+    {
+      table: 'classes',
+      name: 'classes_chunk_id_fkey',
+      definition: 'FOREIGN KEY (chunk_id) REFERENCES code_chunks(id) ON DELETE CASCADE'
+    }
+  ];
 
-  await pool.query(`
-    ALTER TABLE string_constants
-    ADD CONSTRAINT string_constants_chunk_id_fkey
-    FOREIGN KEY (chunk_id) REFERENCES code_chunks(id) ON DELETE CASCADE
-  `);
-
-  await pool.query(`
-    ALTER TABLE string_constants
-    ADD CONSTRAINT string_constants_file_id_fkey
-    FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
-  `);
-
-  await pool.query(`
-    ALTER TABLE string_constants
-    ADD CONSTRAINT string_constants_repo_id_fkey
-    FOREIGN KEY (repo_id) REFERENCES repos(id) ON DELETE CASCADE
-  `);
-
-  await pool.query(`
-    ALTER TABLE call_graph
-    ADD CONSTRAINT call_graph_from_chunk_id_fkey
-    FOREIGN KEY (from_chunk_id) REFERENCES code_chunks(id) ON DELETE CASCADE
-  `);
-
-  await pool.query(`
-    ALTER TABLE url_patterns
-    ADD CONSTRAINT url_patterns_definition_chunk_id_fkey
-    FOREIGN KEY (definition_chunk_id) REFERENCES code_chunks(id) ON DELETE SET NULL
-  `);
-
-  await pool.query(`
-    ALTER TABLE functions
-    ADD CONSTRAINT functions_chunk_id_fkey
-    FOREIGN KEY (chunk_id) REFERENCES code_chunks(id) ON DELETE CASCADE
-  `);
-
-  await pool.query(`
-    ALTER TABLE classes
-    ADD CONSTRAINT classes_chunk_id_fkey
-    FOREIGN KEY (chunk_id) REFERENCES code_chunks(id) ON DELETE CASCADE
-  `);
+  for (const constraint of constraints) {
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = '${constraint.name}'
+        ) THEN
+          ALTER TABLE ${constraint.table}
+          ADD CONSTRAINT ${constraint.name}
+          ${constraint.definition};
+        END IF;
+      END $$;
+    `);
+  }
 
   console.log('✓ All indexes and constraints recreated');
 
