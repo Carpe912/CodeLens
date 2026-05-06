@@ -22,6 +22,7 @@ export interface URLSearchResult {
   context: {
     constantName?: string;
     constantValue?: string;
+    method?: string | null;
     templateMatch?: {
       template: string;
       extractedParams: Record<string, string>;
@@ -346,6 +347,11 @@ async function searchURLPatterns(
 ): Promise<URLSearchResult[]> {
   const results: URLSearchResult[] = [];
 
+  // Extract HTTP method from query if present (e.g., "GET /api/users/:id")
+  const methodMatch = fullURL.match(/^(GET|POST|PUT|DELETE|PATCH)\s+/i);
+  const queryMethod = methodMatch ? methodMatch[1].toUpperCase() : null;
+  const urlWithoutMethod = methodMatch ? fullURL.substring(methodMatch[0].length) : fullURL;
+
   // Search for patterns matching the segments
   for (const segment of pathSegments) {
     const query = `
@@ -353,6 +359,7 @@ async function searchURLPatterns(
         up.id,
         up.pattern,
         up.normalized_pattern,
+        up.method,
         up.definition_line,
         up.definition_code,
         f.path as file_path
@@ -371,7 +378,8 @@ async function searchURLPatterns(
     for (const row of result.rows) {
       const pattern = row.pattern.toLowerCase();
       const normalizedPattern = row.normalized_pattern?.toLowerCase() || '';
-      const targetUrl = fullURL.toLowerCase();
+      const targetUrl = urlWithoutMethod.toLowerCase();
+      const patternMethod = row.method?.toUpperCase();
 
       // 计算匹配精确度
       let score = 0;
@@ -401,6 +409,17 @@ async function searchURLPatterns(
         matchType = 'segment';
       }
 
+      // Boost score if HTTP method matches
+      if (queryMethod && patternMethod === queryMethod) {
+        score = Math.min(1.0, score * 1.2); // 20% boost for method match
+        console.log(`[URL Search] Method match boost: ${patternMethod} ${pattern} -> score ${score}`);
+      }
+      // Penalize if HTTP method doesn't match (when query specifies a method)
+      else if (queryMethod && patternMethod && patternMethod !== queryMethod) {
+        score = score * 0.5; // 50% penalty for method mismatch
+        console.log(`[URL Search] Method mismatch penalty: expected ${queryMethod}, got ${patternMethod} for ${pattern} -> score ${score}`);
+      }
+
       results.push({
         id: `pattern:${row.id}`,
         type: 'pattern',
@@ -411,6 +430,7 @@ async function searchURLPatterns(
         content: row.definition_code || row.pattern,
         context: {
           constantValue: row.pattern,
+          method: patternMethod,
         },
       });
     }
@@ -612,26 +632,76 @@ async function searchURLDerivation(
   targetUrl: string
 ): Promise<URLSearchResult[]> {
   try {
-    const derivations = await deriveURLConstruction(db, repoId, targetUrl);
+    // Extract HTTP method from query if present
+    const methodMatch = targetUrl.match(/^(GET|POST|PUT|DELETE|PATCH)\s+/i);
+    const queryMethod = methodMatch ? methodMatch[1].toUpperCase() : null;
+    const urlWithoutMethod = methodMatch ? targetUrl.substring(methodMatch[0].length) : targetUrl;
 
-    return derivations.map((derivation, index) => ({
-      id: `derivation:${index}`,
-      type: 'derivation' as const,
-      score: derivation.confidence,
-      filePath: derivation.symbolChain[0]?.file || '',
-      lineStart: derivation.symbolChain[0]?.line || 0,
-      lineEnd: derivation.symbolChain[0]?.line || 0,
-      content: derivation.symbolChain.map(s => `${s.symbol} = ${s.value}`).join('\n'),
-      context: {
-        constantName: derivation.symbolChain[0]?.symbol,
-        constantValue: derivation.pattern,
-        usageChain: derivation.symbolChain.map(s => ({
-          file: s.file,
-          line: s.line,
-          code: `${s.symbol} = ${s.value}`,
-        })),
-      },
-    }));
+    const derivations = await deriveURLConstruction(db, repoId, urlWithoutMethod);
+
+    // Enrich derivations with HTTP method from url_patterns table
+    const results: URLSearchResult[] = [];
+
+    for (const [index, derivation] of derivations.entries()) {
+      const filePath = derivation.symbolChain[0]?.file || '';
+      const lineStart = derivation.symbolChain[0]?.line || 0;
+
+      // Try to find HTTP method from url_patterns table
+      let patternMethod: string | null = null;
+      try {
+        const methodQuery = `
+          SELECT method
+          FROM url_patterns up
+          JOIN files f ON up.definition_file_id = f.id
+          WHERE up.repo_id = $1
+            AND f.path = $2
+            AND up.definition_line = $3
+          LIMIT 1
+        `;
+        const methodResult = await db.query(methodQuery, [repoId, filePath, lineStart]);
+        if (methodResult.rows.length > 0) {
+          patternMethod = methodResult.rows[0].method?.toUpperCase();
+        }
+      } catch (error) {
+        console.error('Failed to fetch method for derivation:', error);
+      }
+
+      // Calculate score with method matching
+      let score = derivation.confidence;
+
+      // Boost score if HTTP method matches
+      if (queryMethod && patternMethod === queryMethod) {
+        score = Math.min(100, score * 1.2); // 20% boost for method match
+        console.log(`[URL Derivation] Method match boost: ${patternMethod} ${derivation.pattern} -> score ${score}`);
+      }
+      // Penalize if HTTP method doesn't match (when query specifies a method)
+      else if (queryMethod && patternMethod && patternMethod !== queryMethod) {
+        score = score * 0.5; // 50% penalty for method mismatch
+        console.log(`[URL Derivation] Method mismatch penalty: expected ${queryMethod}, got ${patternMethod} for ${derivation.pattern} -> score ${score}`);
+      }
+
+      results.push({
+        id: `derivation:${index}`,
+        type: 'derivation' as const,
+        score,
+        filePath,
+        lineStart,
+        lineEnd: lineStart,
+        content: derivation.symbolChain.map(s => `${s.symbol} = ${s.value}`).join('\n'),
+        context: {
+          constantName: derivation.symbolChain[0]?.symbol,
+          constantValue: derivation.pattern,
+          method: patternMethod,
+          usageChain: derivation.symbolChain.map(s => ({
+            file: s.file,
+            line: s.line,
+            code: `${s.symbol} = ${s.value}`,
+          })),
+        },
+      });
+    }
+
+    return results;
   } catch (error) {
     console.error('URL derivation failed:', error);
     return [];

@@ -59,7 +59,7 @@ brew services start redis  # macOS
 cp apps/api/.env.example apps/api/.env
 # 编辑 .env 文件，填入必要的配置：
 # - ANTHROPIC_API_KEY: Claude API 密钥
-# - DASHSCOPE_API_KEY: 阿里云 DashScope 密钥
+# - EMBED_API_KEY: XiaocaseAI API 密钥
 # - DATABASE_URL: PostgreSQL 连接字符串
 # - REDIS_URL: Redis 连接字符串
 
@@ -173,7 +173,7 @@ getUserProfile
 - PostgreSQL + pgvector（向量数据库）
 - Redis + BullMQ（任务队列）
 - Anthropic Claude（LLM）
-- 阿里云 DashScope（Embeddings）
+- XiaocaseAI（Embeddings & Rerank）
 
 **代码分析**
 - Babel Parser（AST 解析）
@@ -353,7 +353,7 @@ A: 系统已针对小内存服务器优化：
 
 A: 
 - **Anthropic API Key**: https://console.anthropic.com/
-- **阿里云 DashScope**: https://dashscope.aliyun.com/
+- **XiaocaseAI API Key**: https://api.xiaocaseai.cn/
 </details>
 
 <details>
