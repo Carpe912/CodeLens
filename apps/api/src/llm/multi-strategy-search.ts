@@ -572,11 +572,11 @@ export class MultiStrategySearch {
       SELECT
         cc.*,
         f.path as file_path,
-        similarity(cc.content, $2) as sim_score
+        similarity(cc.code_text, $2) as sim_score
       FROM code_chunks cc
       JOIN files f ON cc.file_id = f.id
       WHERE cc.repo_id = $1
-        AND cc.content % $2
+        AND cc.code_text % $2
       ORDER BY sim_score DESC
       LIMIT $3
     `,
@@ -683,7 +683,7 @@ export class MultiStrategySearch {
         `
         SELECT
           cg.*,
-          cc.content,
+          cc.code_text,
           cc.line_start,
           cc.line_end,
           f.path as file_path
@@ -703,7 +703,7 @@ export class MultiStrategySearch {
         `
         SELECT
           cg.*,
-          cc.content,
+          cc.code_text,
           cc.line_start,
           cc.line_end,
           f.path as file_path
@@ -798,8 +798,13 @@ export class MultiStrategySearch {
         content = `${row.class_type} ${row.name}`;
         lineStart = row.line_start;
         lineEnd = row.line_end;
+      } else if (table === 'code_chunks' || table === 'call_graph') {
+        type = 'chunk';
+        content = row.code_text || '';
+        lineStart = row.line_start || 0;
+        lineEnd = row.line_end || 0;
       } else {
-        content = row.content || '';
+        content = row.content || row.code_text || '';
         lineStart = row.line_start || 0;
         lineEnd = row.line_end || 0;
       }

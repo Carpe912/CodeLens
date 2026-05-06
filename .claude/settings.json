@@ -136,7 +136,17 @@
       "Bash(python3 -c \"import sys, json; data=json.load\\(sys.stdin\\); print\\('Answer:', data.get\\('answer', 'N/A'\\)[:200]\\); print\\('Evidence count:', len\\(data.get\\('evidence', []\\)\\)\\)\")",
       "Bash(node test-embedding-api.js)",
       "Bash(node test-embedding.js)",
-      "Bash(curl -X POST https://api.xiaocaseai.cn/v1/embeddings -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-Krq1GA0gmqFw6xjrEcoiJlLGZlA2OgqspT6oyfxNiEiLUjIn' -d '{ *)"
+      "Bash(curl -X POST https://api.xiaocaseai.cn/v1/embeddings -H 'Content-Type: application/json' -H 'Authorization: Bearer sk-Krq1GA0gmqFw6xjrEcoiJlLGZlA2OgqspT6oyfxNiEiLUjIn' -d '{ *)",
+      "Bash(node scripts/deploy.js)",
+      "Bash(/usr/local/bin/node --version)",
+      "Bash(/Users/coopwire-test/.nvm/versions/node/v22.16.0/bin/node scripts/deploy.js)",
+      "Bash(/Users/coopwire-test/.nvm/versions/node/v22.16.0/bin/npm install *)",
+      "Bash(/Users/coopwire-test/.nvm/versions/node/v22.16.0/bin/pnpm --version)",
+      "Bash(bash -c 'source ~/.nvm/nvm.sh && nvm use 22 && npm install -g pnpm && pnpm --version')",
+      "Bash(bash -c 'source ~/.nvm/nvm.sh && nvm use 22 && node scripts/deploy.js')",
+      "Bash(curl -X POST https://sunlingyue.cn/code-api/search/url -H \"Content-Type: application/json\" -d '{\"repoId\": \"4\", \"url\": \"/api/v1/products/23232323343434323232323\"}')",
+      "Bash(curl -k -X POST https://sunlingyue.cn/code-api/search/url -H \"Content-Type: application/json\" -d '{\"repoId\": \"4\", \"url\": \"/api/v1/products/23232323343434323232323\"}')",
+      "Bash(chmod +x /tmp/check-deploy.sh)"
     ],
     "additionalDirectories": [
       "/Users/coopwire-test/remote-project/CodeLens/apps/api",

@@ -526,19 +526,63 @@ export class ASTAnalyzer {
 
   /**
    * Normalize URL pattern for matching
+   *
+   * IMPORTANT: This method is called during AST parsing, before we have access to
+   * the full symbol table. We need to be careful not to over-normalize template
+   * variables that might contain important path information.
+   *
+   * Strategy:
+   * 1. Remove base URL variables (${this.baseURL}, ${baseURL}, etc.)
+   * 2. Keep path construction variables (${basePath}, ${path}, etc.) as placeholders
+   * 3. Convert parameter-like variables (${id}, ${userId}, etc.) to :param format
    */
   private normalizeURLPattern(pattern: string): string {
-    return pattern
-      // Replace UUIDs with :id
+    let normalized = pattern;
+
+    // Remove base URL variables (they don't contribute to the path structure)
+    normalized = normalized
+      .replace(/\$\{this\.baseURL\}/gi, '')
+      .replace(/\$\{baseURL\}/gi, '')
+      .replace(/\$\{this\.apiUrl\}/gi, '')
+      .replace(/\$\{apiUrl\}/gi, '');
+
+    // Replace UUIDs with :id
+    normalized = normalized
       .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
       // Replace long hex strings with :id
       .replace(/\/[0-9a-f]{20,}/gi, '/:id')
       // Replace numeric IDs with :id
-      .replace(/\/\d+/g, '/:id')
-      // Replace template variables with :param
-      .replace(/\$\{[^}]+\}/g, ':param')
-      // Normalize multiple slashes
-      .replace(/\/+/g, '/');
+      .replace(/\/\d+/g, '/:id');
+
+    // Handle template variables intelligently:
+    // - Variables that look like parameters (id, userId, productId, etc.) -> :paramName
+    // - Variables that look like paths (basePath, path, endpoint, etc.) -> keep as ${varName} for later expansion
+    normalized = normalized.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+      const cleanName = varName.trim();
+
+      // Check if it's a parameter-like variable (ends with 'id', 'Id', 'ID', or is just 'id')
+      if (/^(.*[iI]d|slug|key|code|token)$/.test(cleanName)) {
+        // Convert to Express-style parameter
+        return `:${cleanName}`;
+      }
+
+      // Check if it's a path construction variable (contains 'path', 'Path', 'endpoint', etc.)
+      if (/(path|Path|endpoint|Endpoint|route|Route|url|Url|URI|uri)/.test(cleanName)) {
+        // Keep as-is for later expansion by url-derivation
+        return match;
+      }
+
+      // For other variables, keep as-is (will be handled by url-derivation)
+      return match;
+    });
+
+    // Normalize multiple slashes
+    normalized = normalized.replace(/\/+/g, '/');
+
+    // Remove leading/trailing slashes for consistency
+    normalized = normalized.replace(/^\/+|\/+$/g, '');
+
+    return normalized;
   }
 
   /**

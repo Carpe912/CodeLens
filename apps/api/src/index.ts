@@ -486,8 +486,29 @@ fastify.post<{
 
   let evidence;
 
-  // Use multi-strategy search for best results
-  if (strategy === 'multi') {
+  // Detect if query is a URL
+  const isURL = query.match(/^https?:\/\//) || query.match(/\/[a-z]+\/[a-z]+/i);
+
+  // Use URL-specific search for URL queries
+  if (isURL) {
+    console.log('Detected URL query in /ask, using specialized URL search');
+    const { searchURL } = await import('./llm/url-search.js');
+    const urlResults = await searchURL(pool, repoId, query, 10);
+
+    // Convert to legacy format
+    evidence = urlResults.map((result, index) => ({
+      id: index + 1,
+      file_id: 0,
+      file_path: result.filePath,
+      line_start: result.lineStart,
+      line_end: result.lineEnd,
+      content: result.content,
+      code_text: result.content,
+      symbol_name: result.context.constantName || '',
+      symbol_type: result.type || 'unknown',
+      score: result.score,
+    })) as any;
+  } else if (strategy === 'multi') {
     console.log('Using multi-strategy search for Q&A');
     const searchResults = await multiStrategySearch.search(repoId, query, {
       limit: 10,

@@ -9,6 +9,7 @@ import { Pool } from 'pg';
 import { generateEmbedding } from './embeddings.js';
 import { matchURLTemplate, isTemplate, calculateURLSimilarity } from './url-template-matcher.js';
 import { parseQueryIntent, ParsedIntent } from './query-intent-parser.js';
+import { deriveURLConstruction } from './url-derivation.js';
 
 export interface URLSearchResult {
   id: string;
@@ -98,7 +99,11 @@ export async function searchURL(
     const patternResults = await searchURLPatterns(db, repoId, pathSegments, intent.target);
     results.push(...patternResults);
 
-    // Strategy 3: Vector search for semantic matching
+    // Strategy 3: Derive URL construction from functions and constants
+    const derivationResults = await searchURLDerivation(db, repoId, intent.target);
+    results.push(...derivationResults);
+
+    // Strategy 4: Vector search for semantic matching
     const vectorResults = await searchURLVector(db, repoId, intent.target);
     results.push(...vectorResults);
   }
@@ -125,31 +130,31 @@ function extractPathSegments(url: string): string[] {
   // Remove query string and hash
   path = path.split('?')[0].split('#')[0];
 
-  // Split by / and filter out empty segments and IDs
-  const segments = path.split('/').filter(seg => {
-    if (!seg) return false;
+  // Split by / and map segments, replacing IDs with placeholders to preserve structure
+  const segments = path.split('/').map(seg => {
+    if (!seg) return null;
 
-    // Skip pure numeric IDs
-    if (/^\d+$/.test(seg)) return false;
+    // Replace pure numeric IDs with :id placeholder
+    if (/^\d+$/.test(seg)) return ':id';
 
-    // Skip long hex strings (SHA, tokens, etc.)
-    if (/^[0-9a-f]{20,}$/i.test(seg)) return false;
+    // Replace long hex strings (SHA, tokens, etc.) with :token
+    if (/^[0-9a-f]{20,}$/i.test(seg)) return ':token';
 
-    // Skip UUIDs
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return false;
+    // Replace UUIDs with :uuid
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return ':uuid';
 
-    // Skip MongoDB ObjectIds (24 hex chars)
-    if (/^[0-9a-f]{24}$/i.test(seg)) return false;
+    // Replace MongoDB ObjectIds (24 hex chars) with :id
+    if (/^[0-9a-f]{24}$/i.test(seg)) return ':id';
 
     // Keep common API path segments even if short
     const commonSegments = ['api', 'v1', 'v2', 'v3', 'v4', 'v5', 'app', 'web', 'p'];
-    if (commonSegments.includes(seg.toLowerCase())) return true;
+    if (commonSegments.includes(seg.toLowerCase())) return seg;
 
     // Skip short random strings (likely IDs) - but only if not a common segment
-    if (seg.length <= 2 && /^[a-z0-9]+$/i.test(seg)) return false;
+    if (seg.length <= 2 && /^[a-z0-9]+$/i.test(seg)) return null;
 
-    return true;
-  });
+    return seg;
+  }).filter(seg => seg !== null) as string[];
 
   return segments;
 }
@@ -595,5 +600,40 @@ async function enrichWithUsages(
     } catch (error) {
       console.error('Failed to fetch usages:', error);
     }
+  }
+}
+
+/**
+ * Search for URL construction chains using derivation analysis
+ */
+async function searchURLDerivation(
+  db: Pool,
+  repoId: number,
+  targetUrl: string
+): Promise<URLSearchResult[]> {
+  try {
+    const derivations = await deriveURLConstruction(db, repoId, targetUrl);
+
+    return derivations.map((derivation, index) => ({
+      id: `derivation:${index}`,
+      type: 'derivation' as const,
+      score: derivation.confidence,
+      filePath: derivation.symbolChain[0]?.file || '',
+      lineStart: derivation.symbolChain[0]?.line || 0,
+      lineEnd: derivation.symbolChain[0]?.line || 0,
+      content: derivation.symbolChain.map(s => `${s.symbol} = ${s.value}`).join('\n'),
+      context: {
+        constantName: derivation.symbolChain[0]?.symbol,
+        constantValue: derivation.pattern,
+        usageChain: derivation.symbolChain.map(s => ({
+          file: s.file,
+          line: s.line,
+          code: `${s.symbol} = ${s.value}`,
+        })),
+      },
+    }));
+  } catch (error) {
+    console.error('URL derivation failed:', error);
+    return [];
   }
 }
