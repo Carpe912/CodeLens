@@ -64,9 +64,28 @@ function checkEnvironment() {
   const nodeVersion = process.version;
   const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
   if (majorVersion < 18) {
-    log(`✗ Node 版本过低 (${nodeVersion})，需要 >= 18.12`, 'red');
-    log('请运行: nvm use 22 或 nvm use 18', 'yellow');
-    process.exit(1);
+    log(`⚠ Node 版本过低 (${nodeVersion})，需要 >= 18.12`, 'yellow');
+    log('尝试自动切换到 Node 22...', 'blue');
+
+    try {
+      // 检查 nvm 是否可用
+      execSync('command -v nvm', { stdio: 'ignore' });
+
+      // 尝试切换到 Node 22
+      log('执行: source ~/.nvm/nvm.sh && nvm use 22', 'blue');
+
+      // 使用 bash -c 来执行 nvm 命令
+      execSync('bash -c "source ~/.nvm/nvm.sh && nvm use 22 && node --version"', { stdio: 'inherit' });
+
+      log('✓ 已切换到 Node 22，请重新运行 npm run deploy', 'green');
+      log('或者手动运行: nvm use 22 && npm run deploy', 'yellow');
+      process.exit(0);
+    } catch (error) {
+      log('✗ 自动切换失败，请手动切换 Node 版本', 'red');
+      log('运行: nvm use 22 && npm run deploy', 'yellow');
+      log('或者: nvm use 18 && npm run deploy', 'yellow');
+      process.exit(1);
+    }
   }
   log(`✓ Node 版本: ${nodeVersion}`, 'green');
 
@@ -131,6 +150,7 @@ function uploadToServer() {
   const filesToUpload = [
     'apps/api/dist',
     'apps/api/package.json',
+    'apps/api/src/db/migrations',  // 数据库迁移文件
     'apps/web/dist',
     'apps/web/.env.production',
     '.env.production',  // 根目录的环境变量（API 会读取这个）
@@ -169,6 +189,12 @@ function deployOnServer() {
   // 安装依赖
   log('安装生产依赖...', 'blue');
   exec(`ssh ${user}@${host} "cd ${deployPath} && pnpm install --prod"`);
+
+  // 运行数据库迁移
+  log('运行数据库迁移...', 'blue');
+  const migrationFile = `${deployPath}/apps/api/src/db/migrations/add_agent_tables.sql`;
+  const migrationCmd = `cd ${deployPath} && if [ -f "${migrationFile}" ]; then psql $DATABASE_URL -f "${migrationFile}" 2>&1 | grep -v "already exists" || true; echo "✓ 数据库迁移完成"; else echo "⚠ 迁移文件不存在，跳过"; fi`;
+  exec(`ssh ${user}@${host} "${migrationCmd}"`);
 
   // 重启服务
   log('重启 PM2 服务...', 'blue');

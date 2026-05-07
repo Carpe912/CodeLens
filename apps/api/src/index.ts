@@ -11,6 +11,8 @@ import { generateEmbedding } from './llm/embeddings.js';
 import { answerQuestion, analyzeRootCause } from './llm/qa.js';
 import { searchTTLCache, generateCacheKey, getAllCacheStats, clearAllCaches } from './cache.js';
 import { MultiStrategySearch } from './llm/multi-strategy-search.js';
+import { AgentCore, getAgentConfig } from './agent/index.js';
+import Anthropic from '@anthropic-ai/sdk';
 
 // Validate required environment variables
 function validateEnv() {
@@ -48,6 +50,12 @@ startIndexWorker();
 // Initialize multi-strategy search engine
 const anthropicApiKey = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY || '';
 const multiStrategySearch = new MultiStrategySearch(pool, anthropicApiKey);
+
+// Initialize Agent
+const anthropic = new Anthropic({ apiKey: anthropicApiKey });
+const agentConfig = getAgentConfig();
+const agent = new AgentCore(pool, anthropic, agentConfig);
+console.log('[Server] Agent initialized');
 
 fastify.get('/health', async () => {
   return { ok: true, service: 'codelens-api' };
@@ -759,6 +767,60 @@ fastify.get<{
   } catch (error) {
     console.error('Call graph error:', error);
     return reply.code(500).send({ error: 'Failed to fetch call graph' });
+  }
+});
+
+// Agent endpoints
+fastify.post('/agent/query', async (request, reply) => {
+  const { query, repoId, sessionId } = request.body as { query: string; repoId: number; sessionId?: string };
+
+  if (!query || !repoId) {
+    return reply.code(400).send({ error: 'Missing required fields: query, repoId' });
+  }
+
+  try {
+    const result = await agent.executeQuery(query, repoId, sessionId);
+    return result;
+  } catch (error: any) {
+    console.error('[Agent] Query error:', error);
+    return reply.code(500).send({ error: error.message });
+  }
+});
+
+fastify.get('/agent/sessions/:sessionId', async (request, reply) => {
+  const { sessionId } = request.params as { sessionId: string };
+
+  try {
+    const session = await agent.getSession(sessionId);
+    if (!session) {
+      return reply.code(404).send({ error: 'Session not found' });
+    }
+    return session;
+  } catch (error: any) {
+    console.error('[Agent] Get session error:', error);
+    return reply.code(500).send({ error: error.message });
+  }
+});
+
+fastify.get('/agent/sessions/:sessionId/history', async (request, reply) => {
+  const { sessionId } = request.params as { sessionId: string };
+
+  try {
+    const history = await agent.getExecutionHistory(sessionId);
+    return { history };
+  } catch (error: any) {
+    console.error('[Agent] Get history error:', error);
+    return reply.code(500).send({ error: error.message });
+  }
+});
+
+fastify.get('/agent/stats', async () => {
+  try {
+    const stats = await agent.getStats();
+    return stats;
+  } catch (error: any) {
+    console.error('[Agent] Get stats error:', error);
+    return { error: error.message };
   }
 });
 

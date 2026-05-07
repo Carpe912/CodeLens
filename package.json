@@ -11,6 +11,6 @@
     "build:api": "pnpm --filter @codelens/api build",
     "build:web": "pnpm --filter @codelens/web build",
     "typecheck": "pnpm -r typecheck",
-    "deploy": "node scripts/deploy.js"
+    "deploy": "bash scripts/deploy.sh"
   }
 }

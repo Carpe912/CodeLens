@@ -2,33 +2,165 @@
 
 <div align="center">
 
-**基于 AI 的代码理解与搜索引擎**
+**基于 AgentRAG 的代码理解与搜索引擎**
 
-支持多策略搜索 · AST 深度分析 · 调用图追踪 · 智能问答
-
-[快速开始](#快速开始) · [功能特性](#功能特性) · [架构设计](#架构设计) · [学习指南](./LEARNING_GUIDE.md)
-
-</div>
+多轮推理 · 自主决策 · 工具调用 · 会话记忆 · 自我反思
 
 ---
 
+### 📚 文档导航
+
+**[快速开始](#快速开始)** · **[功能特性](#功能特性)** · **[架构设计](#架构设计)**
+
+**[🎓 学习指南](./LEARNING_GUIDE.md)** · **[🚀 升级说明](./AGENTRAG_UPGRADE.md)** · **[🚢 部署指南](./DEPLOYMENT.md)** · **[📐 项目架构](./PROJECT_OVERVIEW.md)**
+
+---
+
+</div>
+
 ## 📖 项目简介
 
-CodeLens 是一个面向私有代码仓库的智能代码搜索与问答平台，通过 AST 深度分析、多策略搜索引擎和 AI 大模型，帮助开发者快速理解代码、定位功能、分析调用链。
+CodeLens 是一个面向私有代码仓库的**智能代码搜索与问答平台**，采用业界领先的 **AgentRAG 架构**，通过多轮推理、工具调用和自我反思，实现从被动检索到主动推理的质的飞跃。
 
-### 核心能力
+> 💡 **新用户？** 建议阅读顺序：[README](./README.md) → [升级说明](./AGENTRAG_UPGRADE.md) → [学习指南](./LEARNING_GUIDE.md) → [部署指南](./DEPLOYMENT.md)
+
+### 🚀 AgentRAG 核心能力
+
+- 🤖 **多轮推理引擎**：最多 5 轮自主推理，自动分解复杂任务
+- 🛠️ **工具调用能力**：向量搜索、符号查找、代码分析、调用图追踪
+- 🧠 **会话记忆**：支持上下文对话，记住之前的查询和结论
+- 🔍 **自我反思**：每轮推理后评估进度和置信度，动态调整策略
+- 📊 **执行追踪**：记录所有推理步骤和工具调用，完全可审计
+- 🎯 **结构化答案**：直接回答 + 关键证据 + 置信度评分
+
+### 💡 传统能力（持续增强）
 
 - 🔍 **多策略搜索引擎**：向量语义搜索 + 精确匹配 + 模糊搜索 + 依赖追踪 + 调用图遍历
 - 🌲 **AST 深度分析**：提取函数、类、常量、URL 模式，构建完整的代码知识图谱
 - 🔗 **调用链追踪**：自动构建函数调用图，支持正向/反向追踪
 - 🌐 **URL 智能推导**：追踪 URL 构造链，理解 API 端点的完整路径
 - 🌍 **多语言支持**：中文分词优化，支持中英文混合查询
-- 💬 **智能问答**：基于代码证据的 AI 问答，支持根因分析
-- 📊 **可视化调用图**：交互式函数调用关系图谱
+- 📈 **向量升级**：1536 维向量（阿里百炼 text-embedding-v4）+ qwen3-rerank 重排序
 
 ---
 
-## 🚀 快速开始
+## 🎯 AgentRAG vs 传统 RAG
+
+### 架构对比
+
+| 维度 | 传统 RAG | CodeLens AgentRAG | 提升 |
+|------|---------|-------------------|------|
+| **推理能力** | 单轮检索 | 多轮推理（最多5轮） | ∞ |
+| **决策能力** | 被动响应 | 自主决策、任务分解 | 质的飞跃 |
+| **工具使用** | ❌ 无 | ✅ 向量搜索、符号查找、代码分析 | 新增 |
+| **会话记忆** | ❌ 无 | ✅ 上下文对话、历史追踪 | 新增 |
+| **自我反思** | ❌ 无 | ✅ 每轮评估、动态调整 | 新增 |
+| **向量维度** | 1024 | 1536 | +50% |
+| **答案质量** | 代码片段 | 结构化答案 + 证据链 | +100% |
+| **置信度** | ❌ 无 | ✅ 0-1 评分 | 新增 |
+
+### 实际效果对比
+
+**查询示例**：`searchProducts 函数是如何实现的？`
+
+**传统 RAG**：
+```
+返回 3-5 个相关代码片段
+用户需要自己理解和整合
+```
+
+**CodeLens AgentRAG**：
+```json
+{
+  "answer": "## searchProducts 函数实现\n\n**直接回答：**\n`searchProducts` 是 `ProductApi` 类的一个异步方法，通过 GET 请求调用 `/api/products/search` 端点...",
+  
+  "evidence": [
+    {
+      "type": "code",
+      "source": "test-repo/src/api/productApi.js:33",
+      "content": "async searchProducts(query) { return axios.get(...) }",
+      "relevance": 0.72
+    }
+  ],
+  
+  "reasoning": [
+    "步骤1: 使用向量搜索定位 searchProducts 函数",
+    "步骤2: 分析函数实现和调用关系",
+    "步骤3: 提取关键证据并生成结构化答案"
+  ],
+  
+  "confidence": 0.85,
+  "executionTime": 9170,
+  "metadata": {
+    "stepsExecuted": 3,
+    "toolsCalled": ["vector_search", "symbol_lookup", "call_graph"]
+  }
+}
+```
+
+---
+
+## ✨ 功能特性
+
+### 1. AgentRAG 智能问答
+
+**核心优势**：从被动检索到主动推理
+
+#### 多轮推理引擎
+
+```typescript
+// Agent 自主推理流程
+while (currentStep < maxSteps && confidence < threshold) {
+  // 1. 分析当前状态
+  const analysis = await analyzeCurrentState();
+  
+  // 2. 选择工具
+  const tool = selectBestTool(analysis);
+  
+  // 3. 执行工具
+  const result = await executeTool(tool);
+  
+  // 4. 自我反思
+  const reflection = await reflect(result);
+  
+  // 5. 更新置信度
+  confidence = reflection.confidence;
+}
+```
+
+#### 工具调用能力
+
+- **vector_search**: 语义向量搜索
+- **symbol_lookup**: 精确符号查找
+- **code_analysis**: 代码结构分析
+- **call_graph**: 调用关系追踪
+- **url_derivation**: URL 推导分析
+
+#### 会话记忆
+
+```typescript
+// 支持上下文对话
+用户: "searchProducts 函数在哪里？"
+Agent: "在 productApi.js:33"
+
+用户: "它被谁调用了？"  // Agent 记住上下文
+Agent: "被 UserDashboard.js:103 的 searchAndFilter 方法调用"
+```
+
+#### 自我反思
+
+```typescript
+{
+  "reflection": {
+    "progress": "已找到函数定义和调用关系",
+    "confidence": 0.85,
+    "nextAction": "分析函数实现细节",
+    "reasoning": "证据充分，可以生成答案"
+  }
+}
+```
+
+### 2. 多策略搜索引擎
 
 ### 环境要求
 

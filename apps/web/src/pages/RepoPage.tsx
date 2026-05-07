@@ -766,16 +766,18 @@ export function RepoPage() {
                                   {(hit.similarity * 100).toFixed(0)}%
                                 </div>
                               )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCallGraphSymbol(hit.symbol_name);
-                                  setShowCallGraphModal(true);
-                                }}
-                                className="px-3 py-1 bg-purple-100 border border-purple-200 text-purple-700 rounded hover:bg-purple-200 transition-all text-xs font-medium"
-                              >
-                                调用图
-                              </button>
+                              {hit.symbol_name && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCallGraphSymbol(hit.symbol_name);
+                                    setShowCallGraphModal(true);
+                                  }}
+                                  className="px-3 py-1 bg-purple-100 border border-purple-200 text-purple-700 rounded hover:bg-purple-200 transition-all text-xs font-medium"
+                                >
+                                  调用图
+                                </button>
+                              )}
                               <svg
                                 className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                                 fill="none"

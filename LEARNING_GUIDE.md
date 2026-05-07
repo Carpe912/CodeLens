@@ -4,6 +4,12 @@
 
 ---
 
+### 📚 文档导航
+
+**[← 返回首页](./README.md)** · **[🚀 AgentRAG 升级说明](./AGENTRAG_UPGRADE.md)** · **[🚢 部署指南](./DEPLOYMENT.md)** · **[📐 项目架构](./PROJECT_OVERVIEW.md)**
+
+---
+
 ## 📚 目录
 
 - [5分钟快速了解](#5分钟快速了解)

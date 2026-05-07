@@ -1,6 +1,22 @@
-# CodeLens 生产部署指南
+# 🚀 CodeLens Agent 升级部署指南
 
-本文档详细说明如何将 CodeLens 部署到生产服务器。
+本文档详细说明如何将 CodeLens（包含 Agent 升级）部署到生产服务器。
+
+---
+
+### 📚 文档导航
+
+**[← 返回首页](./README.md)** · **[🎓 学习指南](./LEARNING_GUIDE.md)** · **[🚀 升级说明](./AGENTRAG_UPGRADE.md)** · **[📐 项目架构](./PROJECT_OVERVIEW.md)**
+
+---
+
+## 📋 本次升级内容
+
+- ✅ Agent 核心代码（多轮推理引擎）
+- ✅ 阿里百炼 API 集成（text-embedding-v4, qwen3-rerank）
+- ✅ 向量维度升级（1024 → 1536）
+- ✅ 数据库迁移（5个新表：agent_executions, agent_lessons, agent_reflections, tool_calls, conversation_memory）
+- ✅ 7个新 API 端点（/agent/ask, /agent/ask/stream, /agent/sessions, /agent/history, /agent/stats, /agent/feedback）
 
 ## 部署架构
 
@@ -60,6 +76,15 @@ ssh-copy-id root@47.116.6.132
 ssh root@47.116.6.132
 ```
 
+2. **确保本地 Node.js 版本 >= 18.12**
+
+```bash
+node --version
+
+# 如果版本过低，切换到 Node 18 或 22
+nvm use 22
+```
+
 ### 1. 配置部署脚本
 
 在 `package.json` 中添加部署命令：
@@ -72,26 +97,39 @@ ssh root@47.116.6.132
 }
 ```
 
-### 2. 执行部署
+### 2. 执行部署（推荐）
 
 ```bash
-# 确保使用 Node.js 18+
-nvm use 18
-
-# 执行部署
+# 执行一键部署
 npm run deploy
 ```
 
-部署脚本会自动完成：
-1. 本地构建前端和后端
-2. 通过 SSH 上传到服务器
-3. 安装依赖
-4. 重启 PM2 服务
+**部署脚本会自动完成：**
+1. ✅ 检查环境（Node.js、pnpm、SSH）
+2. ✅ 本地构建（API + 前端）
+3. ✅ 上传到服务器（包含数据库迁移文件）
+4. ✅ 安装依赖
+5. ✅ **运行数据库迁移（新增 Agent 表）**
+6. ✅ 重启 PM2 服务
+7. ✅ 验证部署
 
-**注意事项**：
-- 前端构建时 Vite base 配置为 `/`，由 Nginx 处理路径映射
-- 上传 dist 目录时使用 `dist/*` 避免嵌套目录问题
-- PM2 使用 `serve` 命令提供静态文件服务
+### 3. 服务器端构建（备选方案）
+
+如果本地 Node.js 版本不兼容，可以直接在服务器上构建：
+
+```bash
+# SSH 到服务器
+ssh root@47.116.6.132
+
+# 进入项目目录
+cd /root/CodeLens
+
+# 拉取最新代码
+git pull origin main
+
+# 执行服务器端部署脚本
+bash deploy-server.sh
+```
 
 ## 手动部署步骤
 
@@ -268,25 +306,43 @@ server {
 VITE_API_BASE_URL=https://sunlingyue.cn/code-api
 ```
 
-### 后端环境变量
+### 后端环境变量（已更新为阿里百炼）
 
-配置在 `ecosystem.config.js` 中：
+文件：`.env.production`（根目录）
 
-```javascript
-env: {
-  NODE_ENV: 'production',
-  PORT: 8787,
-  DB_HOST: 'localhost',
-  DB_PORT: 5432,
-  DB_NAME: 'codelens',
-  DB_USER: 'postgres',
-  DB_PASSWORD: 'your_password',
-  REDIS_HOST: 'localhost',
-  REDIS_PORT: 6379,
-  ANTHROPIC_API_KEY: 'your_anthropic_key',
-  OPENAI_API_KEY: 'your_openai_key'
-}
+```env
+NODE_ENV=production
+PORT=8787
+
+# 数据库配置
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/codelens
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=codelens
+DB_USER=postgres
+DB_PASSWORD=your_password
+
+# Redis 配置
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Claude API 配置
+ANTHROPIC_BASE_URL=http://118.89.81.103:8081
+ANTHROPIC_AUTH_TOKEN=your_token
+
+# 阿里百炼 Embedding API（已升级）
+EMBED_API_KEY=sk-4002f08ebad741ea98a6978679f98328
+EMBED_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+EMBED_MODEL=text-embedding-v4
+EMBED_DIMENSIONS=1536
+
+# 阿里百炼 Rerank 模型
+DASHSCOPE_RERANK_MODEL=qwen3-rerank
 ```
+
+**重要提醒**：
+- 向量维度已从 1024 升级到 1536
+- 必须重新索引所有仓库才能使用新的向量维度
 
 ## 数据库初始化
 
@@ -356,12 +412,52 @@ nginx -t
 nginx -s reload
 ```
 
-### 2. 访问测试
+### 2. 检查数据库表（新增）
+
+```bash
+# 检查 Agent 表是否创建成功
+ssh root@47.116.6.132 "psql \$DATABASE_URL -c \"SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'agent_%' ORDER BY table_name;\""
+```
+
+应该看到 5 个新表：
+- agent_conversations
+- agent_executions  
+- agent_lessons
+- agent_reflections
+- tool_calls
+
+### 3. 测试 Agent API（新增）
+
+```bash
+# 测试标准查询
+curl -X POST https://sunlingyue.cn/code-api/agent/ask \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "登录功能是如何实现的？",
+    "repoId": 1
+  }'
+
+# 测试流式查询
+curl -X POST https://sunlingyue.cn/code-api/agent/ask/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "用户认证流程是什么？",
+    "repoId": 1
+  }'
+
+# 查看执行历史
+curl https://sunlingyue.cn/code-api/agent/history?repoId=1&limit=10
+
+# 查看统计信息
+curl https://sunlingyue.cn/code-api/agent/stats?repoId=1
+```
+
+### 4. 访问测试
 
 - 前端：https://sunlingyue.cn/code/
 - API：https://sunlingyue.cn/code-api/repos
 
-### 3. 查看日志
+### 5. 查看日志
 
 ```bash
 # API 日志
@@ -376,7 +472,87 @@ tail -f /www/wwwlogs/47.116.6.132.error.log
 
 ## 常见问题
 
-### 1. 前端资源 404 错误
+### 1. 本地 Node.js 版本过低（新增）
+
+**症状**: 
+```
+ERROR: This version of pnpm requires at least Node.js v18.12
+The current version of Node.js is v14.21.3
+```
+
+**解决方案**:
+```bash
+# 方式 1：切换 Node 版本
+nvm use 22  # 或 nvm use 18
+
+# 方式 2：使用服务器端构建
+ssh root@47.116.6.132
+cd /root/CodeLens
+git pull origin main
+bash deploy-server.sh
+```
+
+### 2. 数据库迁移失败（新增）
+
+**症状**: 
+```
+ERROR: relation "agent_executions" already exists
+```
+
+**解决方案**:
+这是正常的，表已存在。部署脚本会自动忽略此错误。
+
+如果需要重新创建表：
+```bash
+ssh root@47.116.6.132
+cd /root/CodeLens/apps/api
+psql $DATABASE_URL -c "DROP TABLE IF EXISTS agent_conversations, agent_executions, agent_lessons, agent_reflections, tool_calls, conversation_memory CASCADE;"
+psql $DATABASE_URL -f src/db/migrations/add_agent_tables.sql
+```
+
+### 3. 向量维度不匹配（新增）
+
+**症状**: Agent 查询返回错误或结果不准确
+
+**原因**: 向量维度从 1024 升级到 1536，旧的向量数据不兼容
+
+**解决方案**: 重新索引所有仓库
+```bash
+# 方式 1：通过 API
+curl -X POST https://sunlingyue.cn/code-api/repos/1/reindex
+curl -X POST https://sunlingyue.cn/code-api/repos/2/reindex
+
+# 方式 2：通过前端界面
+# 访问 https://sunlingyue.cn/code/
+# 进入每个仓库 → 点击"重新索引"按钮
+```
+
+### 4. Agent API 返回 500 错误（新增）
+
+**可能原因**:
+1. 数据库表未创建
+2. 环境变量配置错误
+3. 阿里百炼 API Key 无效
+
+**检查步骤**:
+```bash
+# 1. 检查数据库表
+ssh root@47.116.6.132 "psql \$DATABASE_URL -c \"SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'agent_%';\""
+
+# 2. 检查环境变量
+ssh root@47.116.6.132 "cat /root/CodeLens/.env.production | grep -E '(EMBED|DASHSCOPE)'"
+
+# 3. 测试阿里百炼 API
+curl -X POST https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings \
+  -H "Authorization: Bearer sk-4002f08ebad741ea98a6978679f98328" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"text-embedding-v4","input":"test"}'
+
+# 4. 查看 API 日志
+ssh root@47.116.6.132 "pm2 logs codelens-api --err --lines 50"
+```
+
+### 5. 前端资源 404 错误
 
 **症状**: 访问前端页面时，CSS/JS 文件返回 404
 
@@ -406,7 +582,7 @@ ssh root@47.116.6.132 "grep -o 'src=\"[^\"]*\"' /opt/codelens/apps/web/dist/inde
 # 应该看到 src="/assets/..." 而不是 src="/code/assets/..."
 ```
 
-### 2. PM2 前端服务启动失败 (ENOTFOUND -p)
+### 6. PM2 前端服务启动失败 (ENOTFOUND -p)
 
 **症状**: `pm2 logs codelens-web` 显示 `getaddrinfo ENOTFOUND -p`
 
@@ -430,7 +606,7 @@ ssh root@47.116.6.132 "grep -o 'src=\"[^\"]*\"' /opt/codelens/apps/web/dist/inde
 ssh root@47.116.6.132 "npm install -g serve"
 ```
 
-### 3. 嵌套 dist 目录问题
+### 7. 嵌套 dist 目录问题
 
 **症状**: 部署后发现 `/opt/codelens/apps/web/dist/dist/` 嵌套目录
 
@@ -449,7 +625,7 @@ ssh root@47.116.6.132 "ls -la /opt/codelens/apps/web/dist/"
 # 应该直接看到 index.html 和 assets/ 目录
 ```
 
-### 4. SSH 密码认证失败
+### 8. SSH 密码认证失败
 
 **症状**: 部署脚本执行时频繁要求输入密码
 
@@ -465,7 +641,7 @@ ssh-copy-id root@47.116.6.132
 ssh root@47.116.6.132 "echo 'SSH key authentication works!'"
 ```
 
-### 5. API 502 错误
+### 9. API 502 错误
 
 **原因**: API 服务未启动或端口不匹配
 
@@ -476,7 +652,7 @@ netstat -tlnp | grep 8787
 pm2 logs codelens-api --lines 50
 ```
 
-### 6. Mixed Content 错误
+### 10. Mixed Content 错误
 
 **原因**: HTTPS 页面请求 HTTP API
 
@@ -485,7 +661,7 @@ pm2 logs codelens-api --lines 50
 VITE_API_BASE_URL=https://sunlingyue.cn/code-api
 ```
 
-### 7. 静态资源 MIME 类型错误
+### 11. 静态资源 MIME 类型错误
 
 **原因**: Nginx 未正确识别文件类型
 
@@ -495,7 +671,7 @@ include mime.types;
 default_type application/octet-stream;
 ```
 
-### 8. 数据库连接失败
+### 12. 数据库连接失败
 
 **原因**: 数据库密码错误或数据库不存在
 
@@ -607,6 +783,15 @@ pm2 restart codelens-api
 ## 相关文档
 
 - [README.md](./README.md) - 项目介绍和快速开始
+- [DEPLOY_NOW.md](./DEPLOY_NOW.md) - 快速部署指南（服务器端构建）
+- [deploy-server.sh](./deploy-server.sh) - 服务器端部署脚本
+- [scripts/deploy.js](./scripts/deploy.js) - 本地一键部署脚本
+- [FINAL_STATUS.md](./FINAL_STATUS.md) - Agent 升级完成状态
+- [apps/api/src/db/migrations/add_agent_tables.sql](./apps/api/src/db/migrations/add_agent_tables.sql) - Agent 数据库迁移脚本
 - [LEARNING_GUIDE.md](./LEARNING_GUIDE.md) - 完整学习指南
 - [package.json](./package.json) - 依赖和脚本配置
 - [ecosystem.config.js](./ecosystem.config.js) - PM2 配置
+
+---
+
+**准备好了吗？执行 `npm run deploy` 开始部署！** 🚀

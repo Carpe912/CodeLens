@@ -63,6 +63,13 @@ export function CallGraph({ repoId, symbolName, onSymbolClick }: CallGraphProps)
     const controller = new AbortController();
 
     async function fetchCallGraph() {
+      // 防御性检查：如果 symbolName 为空，不发送请求
+      if (!symbolName || symbolName.trim() === '') {
+        setError('Symbol name is required');
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
