@@ -1,0 +1,171 @@
+{
+  "name": "codelens-vscode",
+  "displayName": "CodeLens - Intelligent Code Search",
+  "description": "AI-powered code search and Q&A for your workspace",
+  "version": "0.1.0",
+  "publisher": "codelens",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "CodeLens",
+      "properties": {
+        "codelens.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8787",
+          "description": "CodeLens API服务器地址"
+        },
+        "codelens.autoIndex": {
+          "type": "boolean",
+          "default": true,
+          "description": "打开工作区时自动索引"
+        },
+        "codelens.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "显示内联CodeLens（引用、调用）"
+        },
+        "codelens.enableHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "显示悬停文档"
+        },
+        "codelens.allowedGitLabDomains": {
+          "type": "array",
+          "default": [],
+          "description": "允许索引的GitLab域名（例如：['gitlab.company.com']）。空数组表示允许所有域名。",
+          "items": {
+            "type": "string"
+          }
+        },
+        "codelens.gitlabToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitLab个人访问令牌，用于权限验证（可选）"
+        },
+        "codelens.allowedWorkspaces": {
+          "type": "array",
+          "default": [],
+          "description": "总是允许索引的工作区URI列表",
+          "items": {
+            "type": "string"
+          }
+        },
+        "codelens.enablePermissionCheck": {
+          "type": "boolean",
+          "default": true,
+          "description": "索引工作区前启用权限检查"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "codelens.indexWorkspace",
+        "title": "CodeLens: 索引工作区",
+        "icon": "$(database)"
+      },
+      {
+        "command": "codelens.reindexWorkspace",
+        "title": "CodeLens: 重新索引工作区"
+      },
+      {
+        "command": "codelens.search",
+        "title": "CodeLens: 搜索代码",
+        "icon": "$(search)"
+      },
+      {
+        "command": "codelens.askAI",
+        "title": "CodeLens: 询问AI",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "codelens.askAboutSelection",
+        "title": "CodeLens: 询问AI关于选中内容"
+      },
+      {
+        "command": "codelens.showCallGraph",
+        "title": "CodeLens: 显示调用图"
+      },
+      {
+        "command": "codelens.openFile",
+        "title": "CodeLens: 打开文件"
+      },
+      {
+        "command": "codelens.refreshSearch",
+        "title": "刷新",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codelens.askAboutSelection",
+          "when": "editorHasSelection",
+          "group": "codelens@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "codelens.search",
+          "when": "view == codelensSearch",
+          "group": "navigation"
+        },
+        {
+          "command": "codelens.refreshSearch",
+          "when": "view == codelensSearch",
+          "group": "navigation"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codelens",
+          "title": "CodeLens",
+          "icon": "$(search-view-icon)"
+        }
+      ]
+    },
+    "views": {
+      "codelens": [
+        {
+          "id": "codelensSearch",
+          "name": "搜索结果"
+        },
+        {
+          "id": "codelensRepos",
+          "name": "仓库"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "archiver": "^6.0.0",
+    "form-data": "^4.0.0"
+  }
+}
