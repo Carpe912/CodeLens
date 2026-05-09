@@ -13,6 +13,7 @@ import { searchTTLCache, generateCacheKey, getAllCacheStats, clearAllCaches } fr
 import { MultiStrategySearch } from './llm/multi-strategy-search.js';
 import { AgentCore, getAgentConfig } from './agent/index.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { normalizeGitLabUrl, extractProjectName, getGitLabDefaultBranch } from './utils/gitlab.js';
 
 // Validate required environment variables
 function validateEnv() {
@@ -137,6 +138,180 @@ fastify.post('/repos/upload', async (request, reply) => {
   });
 
   return { repoId, status: 'indexing' };
+});
+
+// Check if GitLab repository is already indexed
+fastify.get<{
+  Querystring: { gitlabUrl: string; branch?: string };
+}>('/repos/check', async (request, reply) => {
+  const { gitlabUrl, branch } = request.query;
+
+  if (!gitlabUrl) {
+    return reply.code(400).send({ error: 'Missing gitlabUrl parameter' });
+  }
+
+  const normalizedUrl = normalizeGitLabUrl(gitlabUrl);
+
+  if (branch) {
+    // Check specific branch
+    const result = await pool.query(
+      'SELECT id, name, status, branch, is_base_branch, parent_repo_id FROM repos WHERE gitlab_url = $1 AND branch = $2',
+      [normalizedUrl, branch]
+    );
+
+    if (result.rows.length > 0) {
+      return {
+        exists: true,
+        repo: result.rows[0]
+      };
+    }
+  }
+
+  // Check if base branch exists
+  const baseResult = await pool.query(
+    'SELECT id, name, status, branch, is_base_branch, default_branch FROM repos WHERE gitlab_url = $1 AND is_base_branch = true',
+    [normalizedUrl]
+  );
+
+  if (baseResult.rows.length > 0) {
+    return {
+      exists: true,
+      hasBaseBranch: true,
+      baseBranch: baseResult.rows[0]
+    };
+  }
+
+  return {
+    exists: false,
+    hasBaseBranch: false
+  };
+});
+
+// Create base branch index from GitLab
+fastify.post<{
+  Body: { gitlabUrl: string; gitlabToken?: string; branch?: string };
+}>('/repos/from-gitlab', async (request, reply) => {
+  const { gitlabUrl, gitlabToken, branch } = request.body;
+
+  if (!gitlabUrl) {
+    return reply.code(400).send({ error: 'Missing gitlabUrl' });
+  }
+
+  const normalizedUrl = normalizeGitLabUrl(gitlabUrl);
+
+  // Get default branch from GitLab
+  const defaultBranch = branch || await getGitLabDefaultBranch(gitlabUrl, gitlabToken);
+
+  // Check if already exists
+  const existing = await pool.query(
+    'SELECT id FROM repos WHERE gitlab_url = $1 AND branch = $2',
+    [normalizedUrl, defaultBranch]
+  );
+
+  if (existing.rows.length > 0) {
+    return {
+      repoId: existing.rows[0].id,
+      status: 'already_exists',
+      branch: defaultBranch
+    };
+  }
+
+  // Create repository record
+  const projectName = extractProjectName(gitlabUrl);
+  const result = await pool.query(
+    `INSERT INTO repos (name, source, url, gitlab_url, branch, is_base_branch, default_branch, gitlab_token, status, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+     RETURNING id`,
+    [projectName, 'gitlab', gitlabUrl, normalizedUrl, defaultBranch, true, defaultBranch, gitlabToken, 'indexing']
+  );
+
+  const repoId = result.rows[0].id;
+
+  // Enqueue index job
+  await enqueueIndexJob({
+    repoId,
+    repoName: projectName,
+    source: 'gitlab',
+    url: gitlabUrl,
+    branch: defaultBranch,
+    gitlabToken
+  });
+
+  return {
+    repoId,
+    status: 'indexing',
+    branch: defaultBranch
+  };
+});
+
+// Create branch index (incremental from base branch)
+fastify.post<{
+  Body: { gitlabUrl: string; branch: string; gitlabToken?: string };
+}>('/repos/branch-index', async (request, reply) => {
+  const { gitlabUrl, branch, gitlabToken } = request.body;
+
+  if (!gitlabUrl || !branch) {
+    return reply.code(400).send({ error: 'Missing gitlabUrl or branch' });
+  }
+
+  const normalizedUrl = normalizeGitLabUrl(gitlabUrl);
+
+  // Check if base branch exists
+  const baseResult = await pool.query(
+    'SELECT id, branch FROM repos WHERE gitlab_url = $1 AND is_base_branch = true',
+    [normalizedUrl]
+  );
+
+  if (baseResult.rows.length === 0) {
+    return reply.code(400).send({ error: 'Base branch not indexed yet' });
+  }
+
+  const baseRepoId = baseResult.rows[0].id;
+  const baseBranch = baseResult.rows[0].branch;
+
+  // Check if branch already exists
+  const existing = await pool.query(
+    'SELECT id FROM repos WHERE gitlab_url = $1 AND branch = $2',
+    [normalizedUrl, branch]
+  );
+
+  if (existing.rows.length > 0) {
+    return {
+      repoId: existing.rows[0].id,
+      status: 'already_exists',
+      branch
+    };
+  }
+
+  // Create branch index record
+  const projectName = extractProjectName(gitlabUrl);
+  const result = await pool.query(
+    `INSERT INTO repos (name, source, url, gitlab_url, branch, is_base_branch, parent_repo_id, gitlab_token, status, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+     RETURNING id`,
+    [projectName, 'gitlab', gitlabUrl, normalizedUrl, branch, false, baseRepoId, gitlabToken, 'indexing']
+  );
+
+  const repoId = result.rows[0].id;
+
+  // Enqueue index job with base branch info for diff calculation
+  await enqueueIndexJob({
+    repoId,
+    repoName: projectName,
+    source: 'gitlab',
+    url: gitlabUrl,
+    branch,
+    baseBranch,
+    baseRepoId,
+    gitlabToken
+  });
+
+  return {
+    repoId,
+    status: 'indexing',
+    branch,
+    baseBranch
+  };
 });
 
 fastify.post<{

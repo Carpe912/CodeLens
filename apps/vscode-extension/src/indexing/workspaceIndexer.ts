@@ -5,6 +5,7 @@ import archiver from 'archiver';
 import { APIService } from '../api';
 import { RepoRegistry } from '../state';
 import { PermissionChecker } from '../utils/permissionChecker';
+import { getGitRemoteUrl, getCurrentBranch } from '../utils/gitlabHelper';
 
 export class WorkspaceIndexer {
   private permissionChecker: PermissionChecker;
@@ -19,6 +20,7 @@ export class WorkspaceIndexer {
 
   async indexWorkspace(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
     const workspaceUri = workspaceFolder.uri.toString();
+    const workspacePath = workspaceFolder.uri.fsPath;
 
     // Check permission first
     const config = vscode.workspace.getConfiguration('codelens');
@@ -50,6 +52,178 @@ export class WorkspaceIndexer {
         }
       }
     }
+
+    // Try to get GitLab URL
+    const gitlabUrl = await getGitRemoteUrl(workspacePath);
+
+    if (gitlabUrl) {
+      // GitLab repository - use multi-branch indexing
+      await this.indexFromGitLab(workspaceFolder, gitlabUrl);
+    } else {
+      // Non-GitLab repository - use ZIP upload
+      await this.indexFromZip(workspaceFolder);
+    }
+  }
+
+  /**
+   * 从GitLab索引（支持多分支）
+   */
+  private async indexFromGitLab(workspaceFolder: vscode.WorkspaceFolder, gitlabUrl: string): Promise<void> {
+    const workspaceUri = workspaceFolder.uri.toString();
+    const workspacePath = workspaceFolder.uri.fsPath;
+    const config = vscode.workspace.getConfiguration('codelens');
+    const gitlabToken = config.get<string>('gitlabToken');
+
+    try {
+      // 获取当前分支
+      const currentBranch = await getCurrentBranch(workspacePath);
+      console.log(`[WorkspaceIndexer] Current branch: ${currentBranch}`);
+
+      // 检查后端是否已索引
+      const checkResult = await this.apiService.repos.checkByGitLabUrl(gitlabUrl, currentBranch);
+
+      if (checkResult.exists && checkResult.repo) {
+        // 当前分支已索引
+        const repo = checkResult.repo;
+        this.repoRegistry.registerRepo(workspaceUri, repo.id, repo.name);
+
+        if (repo.status === 'ready') {
+          vscode.window.showInformationMessage(
+            `分支 "${currentBranch}" 已索引，可直接使用`
+          );
+          this.repoRegistry.updateStatus(workspaceUri, 'ready');
+          this.statusBarItem.text = '$(check) CodeLens: 就绪';
+          setTimeout(() => this.statusBarItem.hide(), 3000);
+        } else if (repo.status === 'indexing') {
+          vscode.window.showInformationMessage(
+            `分支 "${currentBranch}" 正在索引中，请稍候...`
+          );
+          await this.monitorProgress(repo.id, workspaceUri);
+        }
+        return;
+      }
+
+      if (checkResult.hasBaseBranch && checkResult.baseBranch) {
+        // 基础分支已索引，询问是否为当前分支创建索引
+        const baseBranch = checkResult.baseBranch;
+        const action = await vscode.window.showInformationMessage(
+          `检测到基础分支 "${baseBranch.branch}" 已索引。`,
+          `使用基础分支索引`,
+          `为 "${currentBranch}" 创建独立索引`,
+          '取消'
+        );
+
+        if (action === '使用基础分支索引') {
+          // 使用基础分支索引
+          this.repoRegistry.registerRepo(workspaceUri, baseBranch.id, baseBranch.name);
+          this.repoRegistry.updateStatus(workspaceUri, 'ready');
+          this.statusBarItem.text = '$(check) CodeLens: 就绪';
+          vscode.window.showInformationMessage(`已使用基础分支 "${baseBranch.branch}" 的索引`);
+          setTimeout(() => this.statusBarItem.hide(), 3000);
+        } else if (action === `为 "${currentBranch}" 创建独立索引`) {
+          // 创建分支索引
+          await this.createBranchIndex(workspaceFolder, gitlabUrl, currentBranch, gitlabToken);
+        }
+        return;
+      }
+
+      // 没有任何索引，询问是否创建基础分支索引
+      const action = await vscode.window.showInformationMessage(
+        `此仓库尚未索引。是否从GitLab克隆默认分支并索引？\n（其他用户将共享此索引）`,
+        '是',
+        '否'
+      );
+
+      if (action === '是') {
+        await this.createBaseBranchIndex(workspaceFolder, gitlabUrl, gitlabToken);
+      }
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`从GitLab索引失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 创建基础分支索引
+   */
+  private async createBaseBranchIndex(
+    workspaceFolder: vscode.WorkspaceFolder,
+    gitlabUrl: string,
+    gitlabToken?: string
+  ): Promise<void> {
+    const workspaceUri = workspaceFolder.uri.toString();
+
+    try {
+      this.statusBarItem.text = '$(sync~spin) CodeLens: 创建基础分支索引...';
+      this.statusBarItem.show();
+
+      const result = await this.apiService.repos.createFromGitLab(gitlabUrl, gitlabToken);
+
+      this.repoRegistry.registerRepo(workspaceUri, result.repoId, workspaceFolder.name);
+
+      vscode.window.showInformationMessage(
+        `正在索引基础分支 "${result.branch}"，这可能需要几分钟...`
+      );
+
+      await this.monitorProgress(result.repoId, workspaceUri);
+
+      // 索引完成后，询问是否为当前分支创建索引
+      const workspacePath = workspaceFolder.uri.fsPath;
+      const currentBranch = await getCurrentBranch(workspacePath);
+
+      if (currentBranch !== result.branch) {
+        const action = await vscode.window.showInformationMessage(
+          `基础分支 "${result.branch}" 索引完成。是否为当前分支 "${currentBranch}" 创建独立索引？`,
+          '是',
+          '否'
+        );
+
+        if (action === '是') {
+          await this.createBranchIndex(workspaceFolder, gitlabUrl, currentBranch, gitlabToken);
+        }
+      }
+    } catch (error: any) {
+      this.statusBarItem.text = '$(error) CodeLens: 索引失败';
+      vscode.window.showErrorMessage(`创建基础分支索引失败: ${error.message}`);
+      setTimeout(() => this.statusBarItem.hide(), 5000);
+    }
+  }
+
+  /**
+   * 创建分支索引
+   */
+  private async createBranchIndex(
+    workspaceFolder: vscode.WorkspaceFolder,
+    gitlabUrl: string,
+    branch: string,
+    gitlabToken?: string
+  ): Promise<void> {
+    const workspaceUri = workspaceFolder.uri.toString();
+
+    try {
+      this.statusBarItem.text = `$(sync~spin) CodeLens: 创建分支 "${branch}" 索引...`;
+      this.statusBarItem.show();
+
+      const result = await this.apiService.repos.createBranchIndex(gitlabUrl, branch, gitlabToken);
+
+      this.repoRegistry.registerRepo(workspaceUri, result.repoId, workspaceFolder.name);
+
+      vscode.window.showInformationMessage(
+        `正在为分支 "${branch}" 创建索引（仅索引与 "${result.baseBranch}" 的差异）...`
+      );
+
+      await this.monitorProgress(result.repoId, workspaceUri);
+    } catch (error: any) {
+      this.statusBarItem.text = '$(error) CodeLens: 索引失败';
+      vscode.window.showErrorMessage(`创建分支索引失败: ${error.message}`);
+      setTimeout(() => this.statusBarItem.hide(), 5000);
+    }
+  }
+
+  /**
+   * 从ZIP索引（非GitLab仓库）
+   */
+  private async indexFromZip(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
+    const workspaceUri = workspaceFolder.uri.toString();
 
     // Check if already indexed
     const existingRepoInfo = this.repoRegistry.getRepoInfo(workspaceUri);
@@ -113,6 +287,82 @@ export class WorkspaceIndexer {
     } catch (error: any) {
       vscode.window.showErrorMessage(`重新索引工作区失败: ${error.message}`);
       this.repoRegistry.updateStatus(workspaceUri, 'failed');
+    }
+  }
+
+  /**
+   * 增量索引（手动触发）
+   */
+  async incrementalIndex(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
+    const workspaceUri = workspaceFolder.uri.toString();
+    const workspacePath = workspaceFolder.uri.fsPath;
+    const repoId = this.repoRegistry.getRepoId(workspaceUri);
+
+    if (!repoId) {
+      vscode.window.showErrorMessage('工作区尚未索引，请先索引工作区');
+      return;
+    }
+
+    try {
+      // 获取Git远程URL
+      const gitlabUrl = await getGitRemoteUrl(workspacePath);
+
+      if (!gitlabUrl) {
+        vscode.window.showErrorMessage('无法获取Git远程仓库地址，增量索引仅支持GitLab仓库');
+        return;
+      }
+
+      // 获取当前分支
+      const currentBranch = await getCurrentBranch(workspacePath);
+
+      // 检查是否有基础分支
+      const checkResult = await this.apiService.repos.checkByGitLabUrl(gitlabUrl);
+
+      if (!checkResult.hasBaseBranch || !checkResult.baseBranch) {
+        vscode.window.showErrorMessage('未找到基础分支索引，无法进行增量索引');
+        return;
+      }
+
+      const baseBranch = checkResult.baseBranch.branch;
+
+      // 获取差异文件
+      this.statusBarItem.text = '$(sync~spin) CodeLens: 检测变更文件...';
+      this.statusBarItem.show();
+
+      const { getDiffFromBaseBranch } = await import('../utils/gitlabHelper');
+      const changedFiles = await getDiffFromBaseBranch(workspacePath, baseBranch);
+
+      if (changedFiles.length === 0) {
+        vscode.window.showInformationMessage(`当前分支 "${currentBranch}" 与基础分支 "${baseBranch}" 无差异`);
+        this.statusBarItem.hide();
+        return;
+      }
+
+      // 询问用户是否继续
+      const action = await vscode.window.showInformationMessage(
+        `检测到 ${changedFiles.length} 个变更文件。是否进行增量索引？`,
+        '是',
+        '否'
+      );
+
+      if (action !== '是') {
+        this.statusBarItem.hide();
+        return;
+      }
+
+      // 执行增量索引
+      this.statusBarItem.text = `$(sync~spin) CodeLens: 增量索引 ${changedFiles.length} 个文件...`;
+
+      await this.apiService.repos.incrementalIndex(repoId, changedFiles);
+
+      this.statusBarItem.text = '$(check) CodeLens: 增量索引完成';
+      vscode.window.showInformationMessage(`增量索引完成，已更新 ${changedFiles.length} 个文件`);
+
+      setTimeout(() => this.statusBarItem.hide(), 3000);
+    } catch (error: any) {
+      this.statusBarItem.text = '$(error) CodeLens: 增量索引失败';
+      vscode.window.showErrorMessage(`增量索引失败: ${error.message}`);
+      setTimeout(() => this.statusBarItem.hide(), 5000);
     }
   }
 

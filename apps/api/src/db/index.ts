@@ -67,6 +67,11 @@ export async function initDatabase() {
      * - description: 仓库描述
      * - index_progress: 索引进度（JSONB 格式，包含 total、processed、startTime）
      * - created_at: 创建时间
+     * - gitlab_url: 规范化的 GitLab URL（用于多分支索引）
+     * - branch: 分支名称
+     * - is_base_branch: 是否为基础分支（默认分支）
+     * - parent_repo_id: 父仓库 ID（指向基础分支）
+     * - default_branch: GitLab 默认分支名称
      */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS repos (
@@ -78,7 +83,12 @@ export async function initDatabase() {
         status TEXT NOT NULL,
         description TEXT,
         index_progress JSONB DEFAULT '{"total": 0, "processed": 0, "startTime": null}'::jsonb,
-        created_at TIMESTAMP DEFAULT NOW()
+        created_at TIMESTAMP DEFAULT NOW(),
+        gitlab_url TEXT,
+        branch TEXT DEFAULT 'main',
+        is_base_branch BOOLEAN DEFAULT false,
+        parent_repo_id INTEGER REFERENCES repos(id),
+        default_branch TEXT
       );
     `);
 
@@ -285,6 +295,31 @@ export async function initDatabase() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_question_feedback_question_id ON question_feedback(question_id);
     `);
+
+    // repos 表索引：支持多分支索引查询
+    try {
+      await pool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_repos_gitlab_url_branch ON repos(gitlab_url, branch) WHERE gitlab_url IS NOT NULL;
+      `);
+    } catch (err: any) {
+      if (err.code !== '23505') throw err;
+    }
+
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_repos_gitlab_url ON repos(gitlab_url) WHERE gitlab_url IS NOT NULL;
+      `);
+    } catch (err: any) {
+      if (err.code !== '23505') throw err;
+    }
+
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_repos_parent_repo_id ON repos(parent_repo_id) WHERE parent_repo_id IS NOT NULL;
+      `);
+    } catch (err: any) {
+      if (err.code !== '23505') throw err;
+    }
 
     console.log('Database initialized');
   } catch (error) {

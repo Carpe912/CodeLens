@@ -1,9 +1,14 @@
 {
   "name": "codelens-vscode",
-  "displayName": "CodeLens - Intelligent Code Search",
+  "displayName": "Coopwire CodeLens",
   "description": "AI-powered code search and Q&A for your workspace",
-  "version": "0.1.0",
-  "publisher": "codelens",
+  "version": "0.2.0",
+  "publisher": "sunlingyue",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Carpe912/CodeLens.git"
+  },
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -77,6 +82,11 @@
       {
         "command": "codelens.reindexWorkspace",
         "title": "CodeLens: 重新索引工作区"
+      },
+      {
+        "command": "codelens.incrementalIndex",
+        "title": "CodeLens: 增量索引",
+        "icon": "$(sync)"
       },
       {
         "command": "codelens.search",
@@ -153,7 +163,9 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext ts",
+    "package": "vsce package",
+    "publish": "vsce publish"
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",

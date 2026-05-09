@@ -56,4 +56,55 @@ export class RepoAPI {
       method: 'DELETE',
     });
   }
+
+  /**
+   * 检查GitLab仓库是否已索引
+   */
+  async checkByGitLabUrl(gitlabUrl: string, branch?: string): Promise<{
+    exists: boolean;
+    hasBaseBranch?: boolean;
+    repo?: any;
+    baseBranch?: any;
+  }> {
+    const encodedUrl = encodeURIComponent(gitlabUrl);
+    const branchParam = branch ? `&branch=${encodeURIComponent(branch)}` : '';
+    return this.client.request(`/repos/check?gitlabUrl=${encodedUrl}${branchParam}`);
+  }
+
+  /**
+   * 从GitLab创建基础分支索引
+   */
+  async createFromGitLab(
+    gitlabUrl: string,
+    gitlabToken?: string,
+    branch?: string
+  ): Promise<{
+    repoId: number;
+    status: string;
+    branch: string;
+  }> {
+    return this.client.request('/repos/from-gitlab', {
+      method: 'POST',
+      body: { gitlabUrl, gitlabToken, branch }
+    });
+  }
+
+  /**
+   * 创建分支增量索引
+   */
+  async createBranchIndex(
+    gitlabUrl: string,
+    branch: string,
+    gitlabToken?: string
+  ): Promise<{
+    repoId: number;
+    status: string;
+    branch: string;
+    baseBranch: string;
+  }> {
+    return this.client.request('/repos/branch-index', {
+      method: 'POST',
+      body: { gitlabUrl, branch, gitlabToken }
+    });
+  }
 }

@@ -18,6 +18,9 @@ export type IndexJobData = {
   url?: string;
   zipPath?: string;
   gitlabToken?: string;
+  branch?: string;
+  baseBranch?: string;
+  baseRepoId?: number;
 };
 
 export type IncrementalIndexJobData = {

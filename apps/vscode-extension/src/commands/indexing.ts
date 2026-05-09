@@ -38,4 +38,17 @@ export function registerIndexingCommands(
       }
     })
   );
+
+  // Incremental index command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('codelens.incrementalIndex', async () => {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage('未打开工作区文件夹');
+        return;
+      }
+
+      await workspaceIndexer.incrementalIndex(workspaceFolder);
+    })
+  );
 }
