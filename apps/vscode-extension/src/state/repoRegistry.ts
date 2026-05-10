@@ -8,8 +8,15 @@ export class RepoRegistry {
     this.load();
   }
 
-  registerRepo(workspaceUri: string, repoId: number, repoName: string) {
-    this.repos.set(workspaceUri, { repoId, repoName, status: 'indexing' });
+  registerRepo(workspaceUri: string, repoId: number, repoName: string, extras?: Partial<RepoInfo>) {
+    this.repos.set(workspaceUri, {
+      repoId,
+      repoName,
+      status: extras?.status || 'indexing',
+      totalFiles: extras?.totalFiles,
+      processedFiles: extras?.processedFiles,
+      percentComplete: extras?.percentComplete,
+    });
     this.save();
   }
 

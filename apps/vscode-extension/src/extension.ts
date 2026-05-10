@@ -76,7 +76,7 @@ export async function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(searchTreeView);
 
-  const repoTreeDataProvider = new RepoTreeDataProvider(repoRegistry);
+  const repoTreeDataProvider = new RepoTreeDataProvider(repoRegistry, apiService);
   const repoTreeView = vscode.window.createTreeView('codelensRepos', {
     treeDataProvider: repoTreeDataProvider,
     showCollapseAll: false,

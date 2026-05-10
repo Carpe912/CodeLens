@@ -2,6 +2,17 @@ import { CodeLensAPIClient } from './client';
 import { CreateRepoResponse, ProgressResponse } from '../types';
 import * as fs from 'fs';
 
+export interface RemoteRepoSummary {
+  id: number;
+  name: string;
+  status: 'ready' | 'indexing' | 'failed';
+  gitlab_url?: string;
+  branch?: string;
+  totalFiles?: number;
+  processedFiles?: number;
+  percentComplete?: number;
+}
+
 export class RepoAPI {
   constructor(private client: CodeLensAPIClient) {}
 
@@ -10,6 +21,10 @@ export class RepoAPI {
       method: 'POST',
       body: { name, source: 'zip' },
     });
+  }
+
+  async listRepos(): Promise<RemoteRepoSummary[]> {
+    return this.client.request<RemoteRepoSummary[]>('/repos');
   }
 
   async uploadZip(zipPath: string): Promise<CreateRepoResponse> {

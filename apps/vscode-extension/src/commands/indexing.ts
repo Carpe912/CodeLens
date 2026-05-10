@@ -17,7 +17,7 @@ export function registerIndexingCommands(
       }
 
       await workspaceIndexer.indexWorkspace(workspaceFolder);
-      repoTreeDataProvider?.refresh();
+      await repoTreeDataProvider?.refresh();
     })
   );
 
@@ -38,7 +38,7 @@ export function registerIndexingCommands(
 
       if (confirm === '是') {
         await workspaceIndexer.reindexWorkspace(workspaceFolder);
-        repoTreeDataProvider?.refresh();
+        await repoTreeDataProvider?.refresh();
       }
     })
   );
@@ -53,7 +53,7 @@ export function registerIndexingCommands(
       }
 
       await workspaceIndexer.incrementalIndex(workspaceFolder);
-      repoTreeDataProvider?.refresh();
+      await repoTreeDataProvider?.refresh();
     })
   );
 }

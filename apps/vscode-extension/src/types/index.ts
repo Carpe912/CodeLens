@@ -2,6 +2,9 @@ export interface RepoInfo {
   repoId: number;
   repoName: string;
   status: 'ready' | 'indexing' | 'failed';
+  totalFiles?: number;
+  processedFiles?: number;
+  percentComplete?: number;
 }
 
 export interface CreateRepoResponse {
