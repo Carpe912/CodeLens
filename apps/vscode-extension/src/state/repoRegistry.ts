@@ -1,8 +1,14 @@
 import * as vscode from 'vscode';
 import { RepoInfo } from '../types';
 
+export interface RepoStats {
+  totalFiles?: number;
+  processedFiles?: number;
+  percentComplete?: number;
+}
+
 export class RepoRegistry {
-  private repos: Map<string, RepoInfo> = new Map();
+  private repos: Map<string, RepoInfo & RepoStats> = new Map();
 
   constructor(private context: vscode.ExtensionContext) {
     this.load();

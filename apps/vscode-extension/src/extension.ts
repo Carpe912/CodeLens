@@ -82,6 +82,13 @@ export async function activate(context: vscode.ExtensionContext) {
     showCollapseAll: false,
   });
   context.subscriptions.push(repoTreeView);
+  context.subscriptions.push(
+    repoTreeView.onDidChangeVisibility(async (e) => {
+      if (e.visible) {
+        await repoTreeDataProvider.refresh();
+      }
+    })
+  );
 
   const qaWebviewPanel = new QAWebviewPanel(context, apiService, repoRegistry);
   const callGraphWebviewPanel = new CallGraphWebviewPanel(context, apiService);
