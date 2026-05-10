@@ -273,7 +273,11 @@ export class WorkspaceIndexer {
 
   async reindexWorkspace(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
     const workspaceUri = workspaceFolder.uri.toString();
-    const repoId = this.repoRegistry.getRepoId(workspaceUri);
+    let repoId = this.repoRegistry.getRepoId(workspaceUri);
+
+    if (!repoId) {
+      repoId = await this.restoreRepoFromServer(workspaceFolder);
+    }
 
     if (!repoId) {
       vscode.window.showErrorMessage('工作区尚未索引');
@@ -296,7 +300,11 @@ export class WorkspaceIndexer {
   async incrementalIndex(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
     const workspaceUri = workspaceFolder.uri.toString();
     const workspacePath = workspaceFolder.uri.fsPath;
-    const repoId = this.repoRegistry.getRepoId(workspaceUri);
+    let repoId = this.repoRegistry.getRepoId(workspaceUri);
+
+    if (!repoId) {
+      repoId = await this.restoreRepoFromServer(workspaceFolder);
+    }
 
     if (!repoId) {
       vscode.window.showErrorMessage('工作区尚未索引，请先索引工作区');
@@ -364,6 +372,48 @@ export class WorkspaceIndexer {
       vscode.window.showErrorMessage(`增量索引失败: ${error.message}`);
       setTimeout(() => this.statusBarItem.hide(), 5000);
     }
+  }
+
+  private async restoreRepoFromServer(workspaceFolder: vscode.WorkspaceFolder): Promise<number | undefined> {
+    const workspaceUri = workspaceFolder.uri.toString();
+    const workspacePath = workspaceFolder.uri.fsPath;
+    const candidateNames = Array.from(new Set([
+      workspaceFolder.name,
+      path.basename(workspacePath),
+    ].filter(Boolean)));
+
+    const gitlabUrl = await getGitRemoteUrl(workspacePath);
+    if (gitlabUrl) {
+      try {
+        const currentBranch = await getCurrentBranch(workspacePath);
+        const checkResult = await this.apiService.repos.checkByGitLabUrl(gitlabUrl, currentBranch);
+
+        if (checkResult.exists && checkResult.repo) {
+          const repo = checkResult.repo;
+          this.repoRegistry.registerRepo(workspaceUri, repo.id, repo.name);
+          this.repoRegistry.updateStatus(workspaceUri, repo.status === 'ready' ? 'ready' : 'indexing');
+          return repo.id;
+        }
+      } catch (error) {
+        console.error('[WorkspaceIndexer] Failed to restore GitLab repo from server:', error);
+      }
+    }
+
+    for (const candidate of candidateNames) {
+      try {
+        const checkResult = await this.apiService.repos.checkByRepoName(candidate);
+        if (checkResult.exists && checkResult.repos && checkResult.repos.length > 0) {
+          const repo = checkResult.repos[0];
+          this.repoRegistry.registerRepo(workspaceUri, repo.id, repo.name || candidate);
+          this.repoRegistry.updateStatus(workspaceUri, repo.status === 'ready' ? 'ready' : 'indexing');
+          return repo.id;
+        }
+      } catch (error) {
+        console.error('[WorkspaceIndexer] Failed to restore repo from server by name:', error);
+      }
+    }
+
+    return undefined;
   }
 
   private async createWorkspaceZip(workspaceFolder: vscode.WorkspaceFolder): Promise<string> {

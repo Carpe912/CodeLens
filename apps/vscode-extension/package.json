@@ -2,7 +2,7 @@
   "name": "codelens-vscode",
   "displayName": "Coopwire CodeLens",
   "description": "AI-powered code search and Q&A for your workspace",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "publisher": "sunlingyue",
   "repository": {
     "type": "git",
@@ -43,7 +43,7 @@
         "codelens.allowedWorkspaces": {
           "type": "array",
           "default": [],
-          "description": "总是允许索引的工作区URI列表",
+          "description": "总是允许索引的工作区文件夹名列表",
           "items": {
             "type": "string"
           }
@@ -134,7 +134,17 @@
           "name": "仓库"
         }
       ]
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "codelensRepos",
+        "contents": "欢迎使用 CodeLens！\n\n⚠️ 当前工作区尚未索引\n\n本插件采用集中式索引管理，只有服务器上已有索引的仓库才能使用。\n\n如需使用，请联系管理员在服务器上为您的仓库创建索引。\n\n索引完成后，您可以：\n• 🔍 智能搜索代码\n• 💬 AI 问答助手\n• 🔎 根因分析"
+      },
+      {
+        "view": "codelensSearch",
+        "contents": "⚠️ 当前工作区尚未索引\n\n请先确保您的工作区已在服务器上完成索引。\n\n索引完成后，您可以：\n\n• [开始搜索](command:codelens.search) - 快速定位代码\n• [打开 AI 问答](command:codelens.askAI) - 智能问答与根因分析\n\n如需索引，请联系管理员。"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -154,7 +164,6 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "archiver": "^6.0.0",
-    "form-data": "^4.0.0"
+    "archiver": "^6.0.0"
   }
 }

@@ -1,6 +1,5 @@
 import { CodeLensAPIClient } from './client';
 import { CreateRepoResponse, ProgressResponse } from '../types';
-import FormData from 'form-data';
 import * as fs from 'fs';
 
 export class RepoAPI {
@@ -17,13 +16,18 @@ export class RepoAPI {
     const baseUrl = (this.client as any).baseUrl;
     const url = `${baseUrl}/repos/upload`;
 
+    // Read file as buffer
+    const fileBuffer = fs.readFileSync(zipPath);
+    const fileName = zipPath.split('/').pop() || 'workspace.zip';
+
+    // Create FormData using native fetch API
     const formData = new FormData();
-    formData.append('file', fs.createReadStream(zipPath));
+    const blob = new Blob([fileBuffer], { type: 'application/zip' });
+    formData.append('file', blob, fileName);
 
     const response = await fetch(url, {
       method: 'POST',
-      body: formData as any,
-      headers: formData.getHeaders(),
+      body: formData,
     });
 
     if (!response.ok) {

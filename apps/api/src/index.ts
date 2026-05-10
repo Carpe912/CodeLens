@@ -187,6 +187,12 @@ fastify.get<{
   };
 });
 
+const normalizeRepoName = (value: string) => {
+  const trimmed = value.trim().replace(/\/+$/g, '');
+  const baseName = trimmed.split(/[\\/]/).pop() || trimmed;
+  return baseName.replace(/\.(git|zip)$/i, '').toLowerCase();
+};
+
 // Check if repository exists by name
 fastify.get<{
   Querystring: { name: string };
@@ -197,14 +203,30 @@ fastify.get<{
     return reply.code(400).send({ error: 'Missing name parameter' });
   }
 
+  const normalizedInput = normalizeRepoName(name);
+  console.log('[check-by-name] Input name:', name);
+  console.log('[check-by-name] Normalized input:', normalizedInput);
+
+  // First, let's see all repos to debug
+  const allRepos = await pool.query('SELECT id, name, status FROM repos');
+  console.log('[check-by-name] All repos:', allRepos.rows);
+
   // Search for repositories with matching name (case-insensitive, without .git/.zip suffix)
   const result = await pool.query(
-    `SELECT id, name, status, branch, gitlab_url
+    `SELECT id, name, status, branch, gitlab_url,
+            LOWER(REGEXP_REPLACE(name, '\\.(git|zip)$', '', 'i')) as normalized_name,
+            LOWER(REGEXP_REPLACE(REGEXP_REPLACE(name, '^.*/', ''), '\\.(git|zip)$', '', 'i')) as normalized_basename
      FROM repos
-     WHERE LOWER(REGEXP_REPLACE(name, '\\.(git|zip)$', '')) = LOWER(REGEXP_REPLACE($1, '\\.(git|zip)$', ''))
+     WHERE (
+        LOWER(REGEXP_REPLACE(name, '\\.(git|zip)$', '', 'i')) = $1
+        OR LOWER(REGEXP_REPLACE(REGEXP_REPLACE(name, '^.*/', ''), '\\.(git|zip)$', '', 'i')) = $1
+        OR LOWER(name) = $1
+     )
      AND status = $2`,
-    [name, 'ready']
+    [normalizedInput, 'ready']
   );
+
+  console.log('[check-by-name] Query result:', result.rows);
 
   if (result.rows.length > 0) {
     return {

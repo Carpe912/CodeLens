@@ -33,6 +33,14 @@ export class RepoTreeDataProvider implements vscode.TreeDataProvider<RepoTreeIte
             repoInfo.status,
             repoInfo.repoId
           ));
+        } else {
+          // Show workspace that hasn't been indexed yet
+          items.push(new RepoTreeItem(
+            folder.name,
+            '未索引',
+            'not-indexed',
+            0
+          ));
         }
       }
 
@@ -62,6 +70,12 @@ class RepoTreeItem extends vscode.TreeItem {
       this.iconPath = new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('testing.iconQueued'));
     } else if (status === 'failed') {
       this.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
+    } else if (status === 'not-indexed') {
+      this.iconPath = new vscode.ThemeIcon('circle-outline');
+      this.command = {
+        command: 'codelens.indexWorkspace',
+        title: '索引工作区',
+      };
     } else {
       this.iconPath = new vscode.ThemeIcon('database');
     }
