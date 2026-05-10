@@ -1,81 +1,147 @@
-# CodeLens VSCode 扩展
+# Coopwire CodeLens
 
-基于AI的代码搜索和智能问答VSCode扩展。
+基于AI的智能代码搜索和问答VSCode扩展。
 
-## 功能特性
+## ✨ 功能特性
 
-- **自动索引工作区**：打开工作区时自动索引（带权限检查）
-- **智能搜索**：多策略搜索（语义、精确、模糊）
-- **内联CodeLens**：在函数上方显示引用数量和调用关系
-- **AI智能问答**：右键选中代码即可询问AI
-- **调用图可视化**：交互式函数调用关系图
-- **增量索引**：文件变化时自动更新索引
-- **权限控制**：基于GitLab的权限验证，保障企业安全
+- **🔍 智能搜索**：多策略搜索（语义、精确、模糊），快速找到相关代码
+- **🤖 AI智能问答**：右键选中代码即可询问AI，获得即时解答
+- **📊 调用图可视化**：交互式函数调用关系图，理解代码结构
+- **💡 内联CodeLens**：在函数上方显示引用数量和调用关系
+- **⚡ 自动索引**：打开工作区时自动索引，无需手动配置
+- **🔄 增量索引**：支持手动增量更新，保持索引最新
+- **🔒 权限控制**：基于GitLab的权限验证，保障企业安全
 
-## 系统要求
+## 📦 安装
 
-- CodeLens API服务器运行在 http://localhost:8787
-- PostgreSQL 和 Redis 运行中
-- 环境变量已配置（ANTHROPIC_API_KEY, EMBED_API_KEY）
+1. 打开VSCode
+2. 按 `Cmd+Shift+X` (Mac) 或 `Ctrl+Shift+X` (Windows/Linux)
+3. 搜索 "Coopwire CodeLens"
+4. 点击安装
 
-## 支持的语言
+## 🚀 快速开始
+
+1. **打开工作区**
+   - 在VSCode中打开你的项目文件夹
+
+2. **索引代码**
+   - 扩展会自动提示是否索引
+   - 或手动运行：`Cmd+Shift+P` → `CodeLens: 索引工作区`
+
+3. **开始使用**
+   - 搜索代码：`Cmd+Shift+P` → `CodeLens: 搜索代码`
+   - 询问AI：选中代码 → 右键 → `CodeLens: 询问AI关于选中内容`
+   - 查看调用图：点击函数上方的CodeLens提示
+
+## 🎯 支持的语言
 
 - TypeScript (`.ts`, `.tsx`)
 - JavaScript (`.js`, `.jsx`)
 - Vue (`.vue`)
 
-## 扩展设置
+## ⚙️ 配置选项
 
 ### 基础设置
 
-- `codelens.apiUrl`: CodeLens API服务器地址（默认：http://localhost:8787）
-- `codelens.autoIndex`: 打开工作区时自动索引（默认：true）
-- `codelens.enableCodeLens`: 显示内联CodeLens（默认：true）
-- `codelens.enableHover`: 显示悬停文档（默认：true）
+打开VSCode设置（`Cmd+,`），搜索 "CodeLens"：
 
-### 权限控制设置
+- **自动索引**：打开工作区时自动提示索引（默认：开启）
+- **内联CodeLens**：显示引用和调用提示（默认：开启）
+- **悬停文档**：鼠标悬停显示文档（默认：开启）
 
-- `codelens.enablePermissionCheck`: 索引前启用权限检查（默认：true）
-- `codelens.allowedGitLabDomains`: 允许的GitLab域名白名单（默认：[]）
-- `codelens.gitlabToken`: GitLab个人访问令牌，用于权限验证
-- `codelens.allowedWorkspaces`: 总是允许索引的工作区URI列表
+## 🔐 权限控制
 
-**企业配置示例**：
-```json
-{
-  "codelens.enablePermissionCheck": true,
-  "codelens.allowedGitLabDomains": ["gitlab.company.com"],
-  "codelens.gitlabToken": "glpat-xxxxxxxxxxxxxxxxxxxx"
-}
-```
+插件采用**严格权限模式**：只有服务器已有索引的仓库才能使用插件功能。
 
-详细的权限控制文档请查看 [PERMISSION_GUIDE.md](./PERMISSION_GUIDE.md)
+### 统一权限规则
 
-## 使用方法
+**所有类型的仓库（GitLab、GitHub、本地Git、非Git项目）都遵循相同规则：**
 
-1. 在VSCode中打开工作区
-2. 扩展会检查权限并提示是否索引
-3. 使用命令面板命令：
-   - `CodeLens: 搜索代码` - 搜索代码
-   - `CodeLens: 询问AI` - 打开问答面板
-   - `CodeLens: 索引工作区` - 手动触发索引
-4. 选中代码后右键选择"询问AI关于选中内容"
-5. 鼠标悬停在函数名上查看文档
-6. 点击内联CodeLens查看引用或调用图
+1. **服务器已有索引** → ✅ 允许使用，可增量索引
+2. **服务器没有索引** → ❌ 拒绝使用，提示"服务器上没有该仓库索引"
 
-## 开发调试
+### 匹配策略
 
-```bash
-npm install
-npm run compile
-# 按 F5 启动扩展开发主机
-```
+插件会按以下顺序尝试匹配服务器上的仓库：
 
-## 文档
+**GitLab仓库：**
+1. 通过 GitLab URL 精确匹配（优先级最高）
+2. 通过仓库名匹配（忽略大小写和 .git/.zip 后缀）
+3. 通过文件夹名称匹配
 
-- [USAGE_GUIDE.md](./USAGE_GUIDE.md) - 详细使用指南（中文）
-- [PERMISSION_GUIDE.md](./PERMISSION_GUIDE.md) - 权限控制指南（中文）
+**其他类型仓库（GitHub、本地Git、非Git项目）：**
+1. 通过文件夹名称匹配（忽略大小写和 .git/.zip 后缀）
 
-## 许可证
+### 为什么采用这种模式？
 
-待定
+- **集中管理**：所有仓库索引由服务器统一管理
+- **安全可控**：只有授权的仓库才能使用插件功能
+- **团队协作**：团队成员共享同一套索引，保证一致性
+
+## 📖 使用指南
+
+### 🎯 推荐用法：AI问答三合一面板
+
+**这是使用插件最便捷的方式！** 在同一个面板中集成了三大核心功能：
+
+#### 打开面板
+
+1. 按 `Cmd+Shift+P` (Mac) 或 `Ctrl+Shift+P` (Windows/Linux)
+2. 输入 "CodeLens: 询问AI"
+3. 面板会在侧边栏打开
+
+#### 三大功能
+
+**🔎 搜索** - 代码搜索
+- 输入关键词（如：`getUserInfo`、`API接口`）
+- 快速找到相关代码片段
+- 点击结果直接跳转到文件
+
+**💬 普通问答** - AI智能问答
+- 询问代码相关问题（如：`这个函数是做什么的？`）
+- AI基于代码库给出回答
+- 显示相关证据代码，可点击查看
+
+**🔍 根因分析** - 深度分析
+- 分析错误根本原因（如：`为什么登录失败？`）
+- 使用多策略搜索（vector、exact、fuzzy、dependency、graph）
+- 提供详细的分析结果和证据链
+
+#### 使用技巧
+
+1. **搜索**：适合快速定位代码位置
+2. **普通问答**：适合理解代码逻辑和功能
+3. **根因分析**：适合排查问题和追踪调用链
+
+### 搜索代码
+
+1. 按 `Cmd+Shift+P` 打开命令面板
+2. 输入 "CodeLens: 搜索代码"
+3. 输入搜索关键词
+4. 在侧边栏查看搜索结果
+
+### AI问答
+
+**方式1：选中代码提问**
+
+1. 在编辑器中选中代码
+2. 右键点击
+3. 选择 "CodeLens: 询问AI关于选中内容"
+
+**方式2：直接提问（推荐）**
+
+1. 按 `Cmd+Shift+P`
+2. 输入 "CodeLens: 询问AI"
+3. 在面板中选择功能（搜索/问答/根因分析）并输入问题
+
+### 增量索引
+
+当你修改代码后，可以手动更新索引：
+
+1. 按 `Cmd+Shift+P`
+2. 输入 "CodeLens: 增量索引"
+3. 插件会自动检测变更并更新
+
+## 📄 许可证
+
+MIT License

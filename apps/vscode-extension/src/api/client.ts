@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
 import { RequestOptions } from '../types';
+import { getEnterpriseConfig } from '../config/enterprise';
 
 export class CodeLensAPIClient {
   private baseUrl: string;
   private timeout: number = 30000;
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl || vscode.workspace.getConfiguration('codelens').get('apiUrl', 'http://localhost:8787');
+    // Use enterprise config if no baseUrl provided
+    this.baseUrl = baseUrl || getEnterpriseConfig().defaultApiUrl;
   }
 
   async request<T>(endpoint: string, options?: RequestOptions): Promise<T> {

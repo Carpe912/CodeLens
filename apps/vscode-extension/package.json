@@ -2,7 +2,7 @@
   "name": "codelens-vscode",
   "displayName": "Coopwire CodeLens",
   "description": "AI-powered code search and Q&A for your workspace",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "publisher": "sunlingyue",
   "repository": {
     "type": "git",
@@ -25,11 +25,6 @@
     "configuration": {
       "title": "CodeLens",
       "properties": {
-        "codelens.apiUrl": {
-          "type": "string",
-          "default": "http://localhost:8787",
-          "description": "CodeLens API服务器地址"
-        },
         "codelens.autoIndex": {
           "type": "boolean",
           "default": true,
@@ -45,19 +40,6 @@
           "default": true,
           "description": "显示悬停文档"
         },
-        "codelens.allowedGitLabDomains": {
-          "type": "array",
-          "default": [],
-          "description": "允许索引的GitLab域名（例如：['gitlab.company.com']）。空数组表示允许所有域名。",
-          "items": {
-            "type": "string"
-          }
-        },
-        "codelens.gitlabToken": {
-          "type": "string",
-          "default": "",
-          "description": "GitLab个人访问令牌，用于权限验证（可选）"
-        },
         "codelens.allowedWorkspaces": {
           "type": "array",
           "default": [],
@@ -65,11 +47,6 @@
           "items": {
             "type": "string"
           }
-        },
-        "codelens.enablePermissionCheck": {
-          "type": "boolean",
-          "default": true,
-          "description": "索引工作区前启用权限检查"
         }
       }
     },
@@ -142,7 +119,7 @@
         {
           "id": "codelens",
           "title": "CodeLens",
-          "icon": "$(search-view-icon)"
+          "icon": "resources/icon.svg"
         }
       ]
     },

@@ -15,7 +15,7 @@ export class WorkspaceIndexer {
     private repoRegistry: RepoRegistry,
     private statusBarItem: vscode.StatusBarItem
   ) {
-    this.permissionChecker = new PermissionChecker();
+    this.permissionChecker = new PermissionChecker(apiService);
   }
 
   async indexWorkspace(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {

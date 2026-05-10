@@ -187,6 +187,38 @@ fastify.get<{
   };
 });
 
+// Check if repository exists by name
+fastify.get<{
+  Querystring: { name: string };
+}>('/repos/check-by-name', async (request, reply) => {
+  const { name } = request.query;
+
+  if (!name) {
+    return reply.code(400).send({ error: 'Missing name parameter' });
+  }
+
+  // Search for repositories with matching name (case-insensitive, without .git/.zip suffix)
+  const result = await pool.query(
+    `SELECT id, name, status, branch, gitlab_url
+     FROM repos
+     WHERE LOWER(REGEXP_REPLACE(name, '\\.(git|zip)$', '')) = LOWER(REGEXP_REPLACE($1, '\\.(git|zip)$', ''))
+     AND status = $2`,
+    [name, 'ready']
+  );
+
+  if (result.rows.length > 0) {
+    return {
+      exists: true,
+      repos: result.rows
+    };
+  }
+
+  return {
+    exists: false,
+    repos: []
+  };
+});
+
 // Create base branch index from GitLab
 fastify.post<{
   Body: { gitlabUrl: string; gitlabToken?: string; branch?: string };

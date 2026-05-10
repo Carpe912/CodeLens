@@ -5,15 +5,16 @@ import { WorkspaceIndexer, FileWatcher } from './indexing';
 import { CodeLensCodeLensProvider, CodeLensHoverProvider } from './providers';
 import { SearchTreeDataProvider, QAWebviewPanel, CallGraphWebviewPanel } from './views';
 import { registerIndexingCommands, registerSearchCommands, registerQACommands } from './commands';
+import { getEnterpriseConfig } from './config/enterprise';
 
 let fileWatcher: FileWatcher | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('[CodeLens] Extension activating...');
 
-  // Initialize configuration
-  const config = vscode.workspace.getConfiguration('codelens');
-  const apiUrl = config.get<string>('apiUrl', 'http://localhost:8787');
+  // Use enterprise configuration
+  const enterpriseConfig = getEnterpriseConfig();
+  const apiUrl = enterpriseConfig.defaultApiUrl;
 
   // Initialize API service
   const apiService = new APIService(apiUrl);
@@ -22,12 +23,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const isHealthy = await apiService.healthCheck();
   if (!isHealthy) {
     vscode.window.showWarningMessage(
-      'CodeLens API服务器无法访问。请确保服务器运行在 ' + apiUrl,
-      '打开设置'
-    ).then((action) => {
-      if (action === '打开设置') {
-        vscode.commands.executeCommand('workbench.action.openSettings', 'codelens.apiUrl');
-      }
+      'CodeLens API服务器无法访问。请联系管理员检查服务器状态。',
+      '确定'
+    ).then(() => {
     });
   }
 
@@ -89,12 +87,6 @@ export async function activate(context: vscode.ExtensionContext) {
   // Listen for configuration changes
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('codelens.apiUrl')) {
-        const newApiUrl = vscode.workspace.getConfiguration('codelens').get<string>('apiUrl', 'http://localhost:8787');
-        apiService.updateBaseUrl(newApiUrl);
-        vscode.window.showInformationMessage('CodeLens API地址已更新');
-      }
-
       if (e.affectsConfiguration('codelens.enableCodeLens')) {
         codeLensProvider.refresh();
       }
@@ -102,6 +94,7 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   // Auto-index workspace if enabled
+  const config = vscode.workspace.getConfiguration('codelens');
   const autoIndex = config.get<boolean>('autoIndex', true);
   if (autoIndex && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
     const workspaceFolder = vscode.workspace.workspaceFolders[0];

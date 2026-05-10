@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { getEnterpriseConfig } from '../config/enterprise';
 
 const execAsync = promisify(exec);
 
@@ -13,36 +14,101 @@ export interface PermissionCheckResult {
 
 export class PermissionChecker {
   private allowedGitLabDomains: string[];
-  private gitlabToken?: string;
+  private enablePermissionCheck: boolean;
+  private apiService: any; // 用于检查仓库
 
-  constructor() {
-    const config = vscode.workspace.getConfiguration('codelens');
-    this.allowedGitLabDomains = config.get<string[]>('allowedGitLabDomains', []);
-    this.gitlabToken = config.get<string>('gitlabToken');
+  constructor(apiService?: any) {
+    // 使用企业配置
+    const enterpriseConfig = getEnterpriseConfig();
+    this.allowedGitLabDomains = enterpriseConfig.allowedGitLabDomains;
+    this.enablePermissionCheck = enterpriseConfig.enablePermissionCheck;
+    this.apiService = apiService;
   }
 
   /**
    * 检查工作区是否有索引权限
    */
   async checkWorkspacePermission(workspaceFolder: vscode.WorkspaceFolder): Promise<PermissionCheckResult> {
+    // 如果企业配置禁用了权限检查，直接允许
+    if (!this.enablePermissionCheck) {
+      return { allowed: true };
+    }
+
     // 1. 检查是否为Git仓库
     const gitInfo = await this.getGitInfo(workspaceFolder.uri.fsPath);
     if (!gitInfo.isGitRepo) {
-      // 非Git仓库，询问用户是否允许索引
-      return await this.askUserPermission(workspaceFolder, 'non-git');
+      // 非Git仓库，尝试通过文件夹名称匹配
+      if (this.apiService) {
+        try {
+          const folderName = workspaceFolder.name;
+          const checkResult = await this.apiService.repos.checkByRepoName(folderName);
+
+          if (checkResult.exists && checkResult.repos && checkResult.repos.length > 0) {
+            // 服务器已有同名仓库索引，直接允许
+            return {
+              allowed: true,
+            };
+          }
+        } catch (error) {
+          console.error('[PermissionChecker] Failed to check repo by folder name:', error);
+        }
+      }
+      // 服务器没有匹配的仓库，拒绝索引
+      return {
+        allowed: false,
+        reason: `服务器上没有名为 "${workspaceFolder.name}" 的仓库索引。请先在服务器上创建索引。`,
+      };
     }
 
     // 2. 检查是否为GitLab仓库
     if (!gitInfo.remoteUrl) {
-      // 本地Git仓库，无远程地址
-      return await this.askUserPermission(workspaceFolder, 'local-git');
+      // 本地Git仓库，无远程地址，尝试通过文件夹名称匹配
+      if (this.apiService) {
+        try {
+          const folderName = workspaceFolder.name;
+          const checkResult = await this.apiService.repos.checkByRepoName(folderName);
+
+          if (checkResult.exists && checkResult.repos && checkResult.repos.length > 0) {
+            // 服务器已有同名仓库索引，直接允许
+            return {
+              allowed: true,
+            };
+          }
+        } catch (error) {
+          console.error('[PermissionChecker] Failed to check repo by folder name:', error);
+        }
+      }
+      // 服务器没有匹配的仓库，拒绝索引
+      return {
+        allowed: false,
+        reason: `服务器上没有名为 "${workspaceFolder.name}" 的仓库索引。请先在服务器上创建索引。`,
+      };
     }
 
     // 3. 解析GitLab URL
     const gitlabInfo = this.parseGitLabUrl(gitInfo.remoteUrl);
     if (!gitlabInfo) {
-      // 非GitLab仓库（可能是GitHub等）
-      return await this.askUserPermission(workspaceFolder, 'non-gitlab');
+      // 非GitLab仓库（可能是GitHub等），尝试通过文件夹名称匹配
+      if (this.apiService) {
+        try {
+          const folderName = workspaceFolder.name;
+          const checkResult = await this.apiService.repos.checkByRepoName(folderName);
+
+          if (checkResult.exists && checkResult.repos && checkResult.repos.length > 0) {
+            // 服务器已有同名仓库索引，直接允许
+            return {
+              allowed: true,
+            };
+          }
+        } catch (error) {
+          console.error('[PermissionChecker] Failed to check repo by folder name:', error);
+        }
+      }
+      // 服务器没有匹配的仓库，拒绝索引
+      return {
+        allowed: false,
+        reason: `服务器上没有名为 "${workspaceFolder.name}" 的仓库索引。请先在服务器上创建索引。`,
+      };
     }
 
     // 4. 检查GitLab域名是否在允许列表中
@@ -60,24 +126,62 @@ export class PermissionChecker {
       }
     }
 
-    // 5. 如果配置了GitLab Token，验证用户是否有该仓库的访问权限
-    if (this.gitlabToken) {
-      const hasAccess = await this.checkGitLabAccess(gitlabInfo);
-      if (!hasAccess) {
-        return {
-          allowed: false,
-          reason: `您没有访问 GitLab 项目 "${gitlabInfo.projectPath}" 的权限`,
-          gitlabUrl: gitInfo.remoteUrl,
-          projectPath: gitlabInfo.projectPath,
-        };
+    // 5. 检查服务器是否已有该GitLab仓库的索引（通过GitLab URL精确匹配）
+    if (this.apiService) {
+      try {
+        const checkResult = await this.apiService.repos.checkByGitLabUrl(gitInfo.remoteUrl);
+
+        if (checkResult.exists && checkResult.repo) {
+          // 服务器已有该GitLab仓库的索引，直接允许
+          return {
+            allowed: true,
+            gitlabUrl: gitInfo.remoteUrl,
+            projectPath: gitlabInfo.projectPath,
+          };
+        }
+      } catch (error) {
+        console.error('[PermissionChecker] Failed to check repo by GitLab URL:', error);
+      }
+
+      // 6. 如果GitLab URL没匹配，尝试通过仓库名匹配（去后缀、大小写不敏感）
+      try {
+        const repoName = gitlabInfo.projectPath.split('/').pop() || '';
+        const checkResult = await this.apiService.repos.checkByRepoName(repoName);
+
+        if (checkResult.exists && checkResult.repos && checkResult.repos.length > 0) {
+          // 服务器已有同名仓库索引，允许增量索引
+          return {
+            allowed: true,
+            gitlabUrl: gitInfo.remoteUrl,
+            projectPath: gitlabInfo.projectPath,
+          };
+        }
+      } catch (error) {
+        console.error('[PermissionChecker] Failed to check repo by name:', error);
+      }
+
+      // 7. 尝试通过文件夹名称匹配
+      try {
+        const folderName = workspaceFolder.name;
+        const checkResult = await this.apiService.repos.checkByRepoName(folderName);
+
+        if (checkResult.exists && checkResult.repos && checkResult.repos.length > 0) {
+          // 服务器已有同名仓库索引，允许增量索引
+          return {
+            allowed: true,
+            gitlabUrl: gitInfo.remoteUrl,
+            projectPath: gitlabInfo.projectPath,
+          };
+        }
+      } catch (error) {
+        console.error('[PermissionChecker] Failed to check repo by folder name:', error);
       }
     }
 
-    // 6. 所有检查通过
+    // 8. 服务器没有匹配的仓库，拒绝索引
     return {
-      allowed: true,
-      gitlabUrl: gitInfo.remoteUrl,
-      projectPath: gitlabInfo.projectPath,
+      allowed: false,
+      reason: `服务器上没有该仓库的索引。GitLab URL: ${gitInfo.remoteUrl}，请先在服务器上创建索引。`,
     };
   }
 
@@ -145,94 +249,6 @@ export class PermissionChecker {
     }
 
     return { domain, projectPath };
-  }
-
-  /**
-   * 检查用户是否有GitLab项目访问权限
-   */
-  private async checkGitLabAccess(gitlabInfo: {
-    domain: string;
-    projectPath: string;
-  }): Promise<boolean> {
-    if (!this.gitlabToken) {
-      return true; // 没有配置token，跳过检查
-    }
-
-    try {
-      // 使用GitLab API检查项目访问权限
-      const encodedPath = encodeURIComponent(gitlabInfo.projectPath);
-      const apiUrl = `https://${gitlabInfo.domain}/api/v4/projects/${encodedPath}`;
-
-      const response = await fetch(apiUrl, {
-        headers: {
-          'PRIVATE-TOKEN': this.gitlabToken,
-        },
-      });
-
-      // 200: 有权限访问
-      // 404: 项目不存在或无权限
-      // 401: Token无效
-      return response.ok;
-    } catch (error) {
-      console.error('[PermissionChecker] Failed to check GitLab access:', error);
-      return false;
-    }
-  }
-
-  /**
-   * 询问用户是否允许索引
-   */
-  private async askUserPermission(
-    workspaceFolder: vscode.WorkspaceFolder,
-    reason: 'non-git' | 'local-git' | 'non-gitlab'
-  ): Promise<PermissionCheckResult> {
-    let message = '';
-
-    switch (reason) {
-      case 'non-git':
-        message = `"${workspaceFolder.name}" 不是Git仓库。是否允许索引此工作区？`;
-        break;
-      case 'local-git':
-        message = `"${workspaceFolder.name}" 是本地Git仓库（无远程地址）。是否允许索引？`;
-        break;
-      case 'non-gitlab':
-        message = `"${workspaceFolder.name}" 不是GitLab仓库。是否允许索引？`;
-        break;
-    }
-
-    const action = await vscode.window.showWarningMessage(
-      message,
-      { modal: true },
-      '允许',
-      '拒绝',
-      '总是允许此工作区'
-    );
-
-    if (action === '允许') {
-      return { allowed: true };
-    } else if (action === '总是允许此工作区') {
-      // 保存到工作区设置
-      await this.addToAllowedWorkspaces(workspaceFolder.uri.toString());
-      return { allowed: true };
-    } else {
-      return {
-        allowed: false,
-        reason: '用户拒绝索引此工作区',
-      };
-    }
-  }
-
-  /**
-   * 添加到允许的工作区列表
-   */
-  private async addToAllowedWorkspaces(workspaceUri: string) {
-    const config = vscode.workspace.getConfiguration('codelens');
-    const allowedWorkspaces = config.get<string[]>('allowedWorkspaces', []);
-
-    if (!allowedWorkspaces.includes(workspaceUri)) {
-      allowedWorkspaces.push(workspaceUri);
-      await config.update('allowedWorkspaces', allowedWorkspaces, vscode.ConfigurationTarget.Global);
-    }
   }
 
   /**

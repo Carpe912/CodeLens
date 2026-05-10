@@ -72,6 +72,17 @@ export class RepoAPI {
   }
 
   /**
+   * 通过仓库名检查是否已索引
+   */
+  async checkByRepoName(repoName: string): Promise<{
+    exists: boolean;
+    repos?: any[];
+  }> {
+    const encodedName = encodeURIComponent(repoName);
+    return this.client.request(`/repos/check-by-name?name=${encodedName}`);
+  }
+
+  /**
    * 从GitLab创建基础分支索引
    */
   async createFromGitLab(

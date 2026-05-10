@@ -36,7 +36,13 @@ export class QAWebviewPanel {
     this.panel.webview.onDidReceiveMessage(async (message) => {
       switch (message.command) {
         case 'ask':
-          await this.handleAskQuestion(message.query);
+          await this.handleAskQuestion(message.query, false);
+          break;
+        case 'analyzeRootCause':
+          await this.handleAskQuestion(message.query, true);
+          break;
+        case 'search':
+          await this.handleSearch(message.query);
           break;
         case 'openFile':
           await this.handleOpenFile(message.filePath, message.lineNumber);
@@ -60,11 +66,11 @@ export class QAWebviewPanel {
         command: 'setQuery',
         query,
       });
-      this.handleAskQuestion(query);
+      this.handleAskQuestion(query, false);
     }
   }
 
-  private async handleAskQuestion(query: string) {
+  private async handleAskQuestion(query: string, isRootCause: boolean = false) {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
       this.panel?.webview.postMessage({
@@ -95,16 +101,64 @@ export class QAWebviewPanel {
     this.panel?.webview.postMessage({ command: 'loading' });
 
     try {
-      const response = await this.apiService.ask.ask(repoInfo.repoId, query, true);
+      const response = isRootCause
+        ? await this.apiService.ask.analyzeRootCause(repoInfo.repoId, query)
+        : await this.apiService.ask.ask(repoInfo.repoId, query, true);
 
       this.panel?.webview.postMessage({
         command: 'answer',
         data: response,
+        isRootCause,
       });
     } catch (error: any) {
       this.panel?.webview.postMessage({
         command: 'error',
         message: error.message || 'Failed to get answer',
+      });
+    }
+  }
+
+  private async handleSearch(query: string) {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      this.panel?.webview.postMessage({
+        command: 'error',
+        message: 'No workspace folder open',
+      });
+      return;
+    }
+
+    const repoInfo = this.repoRegistry.getRepoInfo(workspaceFolder.uri.toString());
+    if (!repoInfo) {
+      this.panel?.webview.postMessage({
+        command: 'error',
+        message: 'Workspace not indexed. Please index the workspace first.',
+      });
+      return;
+    }
+
+    if (repoInfo.status !== 'ready') {
+      this.panel?.webview.postMessage({
+        command: 'error',
+        message: `Workspace is ${repoInfo.status}. Please wait for indexing to complete.`,
+      });
+      return;
+    }
+
+    // Show loading
+    this.panel?.webview.postMessage({ command: 'loading' });
+
+    try {
+      const response = await this.apiService.search.search(repoInfo.repoId, query);
+
+      this.panel?.webview.postMessage({
+        command: 'searchResults',
+        data: response,
+      });
+    } catch (error: any) {
+      this.panel?.webview.postMessage({
+        command: 'error',
+        message: error.message || 'Failed to search',
       });
     }
   }
@@ -179,6 +233,22 @@ export class QAWebviewPanel {
           opacity: 0.5;
           cursor: not-allowed;
         }
+        .button-group {
+          display: flex;
+          gap: 10px;
+          margin-top: 10px;
+        }
+        .button-group button {
+          flex: 1;
+          margin-top: 0;
+        }
+        button.secondary {
+          background: var(--vscode-button-secondaryBackground);
+          color: var(--vscode-button-secondaryForeground);
+        }
+        button.secondary:hover {
+          background: var(--vscode-button-secondaryHoverBackground);
+        }
         .loading {
           text-align: center;
           padding: 20px;
@@ -234,6 +304,52 @@ export class QAWebviewPanel {
           margin-top: 0;
           color: var(--vscode-foreground);
         }
+        .search-results {
+          margin-top: 20px;
+        }
+        .search-result-item {
+          background: var(--vscode-editor-background);
+          border: 1px solid var(--vscode-panel-border);
+          padding: 12px;
+          border-radius: 4px;
+          margin-bottom: 10px;
+        }
+        .result-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 8px;
+        }
+        .result-number {
+          background: var(--vscode-badge-background);
+          color: var(--vscode-badge-foreground);
+          padding: 2px 8px;
+          border-radius: 10px;
+          font-size: 12px;
+          font-weight: bold;
+        }
+        .file-link {
+          color: var(--vscode-textLink-foreground);
+          text-decoration: none;
+          flex: 1;
+        }
+        .file-link:hover {
+          text-decoration: underline;
+        }
+        .score {
+          color: var(--vscode-descriptionForeground);
+          font-size: 12px;
+        }
+        .code-snippet {
+          background: var(--vscode-textCodeBlock-background);
+          padding: 8px;
+          border-radius: 4px;
+          font-family: var(--vscode-editor-font-family);
+          font-size: 12px;
+          overflow-x: auto;
+          white-space: pre-wrap;
+          margin: 0;
+        }
       </style>
     </head>
     <body>
@@ -241,7 +357,11 @@ export class QAWebviewPanel {
         <div class="input-section">
           <h3>Ask a question about your code</h3>
           <textarea id="queryInput" placeholder="e.g., How does authentication work in this codebase?"></textarea>
-          <button id="askButton">Ask AI</button>
+          <div class="button-group">
+            <button id="searchButton" class="secondary">🔎 搜索</button>
+            <button id="askButton">💬 普通问答</button>
+            <button id="rootCauseButton" class="secondary">🔍 根因分析</button>
+          </div>
         </div>
         <div id="resultSection"></div>
       </div>
@@ -250,12 +370,28 @@ export class QAWebviewPanel {
         const vscode = acquireVsCodeApi();
         const queryInput = document.getElementById('queryInput');
         const askButton = document.getElementById('askButton');
+        const rootCauseButton = document.getElementById('rootCauseButton');
+        const searchButton = document.getElementById('searchButton');
         const resultSection = document.getElementById('resultSection');
 
         askButton.addEventListener('click', () => {
           const query = queryInput.value.trim();
           if (query) {
             vscode.postMessage({ command: 'ask', query });
+          }
+        });
+
+        rootCauseButton.addEventListener('click', () => {
+          const query = queryInput.value.trim();
+          if (query) {
+            vscode.postMessage({ command: 'analyzeRootCause', query });
+          }
+        });
+
+        searchButton.addEventListener('click', () => {
+          const query = queryInput.value.trim();
+          if (query) {
+            vscode.postMessage({ command: 'search', query });
           }
         });
 
@@ -275,34 +411,47 @@ export class QAWebviewPanel {
 
             case 'loading':
               askButton.disabled = true;
+              rootCauseButton.disabled = true;
+              searchButton.disabled = true;
               resultSection.innerHTML = '<div class="loading">🤔 Thinking...</div>';
               break;
 
             case 'error':
               askButton.disabled = false;
+              rootCauseButton.disabled = false;
+              searchButton.disabled = false;
               resultSection.innerHTML = \`<div class="error">\${message.message}</div>\`;
               break;
 
             case 'answer':
               askButton.disabled = false;
-              renderAnswer(message.data);
+              rootCauseButton.disabled = false;
+              searchButton.disabled = false;
+              renderAnswer(message.data, message.isRootCause);
+              break;
+
+            case 'searchResults':
+              askButton.disabled = false;
+              rootCauseButton.disabled = false;
+              searchButton.disabled = false;
+              renderSearchResults(message.data);
               break;
           }
         });
 
-        function renderAnswer(data) {
+        function renderAnswer(data, isRootCause) {
           let html = '<div class="answer-section">';
 
-          // Render answer
+          // Render answer with mode indicator
           html += '<div class="answer">';
-          html += '<h3>Answer</h3>';
+          html += isRootCause ? '<h3>🔍 根因分析结果</h3>' : '<h3>💬 回答</h3>';
           html += \`<div>\${escapeHtml(data.answer)}</div>\`;
           html += '</div>';
 
           // Render evidence
           if (data.evidence && data.evidence.length > 0) {
             html += '<div class="evidence-section">';
-            html += \`<h3>Evidence (\${data.evidence.length} results)</h3>\`;
+            html += \`<h3>证据 (\${data.evidence.length} 个结果)</h3>\`;
 
             data.evidence.forEach((item, index) => {
               html += \`<div class="evidence-item" onclick="openFile('\${item.filePath}', \${item.lineStart})">\`;
@@ -314,6 +463,32 @@ export class QAWebviewPanel {
             html += '</div>';
           }
 
+          html += '</div>';
+          resultSection.innerHTML = html;
+        }
+
+        function renderSearchResults(results) {
+          let html = '<div class="answer-section">';
+          html += '<div class="answer">';
+          html += '<h3>🔎 搜索结果</h3>';
+
+          if (results && results.length > 0) {
+            html += \`<p>找到 \${results.length} 个结果：</p>\`;
+            html += '<div class="evidence-section">';
+
+            results.forEach((item, index) => {
+              html += \`<div class="evidence-item" onclick="openFile('\${item.filePath}', \${item.lineStart})">\`;
+              html += \`<div class="evidence-header">\${item.symbolName} (\${item.symbolType}) - \${item.filePath}:\${item.lineStart}</div>\`;
+              html += \`<div class="evidence-code">\${escapeHtml(item.content.substring(0, 200))}\${item.content.length > 200 ? '...' : ''}</div>\`;
+              html += '</div>';
+            });
+
+            html += '</div>';
+          } else {
+            html += '<p>未找到相关结果</p>';
+          }
+
+          html += '</div>';
           html += '</div>';
           resultSection.innerHTML = html;
         }
