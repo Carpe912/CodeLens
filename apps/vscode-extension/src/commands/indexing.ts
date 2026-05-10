@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import { WorkspaceIndexer } from '../indexing';
+import { RepoTreeDataProvider } from '../views';
 
 export function registerIndexingCommands(
   context: vscode.ExtensionContext,
-  workspaceIndexer: WorkspaceIndexer
+  workspaceIndexer: WorkspaceIndexer,
+  repoTreeDataProvider?: RepoTreeDataProvider
 ) {
   // Index workspace command
   context.subscriptions.push(
@@ -15,6 +17,7 @@ export function registerIndexingCommands(
       }
 
       await workspaceIndexer.indexWorkspace(workspaceFolder);
+      repoTreeDataProvider?.refresh();
     })
   );
 
@@ -35,6 +38,7 @@ export function registerIndexingCommands(
 
       if (confirm === '是') {
         await workspaceIndexer.reindexWorkspace(workspaceFolder);
+        repoTreeDataProvider?.refresh();
       }
     })
   );
@@ -49,6 +53,7 @@ export function registerIndexingCommands(
       }
 
       await workspaceIndexer.incrementalIndex(workspaceFolder);
+      repoTreeDataProvider?.refresh();
     })
   );
 }

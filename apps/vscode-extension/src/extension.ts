@@ -3,7 +3,7 @@ import { APIService } from './api';
 import { RepoRegistry, SearchCache } from './state';
 import { WorkspaceIndexer, FileWatcher } from './indexing';
 import { CodeLensCodeLensProvider, CodeLensHoverProvider } from './providers';
-import { SearchTreeDataProvider, QAWebviewPanel, CallGraphWebviewPanel } from './views';
+import { SearchTreeDataProvider, QAWebviewPanel, CallGraphWebviewPanel, RepoTreeDataProvider } from './views';
 import { registerIndexingCommands, registerSearchCommands, registerQACommands } from './commands';
 import { getEnterpriseConfig } from './config/enterprise';
 
@@ -76,11 +76,18 @@ export async function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(searchTreeView);
 
+  const repoTreeDataProvider = new RepoTreeDataProvider(repoRegistry);
+  const repoTreeView = vscode.window.createTreeView('codelensRepos', {
+    treeDataProvider: repoTreeDataProvider,
+    showCollapseAll: false,
+  });
+  context.subscriptions.push(repoTreeView);
+
   const qaWebviewPanel = new QAWebviewPanel(context, apiService, repoRegistry);
   const callGraphWebviewPanel = new CallGraphWebviewPanel(context, apiService);
 
   // Register commands
-  registerIndexingCommands(context, workspaceIndexer);
+  registerIndexingCommands(context, workspaceIndexer, repoTreeDataProvider);
   registerSearchCommands(context, apiService, repoRegistry, searchCache, searchTreeDataProvider);
   registerQACommands(context, qaWebviewPanel, callGraphWebviewPanel);
 
