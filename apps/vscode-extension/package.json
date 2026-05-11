@@ -1,8 +1,8 @@
 {
-  "name": "codelens-vscode",
-  "displayName": "Coopwire CodeLens",
+  "name": "coopwire-codelens",
+  "displayName": "Coopwire AI CodeLens",
   "description": "AI-powered code search and Q&A for your workspace",
-  "version": "0.8.0",
+  "version": "1.0.0",
   "publisher": "sunlingyue",
   "repository": {
     "type": "git",
@@ -111,6 +111,11 @@
           "command": "codelens.clearSearch",
           "when": "view == codelensSearch",
           "group": "navigation"
+        },
+        {
+          "command": "codelens.incrementalIndex",
+          "when": "view == codelensRepos && codelens.canIncrementalIndex",
+          "group": "navigation"
         }
       ]
     },
@@ -161,6 +166,7 @@
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^3.9.1",
     "eslint": "^8.0.0",
     "typescript": "^5.0.0"
   },

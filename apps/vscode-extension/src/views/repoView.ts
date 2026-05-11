@@ -39,10 +39,25 @@ export class RepoTreeDataProvider implements vscode.TreeDataProvider<RepoTreeIte
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
       console.log('[RepoTreeDataProvider] No workspace folders found');
+      await vscode.commands.executeCommand('setContext', 'codelens.canIncrementalIndex', false);
       return { matched: 0, total: 0 };
     }
 
     let matched = 0;
+    let hasGitRemote = false;
+
+    // Check if current workspace has git remote
+    try {
+      const { getGitRemoteUrl } = await import('../utils/gitlabHelper');
+      const gitRemoteUrl = await getGitRemoteUrl(workspaceFolders[0].uri.fsPath);
+      hasGitRemote = !!gitRemoteUrl;
+      console.log('[RepoTreeDataProvider] Git remote URL:', gitRemoteUrl);
+    } catch (error) {
+      console.log('[RepoTreeDataProvider] Failed to check git remote:', error);
+    }
+
+    // Set context for incremental index button visibility
+    await vscode.commands.executeCommand('setContext', 'codelens.canIncrementalIndex', hasGitRemote);
 
     try {
       console.log('[RepoTreeDataProvider] Fetching remote repos...');
