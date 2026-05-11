@@ -24,8 +24,9 @@ export const ENTERPRISE_CONFIG = {
   /**
    * API服务器地址
    * 用户可以在VSCode设置中覆盖此配置
+   * 使用 HTTPS + IP 地址，证书验证将被忽略
    */
-  defaultApiUrl: 'https://sunlingyue.cn/code-api',
+  defaultApiUrl: 'https://47.116.6.132/code-api',
 };
 
 /**

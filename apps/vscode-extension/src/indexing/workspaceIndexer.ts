@@ -1,11 +1,14 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import archiver from 'archiver';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { APIService } from '../api';
 import { RepoRegistry } from '../state';
 import { PermissionChecker } from '../utils/permissionChecker';
 import { getGitRemoteUrl, getCurrentBranch } from '../utils/gitlabHelper';
+
+const execAsync = promisify(exec);
 
 export class WorkspaceIndexer {
   private permissionChecker: PermissionChecker;
@@ -420,62 +423,9 @@ export class WorkspaceIndexer {
     const workspacePath = workspaceFolder.uri.fsPath;
     const zipPath = path.join('/tmp', `codelens-${Date.now()}-${workspaceFolder.name}.zip`);
 
-    return new Promise((resolve, reject) => {
-      const output = fs.createWriteStream(zipPath);
-      const archive = archiver('zip', { zlib: { level: 9 } });
+    await execAsync(`cd ${JSON.stringify(workspacePath)} && zip -r ${JSON.stringify(zipPath)} . -x "node_modules/*" ".git/*" "dist/*" "build/*" ".next/*" "coverage/*" ".vscode/*" ".idea/*" "*.log" ".DS_Store"`);
 
-      output.on('close', () => resolve(zipPath));
-      archive.on('error', (err: Error) => reject(err));
-
-      archive.pipe(output);
-
-      // Add files to archive, excluding common directories
-      const excludePatterns = [
-        'node_modules',
-        '.git',
-        'dist',
-        'build',
-        '.next',
-        'coverage',
-        '.vscode',
-        '.idea',
-        '*.log',
-        '.DS_Store',
-      ];
-
-      const shouldExclude = (filePath: string): boolean => {
-        const relativePath = path.relative(workspacePath, filePath);
-        return excludePatterns.some((pattern) => {
-          if (pattern.includes('*')) {
-            return relativePath.includes(pattern.replace('*', ''));
-          }
-          return relativePath.split(path.sep).includes(pattern);
-        });
-      };
-
-      const addDirectory = (dirPath: string) => {
-        const files = fs.readdirSync(dirPath);
-
-        for (const file of files) {
-          const filePath = path.join(dirPath, file);
-          const stat = fs.statSync(filePath);
-
-          if (shouldExclude(filePath)) {
-            continue;
-          }
-
-          if (stat.isDirectory()) {
-            addDirectory(filePath);
-          } else if (stat.isFile()) {
-            const relativePath = path.relative(workspacePath, filePath);
-            archive.file(filePath, { name: relativePath });
-          }
-        }
-      };
-
-      addDirectory(workspacePath);
-      archive.finalize();
-    });
+    return zipPath;
   }
 
   private async monitorProgress(repoId: number, workspaceUri: string): Promise<void> {
@@ -495,7 +445,11 @@ export class WorkspaceIndexer {
             if (progressData.status === 'ready') {
               this.repoRegistry.updateStatus(workspaceUri, 'ready');
               this.statusBarItem.text = '$(check) CodeLens: 就绪';
-              vscode.window.showInformationMessage('工作区索引完成！');
+              vscode.window.showInformationMessage('工作区索引完成！现在可以使用搜索和AI问答功能了。');
+
+              // Trigger repo view refresh
+              await vscode.commands.executeCommand('codelens.refreshRepoView');
+
               setTimeout(() => this.statusBarItem.hide(), 3000);
               break;
             }

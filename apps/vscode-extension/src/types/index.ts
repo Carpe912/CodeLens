@@ -25,13 +25,15 @@ export interface ProgressResponse {
 
 export interface SearchResult {
   id: number;
-  filePath: string;
-  symbolName: string;
-  symbolType: string;
-  lineStart: number;
-  lineEnd: number;
+  file_path: string;
+  symbol_name: string;
+  symbol_type: string;
+  line_start: number;
+  line_end: number;
   content: string;
-  similarity?: number;
+  score?: number;
+  code_text?: string;
+  metadata?: any;
 }
 
 export interface QAResponse {
@@ -41,10 +43,10 @@ export interface QAResponse {
 }
 
 export interface CallGraphNode {
-  symbolName: string;
-  filePath: string;
-  lineStart: number;
-  symbolType: string;
+  symbol_name: string;
+  file_path: string;
+  line_start: number;
+  symbol_type: string;
 }
 
 export interface CallGraphResponse {

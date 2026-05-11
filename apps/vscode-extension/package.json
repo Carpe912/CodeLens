@@ -2,7 +2,7 @@
   "name": "codelens-vscode",
   "displayName": "Coopwire CodeLens",
   "description": "AI-powered code search and Q&A for your workspace",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "sunlingyue",
   "repository": {
     "type": "git",
@@ -29,16 +29,6 @@
           "type": "boolean",
           "default": true,
           "description": "打开工作区时自动索引"
-        },
-        "codelens.enableCodeLens": {
-          "type": "boolean",
-          "default": true,
-          "description": "显示内联CodeLens（引用、调用）"
-        },
-        "codelens.enableHover": {
-          "type": "boolean",
-          "default": true,
-          "description": "显示悬停文档"
         },
         "codelens.allowedWorkspaces": {
           "type": "array",
@@ -91,6 +81,11 @@
         "command": "codelens.refreshSearch",
         "title": "刷新",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "codelens.clearSearch",
+        "title": "清空搜索结果",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -109,6 +104,11 @@
         },
         {
           "command": "codelens.refreshSearch",
+          "when": "view == codelensSearch",
+          "group": "navigation"
+        },
+        {
+          "command": "codelens.clearSearch",
           "when": "view == codelensSearch",
           "group": "navigation"
         }
@@ -156,6 +156,7 @@
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
@@ -164,6 +165,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "archiver": "^6.0.0"
+    "archiver": "^6.0.0",
+    "markdown-it": "^14.1.1"
   }
 }

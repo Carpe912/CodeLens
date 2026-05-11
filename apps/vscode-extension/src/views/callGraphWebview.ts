@@ -285,9 +285,9 @@ export class CallGraphWebviewPanel {
 
         function renderNode(node, type) {
           return \`
-            <div class="node \${type}" onclick="openFile('\${node.filePath}', \${node.lineStart})">
-              <div class="node-name">\${escapeHtml(node.symbolName)}</div>
-              <div class="node-info">\${node.symbolType} • \${node.filePath}:\${node.lineStart}</div>
+            <div class="node \${type}" onclick="openFile('\${node.file_path}', \${node.line_start})">
+              <div class="node-name">\${escapeHtml(node.symbol_name)}</div>
+              <div class="node-info">\${node.symbol_type} • \${node.file_path}:\${node.line_start}</div>
             </div>
           \`;
         }

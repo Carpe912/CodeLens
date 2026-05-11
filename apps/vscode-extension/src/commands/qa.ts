@@ -1,14 +1,37 @@
 import * as vscode from 'vscode';
 import { QAWebviewPanel, CallGraphWebviewPanel } from '../views';
+import { RepoRegistry } from '../state';
 
 export function registerQACommands(
   context: vscode.ExtensionContext,
   qaWebviewPanel: QAWebviewPanel,
-  callGraphWebviewPanel: CallGraphWebviewPanel
+  callGraphWebviewPanel: CallGraphWebviewPanel,
+  repoRegistry: RepoRegistry
 ) {
   // Ask AI command
   context.subscriptions.push(
     vscode.commands.registerCommand('codelens.askAI', () => {
+      // Check if workspace is indexed
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage('未打开工作区文件夹');
+        return;
+      }
+
+      const workspaceUri = workspaceFolder.uri.toString();
+      const repoInfo = repoRegistry.getRepoInfo(workspaceUri);
+
+      if (!repoInfo) {
+        vscode.window.showErrorMessage('工作区尚未索引。请先索引工作区。');
+        return;
+      }
+
+      if (repoInfo.status !== 'ready') {
+        vscode.window.showErrorMessage(`工作区状态为 ${repoInfo.status}。请等待索引完成。`);
+        return;
+      }
+
+      // If indexed, show the panel
       qaWebviewPanel.show();
     })
   );

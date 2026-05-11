@@ -56,13 +56,37 @@ export class CodeLensHoverProvider implements vscode.HoverProvider {
         this.searchCache.set(cacheKey, results);
       }
 
-      if (!results || results.length === 0) {
+      console.log('[HoverProvider] Search results:', results);
+      console.log('[HoverProvider] Results type:', typeof results);
+      console.log('[HoverProvider] Is array:', Array.isArray(results));
+
+      // Handle API response format - might be wrapped in an object
+      let resultArray = results;
+      if (!Array.isArray(results)) {
+        // If results is an object with a data property, extract it
+        if (results && typeof results === 'object') {
+          if ('hits' in results) {
+            resultArray = (results as any).hits;
+          } else if ('data' in results) {
+            resultArray = (results as any).data;
+          } else if ('results' in results) {
+            resultArray = (results as any).results;
+          } else {
+            console.error('[HoverProvider] Unexpected results format:', Object.keys(results));
+            return undefined;
+          }
+        } else {
+          return undefined;
+        }
+      }
+
+      if (!resultArray || resultArray.length === 0) {
         return undefined;
       }
 
       // Find exact match or best match
-      const exactMatch = results.find((r: any) => r.symbolName === word);
-      const bestMatch = exactMatch || results[0];
+      const exactMatch = resultArray.find((r: any) => r.symbol_name === word);
+      const bestMatch = exactMatch || resultArray[0];
 
       // Build hover content
       const markdown = new vscode.MarkdownString();
@@ -70,13 +94,13 @@ export class CodeLensHoverProvider implements vscode.HoverProvider {
       markdown.supportHtml = true;
 
       // Add symbol name and type
-      markdown.appendMarkdown(`### ${bestMatch.symbolName}\n\n`);
-      markdown.appendMarkdown(`**Type:** \`${bestMatch.symbolType}\`\n\n`);
-      markdown.appendMarkdown(`**File:** ${bestMatch.filePath}:${bestMatch.lineStart}\n\n`);
+      markdown.appendMarkdown(`### ${bestMatch.symbol_name}\n\n`);
+      markdown.appendMarkdown(`**Type:** \`${bestMatch.symbol_type}\`\n\n`);
+      markdown.appendMarkdown(`**File:** ${bestMatch.file_path}:${bestMatch.line_start}\n\n`);
 
       // Add code snippet
       markdown.appendMarkdown('---\n\n');
-      const language = this.getLanguageFromPath(bestMatch.filePath);
+      const language = this.getLanguageFromPath(bestMatch.file_path);
       markdown.appendCodeblock(bestMatch.content, language);
 
       // Add action links

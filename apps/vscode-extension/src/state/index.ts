@@ -1,2 +1,3 @@
 export { RepoRegistry } from './repoRegistry';
-export { SearchCache } from './cache';
+export { SearchCache, SearchHistory } from './cache';
+export type { SearchHistoryItem } from './cache';

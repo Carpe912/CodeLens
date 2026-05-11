@@ -20,11 +20,13 @@ export class RepoTreeDataProvider implements vscode.TreeDataProvider<RepoTreeIte
 
   async refresh(): Promise<void> {
     this.lastMatchResult = await this.syncFromRemote();
+    await vscode.commands.executeCommand('setContext', 'codelens.hasUnmatchedWorkspace', this.lastMatchResult.matched < this.lastMatchResult.total);
     this._onDidChangeTreeData.fire();
   }
 
   async matchCurrentWorkspace(): Promise<RepoMatchResult> {
     this.lastMatchResult = await this.syncFromRemote();
+    await vscode.commands.executeCommand('setContext', 'codelens.hasUnmatchedWorkspace', this.lastMatchResult.matched < this.lastMatchResult.total);
     this._onDidChangeTreeData.fire();
     return this.lastMatchResult;
   }
@@ -36,13 +38,17 @@ export class RepoTreeDataProvider implements vscode.TreeDataProvider<RepoTreeIte
   private async syncFromRemote(): Promise<RepoMatchResult> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
+      console.log('[RepoTreeDataProvider] No workspace folders found');
       return { matched: 0, total: 0 };
     }
 
     let matched = 0;
 
     try {
+      console.log('[RepoTreeDataProvider] Fetching remote repos...');
       const remoteRepos = await this.apiService.repos.listRepos();
+      console.log('[RepoTreeDataProvider] Remote repos:', remoteRepos.map(r => ({ id: r.id, name: r.name, status: r.status })));
+
       for (const folder of workspaceFolders) {
         const folderCandidates = new Set([
           folder.name,
@@ -50,6 +56,9 @@ export class RepoTreeDataProvider implements vscode.TreeDataProvider<RepoTreeIte
           this.normalizeName(folder.name),
           this.normalizeName(folder.uri.fsPath),
         ].filter(Boolean));
+
+        console.log('[RepoTreeDataProvider] Matching workspace folder:', folder.name);
+        console.log('[RepoTreeDataProvider] Folder candidates:', Array.from(folderCandidates));
 
         const matchedRepo = remoteRepos.find((repo) => {
           const repoCandidates = new Set([
@@ -59,8 +68,11 @@ export class RepoTreeDataProvider implements vscode.TreeDataProvider<RepoTreeIte
             this.normalizeName(repo.gitlab_url || ''),
           ].filter(Boolean));
 
+          console.log('[RepoTreeDataProvider] Checking repo:', repo.name, 'candidates:', Array.from(repoCandidates));
+
           for (const candidate of folderCandidates) {
             if (repoCandidates.has(candidate)) {
+              console.log('[RepoTreeDataProvider] Match found! Candidate:', candidate);
               return true;
             }
           }
@@ -69,6 +81,7 @@ export class RepoTreeDataProvider implements vscode.TreeDataProvider<RepoTreeIte
         });
 
         if (matchedRepo) {
+          console.log('[RepoTreeDataProvider] Matched repo:', matchedRepo.name, 'id:', matchedRepo.id);
           matched += 1;
           const progress = await this.apiService.repos.getProgress(matchedRepo.id).catch(() => null);
           this.repoRegistry.registerRepo(folder.uri.toString(), matchedRepo.id, matchedRepo.name, {
@@ -78,12 +91,21 @@ export class RepoTreeDataProvider implements vscode.TreeDataProvider<RepoTreeIte
             percentComplete: progress?.progress?.percentComplete,
           });
           this.repoRegistry.updateStatus(folder.uri.toString(), progress?.status || matchedRepo.status);
+
+          // Notify search view about repo status change
+          const status = progress?.status || matchedRepo.status;
+          if (status === 'ready') {
+            vscode.commands.executeCommand('codelens.notifySearchViewRepoReady');
+          }
+        } else {
+          console.log('[RepoTreeDataProvider] No match found for workspace folder:', folder.name);
         }
       }
     } catch (error) {
       console.error('[RepoTreeDataProvider] Failed to sync from remote:', error);
     }
 
+    console.log('[RepoTreeDataProvider] Match result:', { matched, total: workspaceFolders.length });
     return { matched, total: workspaceFolders.length };
   }
 
@@ -99,27 +121,6 @@ export class RepoTreeDataProvider implements vscode.TreeDataProvider<RepoTreeIte
       }
 
       const items: RepoTreeItem[] = [];
-      const hasUnmatchedWorkspace = workspaceFolders.some((folder) => !this.repoRegistry.getRepoInfo(folder.uri.toString()));
-
-      if (hasUnmatchedWorkspace) {
-        items.push(new RepoTreeItem(
-          '手动匹配当前项目',
-          '点击以请求远程仓库并执行匹配',
-          'match-action',
-          0,
-          undefined,
-          undefined,
-          undefined,
-          async () => {
-            const result = await this.matchCurrentWorkspace();
-            if (result.matched > 0) {
-              vscode.window.showInformationMessage(`已匹配到 ${result.matched}/${result.total} 个工作区的远程仓库`);
-            } else {
-              vscode.window.showWarningMessage('没有找到可匹配的远程仓库');
-            }
-          }
-        ));
-      }
 
       for (const folder of workspaceFolders) {
         const repoInfo = this.repoRegistry.getRepoInfo(folder.uri.toString());
@@ -158,8 +159,7 @@ class RepoTreeItem extends vscode.TreeItem {
     public readonly repoId: number,
     public readonly totalFiles?: number,
     public readonly processedFiles?: number,
-    public readonly percentComplete?: number,
-    commandHandler?: () => Promise<void>
+    public readonly percentComplete?: number
   ) {
     super(workspaceName, vscode.TreeItemCollapsibleState.None);
 
@@ -171,19 +171,12 @@ class RepoTreeItem extends vscode.TreeItem {
     this.tooltip = `仓库: ${repoName}\n状态: ${status}\nID: ${repoId}${metrics ? `\n${metrics}` : ''}`;
     this.description = metrics ? `${repoName} (${status}) · ${metrics}` : `${repoName} (${status})`;
 
-    // Set icon based on status
     if (status === 'ready') {
       this.iconPath = new vscode.ThemeIcon('check', new vscode.ThemeColor('testing.iconPassed'));
     } else if (status === 'indexing') {
       this.iconPath = new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('testing.iconQueued'));
     } else if (status === 'failed') {
       this.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
-    } else if (status === 'match-action') {
-      this.iconPath = new vscode.ThemeIcon('search');
-      this.command = {
-        command: 'codelens.matchWorkspace',
-        title: '手动匹配当前项目',
-      };
     } else if (status === 'not-indexed') {
       this.iconPath = new vscode.ThemeIcon('circle-outline');
       this.command = {

@@ -21,22 +21,6 @@ export function registerIndexingCommands(
     })
   );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand('codelens.matchWorkspace', async () => {
-      if (!repoTreeDataProvider) {
-        vscode.window.showWarningMessage('仓库面板未初始化');
-        return;
-      }
-
-      const result = await repoTreeDataProvider.matchCurrentWorkspace();
-      if (result.matched > 0) {
-        vscode.window.showInformationMessage(`已匹配到 ${result.matched}/${result.total} 个工作区的远程仓库`);
-      } else {
-        vscode.window.showWarningMessage('没有找到可匹配的远程仓库');
-      }
-    })
-  );
-
   // Re-index workspace command
   context.subscriptions.push(
     vscode.commands.registerCommand('codelens.reindexWorkspace', async () => {
@@ -72,4 +56,5 @@ export function registerIndexingCommands(
       await repoTreeDataProvider?.refresh();
     })
   );
+
 }
