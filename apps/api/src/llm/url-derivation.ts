@@ -1,48 +1,121 @@
 /**
- * URL Derivation - Trace how URLs are constructed from constants and functions
+ * URL 推导模块 - 追踪 URL 的构造过程
  *
- * This module analyzes URL construction chains by following dependencies
- * and expanding template strings to understand the complete URL pattern.
+ * 功能说明：
+ * 分析 URL 是如何从常量、模板字符串和函数调用中构造出来的，
+ * 通过追踪依赖关系和展开模板字符串，理解完整的 URL 模式。
+ *
+ * 核心能力：
+ * 1. 符号表构建：从数据库提取所有 URL 相关的常量和函数
+ * 2. 依赖追踪：分析符号之间的依赖关系（如模板变量引用）
+ * 3. 函数内联：将函数调用展开为实际的返回值
+ * 4. 模板展开：递归展开模板字符串中的变量引用
+ * 5. 置信度评分：根据匹配程度计算推导结果的可信度
+ *
+ * 使用场景：
+ * - 复杂 URL 查找：理解通过多层函数和常量构造的 URL
+ * - 依赖分析：了解 URL 的构造依赖链
+ * - 重构支持：找到所有参与 URL 构造的代码位置
+ *
+ * 推导示例：
+ * ```typescript
+ * // 代码中的定义
+ * const BASE_URL = '/api';
+ * const RESOURCES = { USERS: 'users' };
+ * function buildApiPath(resource) {
+ *   return `${BASE_URL}/${resource}`;
+ * }
+ * const USER_API = buildApiPath(RESOURCES.USERS);
+ *
+ * // 推导过程
+ * 查询: /api/users
+ * 入口点: USER_API
+ * 步骤 1: USER_API = buildApiPath(RESOURCES.USERS)
+ * 步骤 2: buildApiPath 返回 `${BASE_URL}/${resource}`
+ * 步骤 3: 展开 BASE_URL = '/api'
+ * 步骤 4: 展开 resource = RESOURCES.USERS = 'users'
+ * 结果: /api/users (置信度: 100%)
+ * ```
  */
 
 import { Pool } from 'pg';
 
-// Helper function to escape special regex characters
+/**
+ * 转义正则表达式中的特殊字符
+ *
+ * 将字符串中的正则特殊字符（如 ., *, +, ? 等）转义，
+ * 使其可以安全地用于正则表达式的字面匹配。
+ *
+ * @param str - 要转义的字符串
+ * @returns 转义后的字符串
+ */
 function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * URL 推导结果接口
+ */
 export interface URLDerivationResult {
-  pattern: string;
-  confidence: number;
-  symbolChain: Array<{
-    symbol: string;
-    file: string;
-    line: number;
-    value: string;
+  pattern: string;              // 推导出的 URL 模式
+  confidence: number;           // 置信度分数 (0-100)
+  symbolChain: Array<{          // 符号依赖链
+    symbol: string;             // 符号名称
+    file: string;               // 文件路径
+    line: number;               // 行号
+    value: string;              // 符号值
   }>;
-  derivationSteps: Array<{
-    step: number;
-    description: string;
-    from: string;
-    to: string;
+  derivationSteps: Array<{      // 推导步骤
+    step: number;               // 步骤编号
+    description: string;        // 步骤描述
+    from: string;               // 转换前
+    to: string;                 // 转换后
   }>;
-  missingSymbols: string[];
-}
-
-interface Symbol {
-  id: string;
-  name: string;
-  value: string;
-  type: 'constant' | 'function' | 'template';
-  dependsOn: string[];
-  returns?: string;
-  file: string;
-  line: number;
+  missingSymbols: string[];     // 缺失的符号（无法解析的变量）
 }
 
 /**
- * Derive URL construction chain for a given target URL
+ * 符号接口 - 表示代码中的一个符号（常量、函数等）
+ */
+interface Symbol {
+  id: string;                   // 符号唯一标识（如 "const:API_URL"）
+  name: string;                 // 符号名称
+  value: string;                // 符号值或代码
+  type: 'constant' | 'function' | 'template';  // 符号类型
+  dependsOn: string[];          // 依赖的其他符号
+  returns?: string;             // 函数返回值（仅函数类型）
+  file: string;                 // 文件路径
+  line: number;                 // 行号
+}
+
+/**
+ * 推导 URL 构造链
+ *
+ * 主函数：分析目标 URL 是如何从代码中的常量和函数构造出来的
+ *
+ * 工作流程：
+ * 1. 构建符号表：从数据库提取所有 URL 相关的符号
+ * 2. 查找入口点：找到可能包含目标 URL 的符号
+ * 3. 递归推导：从入口点开始，递归展开依赖关系
+ * 4. 计算置信度：根据匹配程度评分
+ * 5. 排序返回：按置信度降序返回所有推导结果
+ *
+ * @param db - 数据库连接池
+ * @param repoId - 仓库 ID
+ * @param targetUrl - 目标 URL（要查找的 URL）
+ * @returns 推导结果数组，按置信度降序排列
+ *
+ * @example
+ * const results = await deriveURLConstruction(db, 1, "/api/users/123");
+ * // 返回: [
+ * //   {
+ * //     pattern: "/api/users/:id",
+ * //     confidence: 95,
+ * //     symbolChain: [...],
+ * //     derivationSteps: [...],
+ * //     missingSymbols: []
+ * //   }
+ * // ]
  */
 export async function deriveURLConstruction(
   db: Pool,
@@ -51,7 +124,8 @@ export async function deriveURLConstruction(
 ): Promise<URLDerivationResult[]> {
   console.log(`[URL Derivation] Starting derivation for: ${targetUrl}`);
 
-  // 1. Build symbol table from database
+  // 步骤 1: 从数据库构建符号表
+  // 符号表包含所有 URL 相关的常量、函数和对象
   const symbolTable = await buildSymbolTable(db, repoId);
 
   console.log(`[URL Derivation] Symbol table built with ${Object.keys(symbolTable).length} symbols`);
@@ -61,7 +135,8 @@ export async function deriveURLConstruction(
     return [];
   }
 
-  // 2. Find entry points (symbols that might contain the target URL)
+  // 步骤 2: 查找入口点（可能包含目标 URL 的符号）
+  // 入口点是推导的起点，通过匹配路径段来识别
   const entryPoints = findEntryPoints(targetUrl, symbolTable);
 
   console.log(`[URL Derivation] Found ${entryPoints.length} entry points`);
@@ -71,7 +146,8 @@ export async function deriveURLConstruction(
     return [];
   }
 
-  // 3. Derive URL for each entry point
+  // 步骤 3: 从每个入口点推导 URL
+  // 限制为前 10 个入口点，避免处理时间过长
   const results: URLDerivationResult[] = [];
 
   for (const entryPoint of entryPoints.slice(0, 10)) {
@@ -80,6 +156,8 @@ export async function deriveURLConstruction(
     console.log(`[URL Derivation] Result pattern: ${result.pattern}, confidence: ${result.confidence}`);
     console.log(`[URL Derivation] Symbol chain length: ${result.symbolChain.length}`);
     console.log(`[URL Derivation] Missing symbols: ${result.missingSymbols.join(', ')}`);
+
+    // 只保留有效的推导结果（置信度 > 0）
     if (result.confidence > 0) {
       results.push(result);
     }
@@ -87,12 +165,27 @@ export async function deriveURLConstruction(
 
   console.log(`[URL Derivation] Generated ${results.length} derivation results`);
 
-  // 4. Sort by confidence
+  // 步骤 4: 按置信度降序排序
   return results.sort((a, b) => b.confidence - a.confidence);
 }
 
 /**
- * Build symbol table from database
+ * 从数据库构建符号表
+ *
+ * 符号表是推导的基础，包含所有可能参与 URL 构造的代码元素：
+ * 1. 字符串常量：直接定义的 URL 字符串
+ * 2. 对象常量：包含 URL 配置的对象（如 RESOURCES）
+ * 3. 函数：返回 URL 的函数（如 buildApiPath）
+ * 4. 函数调用：对 URL 构造函数的调用
+ *
+ * 提取策略：
+ * - 使用 SQL 查询从多个表中提取符号
+ * - 分析代码结构，提取依赖关系
+ * - 识别模板字符串和函数返回值
+ *
+ * @param db - 数据库连接池
+ * @param repoId - 仓库 ID
+ * @returns 符号表（键为符号 ID，值为符号对象）
  */
 async function buildSymbolTable(db: Pool, repoId: number): Promise<Record<string, Symbol>> {
   const symbolTable: Record<string, Symbol> = {};
@@ -726,7 +819,18 @@ function parseTernaryExpression(expr: string): { condition: string; trueValue: s
 }
 
 /**
- * Find entry points that might contain the target URL
+ * 查找可能包含目标 URL 的入口点
+ *
+ * 入口点识别策略：
+ * 1. 提取目标 URL 的路径段（如 /api/users → ['api', 'users']）
+ * 2. 遍历符号表，检查每个符号的值是否包含这些路径段
+ * 3. 对于函数，检查其返回值；对于常量，检查其值
+ * 4. 计算匹配分数：匹配的段数 / 总段数
+ * 5. 函数类型的符号获得额外加分（因为可以生成动态 URL）
+ *
+ * @param targetUrl - 目标 URL
+ * @param symbolTable - 符号表
+ * @returns 入口点符号 ID 数组，按匹配分数降序排列
  */
 function findEntryPoints(targetUrl: string, symbolTable: Record<string, Symbol>): string[] {
   const targetSegments = extractPathSegments(targetUrl);
@@ -777,7 +881,26 @@ function findEntryPoints(targetUrl: string, symbolTable: Record<string, Symbol>)
 }
 
 /**
- * Derive URL from a specific entry point
+ * 从特定入口点推导 URL
+ *
+ * 推导过程：
+ * 1. 获取入口点符号
+ * 2. 提取初始值（函数返回值或常量值）
+ * 3. 递归展开所有依赖的符号
+ * 4. 处理模板字符串、函数调用、三元表达式
+ * 5. 记录推导步骤和符号链
+ * 6. 计算最终的匹配置信度
+ *
+ * 支持的语法：
+ * - 模板字符串: `${BASE_URL}/users`
+ * - 函数调用: buildApiPath(RESOURCES.USERS)
+ * - 三元表达式: includeOrders ? `${path}/orders` : path
+ * - 对象方法: ApiPaths.users.detail(userId)
+ *
+ * @param targetUrl - 目标 URL
+ * @param entryPoint - 入口点符号 ID
+ * @param symbolTable - 符号表
+ * @returns 推导结果对象
  */
 function deriveFromEntryPoint(
   targetUrl: string,
@@ -1122,7 +1245,26 @@ function findSymbolByName(name: string, symbolTable: Record<string, Symbol>): st
 }
 
 /**
- * Calculate match confidence between target URL and derived pattern
+ * 计算目标 URL 与推导模式之间的匹配置信度
+ *
+ * 置信度计算策略：
+ * 1. 完全匹配：100 分
+ * 2. 模式匹配（带占位符）：根据静态段和动态段的比例计算
+ * 3. 部分匹配：根据匹配的段数计算
+ *
+ * 匹配规则：
+ * - 静态段必须完全匹配
+ * - 动态段（${...}, :param）可以匹配任意值
+ * - 段数必须相同
+ *
+ * 评分公式：
+ * - 完全匹配：100
+ * - 模式匹配：(匹配的静态段数 / 总段数) * 100
+ * - 部分匹配：(匹配的段数 / 最大段数) * 100
+ *
+ * @param targetUrl - 目标 URL
+ * @param pattern - 推导出的模式
+ * @returns 置信度分数 (0-100)
  */
 function calculateMatchConfidence(targetUrl: string, pattern: string): number {
   const normalize = (url: string) => url.replace(/^https?:\/\/[^\/]+/, '').toLowerCase();
@@ -1206,7 +1348,33 @@ function calculateMatchConfidence(targetUrl: string, pattern: string): number {
 }
 
 /**
- * Inline a function call by substituting arguments into the function body
+ * 内联函数调用 - 将函数调用展开为实际的返回值
+ *
+ * 内联过程：
+ * 1. 从符号表中查找函数定义
+ * 2. 提取函数参数名和默认值
+ * 3. 解析调用时传入的实参
+ * 4. 将实参替换到函数体中
+ * 5. 处理三元表达式（根据参数值选择分支）
+ * 6. 展开局部变量和嵌套函数调用
+ * 7. 返回最终的展开结果
+ *
+ * 支持的特性：
+ * - 参数替换：将形参替换为实参
+ * - 默认参数：使用函数定义的默认值
+ * - 三元表达式：根据条件选择分支
+ * - 局部变量：展开函数内的局部变量
+ * - 嵌套调用：递归展开嵌套的函数调用
+ *
+ * @param functionName - 函数名
+ * @param argsStr - 参数字符串（逗号分隔）
+ * @param symbolTable - 符号表
+ * @returns 内联后的结果字符串
+ *
+ * @example
+ * // 函数定义: function buildApiPath(resource) { return `/api/${resource}`; }
+ * // 调用: buildApiPath('users')
+ * // 结果: '/api/users'
  */
 function inlineFunctionCall(
   functionName: string,

@@ -1,12 +1,49 @@
 /**
- * Multi-Strategy Search Engine - Combines multiple search strategies for optimal results
+ * 多策略搜索引擎 - 结合多种搜索策略以获得最佳结果
  *
- * This module implements 5 search strategies:
- * 1. Vector similarity search (semantic)
- * 2. Exact pattern matching (literal)
- * 3. Fuzzy text search (typo-tolerant)
- * 4. Dependency-aware search (follows imports)
- * 5. Graph-based search (call graph traversal)
+ * 功能说明：
+ * 这是一个智能搜索引擎，结合了 5 种不同的搜索策略，
+ * 能够处理各种类型的代码搜索需求，从精确匹配到语义理解。
+ *
+ * 实现的 5 种搜索策略：
+ * 1. 向量相似度搜索（语义搜索）
+ *    - 使用向量嵌入进行语义匹配
+ *    - 能找到意思相近但文本不同的代码
+ *    - 适合：概念性搜索、模糊查询
+ *
+ * 2. 精确模式匹配（字面匹配）
+ *    - 直接匹配代码文本
+ *    - 支持 URL、常量、函数名的精确查找
+ *    - 适合：已知名称的精确查找
+ *
+ * 3. 模糊文本搜索（容错搜索）
+ *    - 使用 PostgreSQL 的 trigram 相似度
+ *    - 容忍拼写错误和变体
+ *    - 适合：不确定准确名称的搜索
+ *
+ * 4. 依赖感知搜索（关系搜索）
+ *    - 追踪代码的导入和使用关系
+ *    - 找到相关的代码位置
+ *    - 适合：查找使用位置、影响分析
+ *
+ * 5. 图遍历搜索（调用图搜索）
+ *    - 遍历函数调用图
+ *    - 找到调用者和被调用者
+ *    - 适合：理解代码流程、调用链分析
+ *
+ * 核心特性：
+ * - 自动策略选择：根据查询意图自动选择最佳策略组合
+ * - 智能排序：使用加权评分合并多个策略的结果
+ * - 上下文增强：自动添加代码上下文和使用信息
+ * - 缓存优化：使用 LRU 缓存加速重复查询
+ * - 拼写纠错：自动纠正查询中的拼写错误
+ * - 搜索建议：在结果不足时提供搜索建议
+ *
+ * 使用场景：
+ * - 代码导航：快速定位函数、类、常量的定义
+ * - API 查找：搜索 URL 端点和 API 定义
+ * - 依赖分析：了解代码的使用关系
+ * - 重构支持：找到所有需要修改的位置
  */
 
 import { Pool } from 'pg';
@@ -20,70 +57,99 @@ import { extractKeywords as extractMultilingualKeywords } from '../utils/multili
 import { deduplicateResults, DeduplicatableResult } from '../utils/deduplication.js';
 
 // ============================================
-// Type Definitions
+// 类型定义
 // ============================================
 
+/**
+ * 搜索结果接口
+ */
 export interface SearchResult {
-  id: string;
-  type: 'constant' | 'function' | 'class' | 'url' | 'chunk';
-  score: number;
-  filePath: string;
-  lineStart: number;
-  lineEnd: number;
-  content: string;
-  context: SearchContext;
-  metadata: Record<string, any>;
+  id: string;                                    // 结果唯一标识
+  type: 'constant' | 'function' | 'class' | 'url' | 'chunk';  // 结果类型
+  score: number;                                 // 匹配分数 (0-1)
+  filePath: string;                              // 文件路径
+  lineStart: number;                             // 起始行号
+  lineEnd: number;                               // 结束行号
+  content: string;                               // 代码内容
+  context: SearchContext;                        // 上下文信息
+  metadata: Record<string, any>;                 // 元数据
 }
 
+/**
+ * 搜索响应接口（包含建议）
+ */
 export interface SearchResponse {
-  results: SearchResult[];
-  suggestions?: SearchSuggestion[];
-  correctedQuery?: string;
+  results: SearchResult[];                       // 搜索结果
+  suggestions?: SearchSuggestion[];              // 搜索建议（结果不足时）
+  correctedQuery?: string;                       // 纠正后的查询（如果有拼写错误）
 }
 
+/**
+ * 搜索上下文接口
+ */
 export interface SearchContext {
-  fileName: string;
-  symbolName?: string;
-  parentSymbol?: string;
-  imports?: string[];
-  usages?: Array<{ file: string; line: number }>;
+  fileName: string;                              // 文件名
+  symbolName?: string;                           // 符号名称
+  parentSymbol?: string;                         // 父符号（如类名）
+  imports?: string[];                            // 导入列表
+  usages?: Array<{ file: string; line: number }>;  // 使用位置
 }
 
+/**
+ * 搜索选项接口
+ */
 export interface SearchOptions {
-  limit?: number;
-  threshold?: number;
-  strategies?: SearchStrategy[];
-  includeContext?: boolean;
-  followDependencies?: boolean;
+  limit?: number;                                // 结果数量限制（默认 20）
+  threshold?: number;                            // 分数阈值（默认 0.5）
+  strategies?: SearchStrategy[];                 // 使用的策略（默认 ['vector', 'exact', 'fuzzy']）
+  includeContext?: boolean;                      // 是否包含上下文（默认 true）
+  followDependencies?: boolean;                  // 是否追踪依赖（默认 false）
 }
 
+/**
+ * 搜索策略类型
+ */
 export type SearchStrategy = 'vector' | 'exact' | 'fuzzy' | 'dependency' | 'graph';
 
+/**
+ * 查询意图接口
+ */
 export interface QueryIntent {
-  type: 'url' | 'constant' | 'function' | 'class' | 'general';
-  confidence: number;
-  keywords: string[];
-  filters: Record<string, any>;
+  type: 'url' | 'constant' | 'function' | 'class' | 'general';  // 查询类型
+  confidence: number;                            // 置信度 (0-1)
+  keywords: string[];                            // 提取的关键词
+  filters: Record<string, any>;                  // 过滤条件
 }
 
 // ============================================
-// Multi-Strategy Search Engine
+// 多策略搜索引擎类
 // ============================================
 
 export class MultiStrategySearch {
-  private dependencyTracker: DependencyTracker;
-  private anthropic: Anthropic;
-  private searchCache: LRUCache<SearchResult[]>;
+  private dependencyTracker: DependencyTracker;  // 依赖追踪器
+  private anthropic: Anthropic;                  // Anthropic AI 客户端
+  private searchCache: LRUCache<SearchResult[]>; // 搜索结果缓存
 
   constructor(private db: Pool, anthropicApiKey: string) {
     this.dependencyTracker = new DependencyTracker(db);
     this.anthropic = new Anthropic({ apiKey: anthropicApiKey });
-    // Initialize cache with 100 entries, 5 minute TTL
+    // 初始化缓存：100 个条目，5 分钟 TTL
     this.searchCache = new LRUCache<SearchResult[]>(100, 5 * 60 * 1000);
   }
 
   /**
-   * Main search entry point - automatically selects best strategies
+   * 主搜索入口 - 自动选择最佳策略
+   *
+   * 这是最简单的搜索接口，自动处理所有细节：
+   * - 拼写纠错
+   * - 意图识别
+   * - 策略选择
+   * - 结果排序
+   *
+   * @param repoId - 仓库 ID
+   * @param query - 搜索查询
+   * @param options - 搜索选项
+   * @returns 搜索结果数组
    */
   async search(repoId: number, query: string, options: SearchOptions = {}): Promise<SearchResult[]> {
     const response = await this.searchWithSuggestions(repoId, query, options);
@@ -91,7 +157,23 @@ export class MultiStrategySearch {
   }
 
   /**
-   * Search with suggestions and typo correction
+   * 带建议的搜索 - 返回搜索结果和改进建议
+   *
+   * 完整的搜索流程：
+   * 1. 拼写纠错：自动纠正查询中的拼写错误
+   * 2. 缓存检查：检查是否有缓存的结果
+   * 3. 意图分析：识别查询类型（URL、函数、类等）
+   * 4. 策略选择：根据意图选择最佳策略组合
+   * 5. 并行搜索：同时执行多个策略
+   * 6. 结果合并：智能合并和排序结果
+   * 7. 上下文增强：添加代码上下文和使用信息
+   * 8. 去重过滤：移除重复结果
+   * 9. 生成建议：结果不足时提供搜索建议
+   *
+   * @param repoId - 仓库 ID
+   * @param query - 搜索查询
+   * @param options - 搜索选项
+   * @returns 搜索响应（包含结果和建议）
    */
   async searchWithSuggestions(
     repoId: number,
@@ -106,14 +188,14 @@ export class MultiStrategySearch {
       followDependencies = false,
     } = options;
 
-    // Correct typos in query
+    // 步骤 1: 拼写纠错
     const { corrected: correctedQuery, hasCorrected } = correctTypos(query);
     const searchQuery = hasCorrected ? correctedQuery : query;
 
-    // Generate cache key (use corrected query)
+    // 步骤 2: 生成缓存键（使用纠正后的查询）
     const cacheKey = generateCacheKey('search', { repoId, query: searchQuery, ...options });
 
-    // Check cache first
+    // 步骤 3: 检查缓存
     const cachedResults = this.searchCache.get(cacheKey);
     if (cachedResults) {
       console.log('✅ Cache hit for query:', searchQuery);
@@ -123,17 +205,17 @@ export class MultiStrategySearch {
       };
     }
 
-    // Analyze query intent
+    // 步骤 4: 分析查询意图
     const intent = await this.analyzeQueryIntent(searchQuery);
 
-    // Special handling for URL queries - always use simple mode (no derivation)
+    // 步骤 5: URL 查询特殊处理 - 使用简单模式（不进行推导）
     if (intent.type === 'url') {
       console.log('🔍 Detected URL query, using simple location search...');
 
       try {
         const urlResults = await searchURL(this.db, repoId, query, limit);
 
-        // Convert URLSearchResult to SearchResult
+        // 将 URLSearchResult 转换为 SearchResult
         const convertedResults: SearchResult[] = urlResults.map(urlResult => ({
           id: urlResult.id,
           type: urlResult.type as any,
@@ -154,7 +236,7 @@ export class MultiStrategySearch {
 
         console.log(`✅ Simple URL search found ${convertedResults.length} results`);
 
-        // Cache and return
+        // 缓存并返回
         this.searchCache.set(cacheKey, convertedResults);
         return {
           results: convertedResults,
@@ -162,47 +244,47 @@ export class MultiStrategySearch {
         };
       } catch (error) {
         console.error('URL search failed, falling back to standard search:', error);
-        // Fall through to standard search
+        // 失败时回退到标准搜索
       }
     }
 
-    // Select optimal strategies based on intent
+    // 步骤 6: 根据意图选择最佳策略
     const selectedStrategies = this.selectStrategies(intent, strategies);
 
-    // Execute searches in parallel
+    // 步骤 7: 并行执行所有策略
     const searchResults = await Promise.all(
       selectedStrategies.map((strategy) => this.executeStrategy(repoId, query, intent, strategy, limit))
     );
 
-    // Merge and rank results
+    // 步骤 8: 合并和排序结果
     const mergedResults = this.mergeResults(searchResults, intent);
 
-    // Filter by threshold
+    // 步骤 9: 按阈值过滤
     const filteredResults = mergedResults.filter((r) => r.score >= threshold);
 
-    // Add context if requested
+    // 步骤 10: 添加上下文信息（如果需要）
     if (includeContext) {
       await this.enrichWithContext(repoId, filteredResults);
     }
 
-    // Follow dependencies if requested
+    // 步骤 11: 追踪依赖关系（如果需要）
     if (followDependencies) {
       await this.expandWithDependencies(repoId, filteredResults);
     }
 
-    // Deduplicate results before limiting
+    // 步骤 12: 去重
     const deduplicatedResults = this.deduplicateSearchResults(filteredResults);
 
-    // Get final results
+    // 步骤 13: 限制结果数量
     const finalResults = deduplicatedResults.slice(0, limit);
 
-    // Store in cache before returning
+    // 步骤 14: 存入缓存
     this.searchCache.set(cacheKey, finalResults);
 
-    // Build available terms dictionary for suggestions
+    // 步骤 15: 构建可用术语字典（用于生成建议）
     const availableTerms = await this.getAvailableTerms(repoId);
 
-    // Generate suggestions if no results or few results
+    // 步骤 16: 生成搜索建议（结果不足时）
     let suggestions: SearchSuggestion[] | undefined;
     if (finalResults.length < 3) {
       suggestions = generateSuggestions(query, availableTerms);
@@ -216,8 +298,24 @@ export class MultiStrategySearch {
   }
 
   /**
-   * Analyze query to determine intent and extract keywords
-   * 优化：增强 URL 识别能力
+   * 分析查询意图 - 识别查询类型和提取关键词
+   *
+   * 意图识别策略（按优先级）：
+   * 1. URL 模式：检测 URL 路径、参数、HTTP 方法
+   * 2. 函数签名：检测函数调用、箭头函数
+   * 3. 类/接口：检测类型定义
+   * 4. 常量：检测全大写、错误码
+   * 5. 通用搜索：使用多语言分词器
+   *
+   * 增强的 URL 识别能力：
+   * - 标准 URL 路径: /api/users, /v1/repos
+   * - 带参数的路径: /api/users/:id, /repos/{id}
+   * - 完整 URL: http://example.com/api
+   * - 查询字符串: ?page=1
+   * - HTTP 方法: GET /api/users
+   *
+   * @param query - 搜索查询
+   * @returns 查询意图对象
    */
   private async analyzeQueryIntent(query: string): Promise<QueryIntent> {
     // URL patterns - 增强识别
