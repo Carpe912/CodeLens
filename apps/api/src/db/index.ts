@@ -121,7 +121,7 @@ export async function initDatabase() {
      * - line_start: 起始行号
      * - line_end: 结束行号
      * - code_text: 代码文本内容
-     * - embedding: 向量表示（1024 维，用于语义搜索）
+     * - embedding: 向量表示（1536 维，用于语义搜索）
      * - created_at: 创建时间
      *
      * 注意：embedding 使用 pgvector 的 vector 类型，支持高效的向量相似度搜索
@@ -135,7 +135,7 @@ export async function initDatabase() {
         line_start INTEGER NOT NULL,
         line_end INTEGER NOT NULL,
         code_text TEXT NOT NULL,
-        embedding vector(1024),
+        embedding vector(1536),
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);

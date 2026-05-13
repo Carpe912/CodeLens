@@ -989,15 +989,15 @@ fastify.post<{
  * POST /admin/migrate-vector-dimension
  *
  * 功能：
- * - 将向量维度从 1536 迁移到 1024
+ * - 将向量维度从 1024 迁移到 1536
  * - 重建向量索引
  * - 清空现有嵌入数据
  *
  * 迁移步骤：
  * 1. 删除现有向量索引
  * 2. 删除旧的 embedding 列
- * 3. 创建新的 1024 维 embedding 列
- * 4. 重建 IVFFlat 索引
+ * 3. 创建新的 1536 维 embedding 列
+ * 4. 重建 HNSW 索引
  *
  * 注意：
  * - 迁移后需要重新索引所有仓库
@@ -1013,29 +1013,30 @@ fastify.post<{
  */
 fastify.post('/admin/migrate-vector-dimension', async (request, reply) => {
   try {
-    console.log('Starting migration: changing embedding vector dimension from 1536 to 1024...');
+    console.log('Starting migration: changing embedding vector dimension from 1024 to 1536...');
 
     // 删除索引
     console.log('Dropping index...');
     await pool.query('DROP INDEX IF EXISTS idx_code_chunks_embedding');
+    await pool.query('DROP INDEX IF EXISTS idx_code_chunks_embedding_hnsw');
 
     // 删除旧的 embedding 列
     console.log('Dropping old embedding column...');
     await pool.query('ALTER TABLE code_chunks DROP COLUMN IF EXISTS embedding');
 
-    // 添加新的 1024 维 embedding 列
-    console.log('Adding new embedding column with 1024 dimensions...');
-    await pool.query('ALTER TABLE code_chunks ADD COLUMN embedding vector(1024)');
+    // 添加新的 1536 维 embedding 列
+    console.log('Adding new embedding column with 1536 dimensions...');
+    await pool.query('ALTER TABLE code_chunks ADD COLUMN embedding vector(1536)');
 
-    // 重建索引
-    console.log('Recreating index...');
-    await pool.query('CREATE INDEX idx_code_chunks_embedding ON code_chunks USING ivfflat (embedding vector_cosine_ops)');
+    // 重建索引（使用 HNSW 索引以获得更好的性能）
+    console.log('Recreating HNSW index...');
+    await pool.query('CREATE INDEX idx_code_chunks_embedding_hnsw ON code_chunks USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)');
 
     console.log('Migration completed successfully!');
 
     return {
       success: true,
-      message: 'Vector dimension migrated from 1536 to 1024. All existing embeddings have been cleared. You need to re-index your repositories.'
+      message: 'Vector dimension migrated from 1024 to 1536. All existing embeddings have been cleared. You need to re-index your repositories.'
     };
   } catch (error: any) {
     console.error('Migration failed:', error);

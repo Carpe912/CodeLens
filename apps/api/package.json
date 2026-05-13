@@ -9,7 +9,8 @@
     "migrate": "tsx src/scripts/migrate.ts",
     "reindex": "tsx src/scripts/reindex.ts",
     "rebuild-references": "tsx src/scripts/rebuild-references.ts",
-    "url-derivation": "tsx src/scripts/url-derivation-analyzer.ts"
+    "url-derivation": "tsx src/scripts/url-derivation-analyzer.ts",
+    "check-dimensions": "tsx src/scripts/check-embedding-dimensions.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
