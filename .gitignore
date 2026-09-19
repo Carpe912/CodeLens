@@ -1,0 +1,38 @@
+node_modules
+dist
+
+# 上线时的回滚点目录。注意：`dist` 这条**匹配不到** `dist.prev.20260918-231332`，
+# 所以回滚目录必须单独写通配，否则会被当成新文件提交进仓库。
+dist.prev.*
+dist.bad
+*.prev.*
+
+# 环境变量（含密钥，切勿提交）
+.env
+.env.local
+.env.production
+
+# PM2 线上配置（含密钥）。仓库里只保留脱敏的 ecosystem.config.example.js。
+ecosystem.config.js
+
+# 本地预览构建产物（`dist` 这条匹配不到 `dist-preview`，必须单独写）
+apps/web/dist-preview
+apps/web/dist.preview
+
+*.log
+.DS_Store
+/tmp
+
+# 构建缓存与制品（注意要带尾随 *：`*.tsbuildinfo` 匹配不到
+# 之前被误跟踪的 `.tsbuildinfo.bak.*` / `.tsbuildinfo.stale.*` 变体）
+*.tsbuildinfo*
+out
+
+# 会话临时中间产物（memory/ 是要留的，只忽略 tmp/）
+.workbuddy/tmp/
+
+# 扩展打包产物
+*.vsix
+
+# 本项目使用 pnpm，禁止提交 npm 的 lockfile
+package-lock.json
