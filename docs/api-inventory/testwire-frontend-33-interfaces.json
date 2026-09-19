@@ -1,0 +1,4378 @@
+{
+ "repo": "testwire-frontend-33",
+ "raw_rows": 283,
+ "interfaces": [
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/api/case/delete",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/delete"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:50"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/delete",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/delete"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:168"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group",
+   "raw_patterns": [
+    "${scope(options.appId)}/group"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:108"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/api/service/:param",
+   "raw_patterns": [
+    "${QUALITY_URL(option.aid)}/api/service/${state.id}"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:173"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/api/test/data/delete",
+   "raw_patterns": [
+    "${scope(options.appId)}/delete"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioData/index.ts:64"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioData/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/removeItem",
+   "raw_patterns": [
+    "${URL(option.aid)}/removeItem"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:77"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/delete",
+   "raw_patterns": [
+    "${URL(aid)}/delete"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:47"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts",
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/deleteAllEdition",
+   "raw_patterns": [
+    "${URL(aid)}/deleteAllEdition"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:56"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/mock/remove",
+   "raw_patterns": [
+    "${URL(aid)}/mock/remove"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:83"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/deleteCustomPage",
+   "raw_patterns": [
+    "${URL(aid)}/deleteCustomPage"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:89"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "DELETE",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/deleteObjectModel",
+   "raw_patterns": [
+    "${URL(aid)}/deleteObjectModel"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:120"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "${url}",
+   "raw_patterns": [
+    "${url}"
+   ],
+   "defs": [
+    "src/components/AutomatedTesting/TestScenarioExecute/List/Videos.vue:152"
+   ],
+   "usages": 3,
+   "files": [
+    "src/components/AutomatedTesting/TestScenarioExecute/List/Videos.vue",
+    "src/service/index.ts"
+   ],
+   "resolved": false
+  },
+  {
+   "method": "GET",
+   "real_path": "/auth/preference/clientCache/:param/:param",
+   "raw_patterns": [
+    "/auth/preference/clientCache/${encodeKey}/${project}"
+   ],
+   "defs": [
+    "src/service/Api/PrimaryService/PrimaryCached.ts:128"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PrimaryService/PrimaryCached.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/cookie",
+   "raw_patterns": [
+    "/plugin/api/cookie"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:10"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/database/connectTest",
+   "raw_patterns": [
+    "/plugin/api/database/connectTest"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:80"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/Setting/PublicDatabaseService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/file/attachment/:param",
+   "raw_patterns": [
+    "${TEST_URL_PTRFIX}/api/file/attachment/${id}"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioExecute/index.ts:138"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioExecute/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/job/refresh",
+   "raw_patterns": [
+    "/plugin/api/job/refresh"
+   ],
+   "defs": [
+    "src/service/Api/TimedTask/index.ts:77"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TimedTask/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/log/download/id/:param",
+   "raw_patterns": [
+    "/plugin/api/log/download/id/${id}"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:189"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/log/id/:param",
+   "raw_patterns": [
+    "${TEST_URL_API}/log/id/${state.id}",
+    "/plugin/api/log/id/${id}"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioExecute/index.ts:116",
+    "src/service/Api/TestScenarioReport/index.ts:87"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenarioExecute/index.ts",
+    "src/service/Api/TestScenarioReport/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/log/list",
+   "raw_patterns": [
+    "/plugin/api/log/list"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioExecute/index.ts:106"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioExecute/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/param",
+   "raw_patterns": [
+    "/plugin/api/param"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:90"
+   ],
+   "usages": 5,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/Setting/EnvVariablesService.ts",
+    "src/service/Api/Setting/PublicVariablesService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/refresh/all",
+   "raw_patterns": [
+    "/plugin/api/refresh/all"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:135"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/refresh/api",
+   "raw_patterns": [
+    "/plugin/api/refresh/api"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:127"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/report",
+   "raw_patterns": [
+    "/plugin/api/report"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioExecute/index.ts:89"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenarioExecute/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/report/attachment",
+   "raw_patterns": [
+    "${TEST_URL_PTRFIX}/api/report/attachment?id=${id}"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioExecute/index.ts:129"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioExecute/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/api/setting",
+   "raw_patterns": [
+    "/plugin/api/setting"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:26"
+   ],
+   "usages": 3,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/Setting/PublicApiSettingService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/user",
+   "raw_patterns": [
+    "${TEST_URL_PTRFIX}/user"
+   ],
+   "defs": [
+    "src/service/Api/User/index.ts:20"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/User/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/web/core/getAppId",
+   "raw_patterns": [
+    "${TEST_URL_PTRFIX}/web/core/getAppId"
+   ],
+   "defs": [
+    "src/service/Api/Global/index.ts:55"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/web/plugin/getInfo",
+   "raw_patterns": [
+    "${TEST_URL_PTRFIX}/web/plugin/getInfo"
+   ],
+   "defs": [
+    "src/service/Api/plugin/index.ts:20"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/plugin/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/web/plugin/getThreadInfos",
+   "raw_patterns": [
+    "${TEST_URL_PTRFIX}/web/plugin/getThreadInfos",
+    "/plugin/web/plugin/getThreadInfos"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:153",
+    "src/service/Api/plugin/index.ts:24"
+   ],
+   "usages": 3,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/plugin/index.ts",
+    "src/view/PageFooter/Main.vue"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/plugin/web/plugin/update",
+   "raw_patterns": [
+    "${TEST_URL_PTRFIX}/web/plugin/update",
+    "/plugin/web/plugin/update"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:144",
+    "src/service/Api/plugin/index.ts:28"
+   ],
+   "usages": 3,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/plugin/index.ts",
+    "src/view/PageFooter/Main.vue"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/account/account",
+   "raw_patterns": [
+    "/rest/account/account"
+   ],
+   "defs": [
+    "src/service/Api/User/index.ts:39"
+   ],
+   "usages": 3,
+   "files": [
+    "src/service/Api/User/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/account/customMenu/type/:param/get",
+   "raw_patterns": [
+    "/rest/account/customMenu/type/${type}/get"
+   ],
+   "defs": [
+    "src/service/Api/User/CustomMenuService.ts:23"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/User/CustomMenuService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/auth/appSecret/p/:param/getList",
+   "raw_patterns": [
+    "/rest/auth/appSecret/p/${pid}/getList"
+   ],
+   "defs": [
+    "src/service/Api/Project/AppSecretService.ts:36"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Project/AppSecretService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/global/dictionary/f/:param",
+   "raw_patterns": [
+    "/rest/global/dictionary/f/${encodeURIComponent(key)}"
+   ],
+   "defs": [
+    "src/service/Api/Dictionary/DictionaryCached.ts:37"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Dictionary/DictionaryCached.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/global/file/show/:param/false",
+   "raw_patterns": [
+    "${GLOBAL_URL}/file/show/${id}/false"
+   ],
+   "defs": [
+    "src/service/Api/Global/index.ts:11"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/global/preference/clientCache/:param/:param",
+   "raw_patterns": [
+    "/rest/global/preference/clientCache/${encodeKey}/${project}"
+   ],
+   "defs": [
+    "src/service/Api/PrimaryService/PrimaryCached.ts:85"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PrimaryService/PrimaryCached.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/global/preference/clientCache/coopwire-root-url",
+   "raw_patterns": [
+    "${PREFERENCE_URL}/clientCache/coopwire-root-url"
+   ],
+   "defs": [
+    "src/components/Api/ApiGroup/Component/ApiTable/Main.vue:53"
+   ],
+   "usages": 3,
+   "files": [
+    "src/components/Api/ApiGroup/Component/ApiTable/Main.vue",
+    "src/components/Api/ApiGroup/Component/SystemReport/share/main.vue",
+    "src/components/Api/Interface/Components/Index/Main.vue"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/open/testwire/recorder/link",
+   "raw_patterns": [
+    "${OPEN_TESTWIRE_URL}/recorder/link"
+   ],
+   "defs": [
+    "src/service/Api/Global/index.ts:68"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/platform/audit/company/transRelation/:param",
+   "raw_patterns": [
+    "/rest/platform/audit/company/transRelation/${id}"
+   ],
+   "defs": [
+    "src/components/AuditHistory/api.ts:30"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/AuditHistory/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/platform/audit/p/:param/transRelation/:param",
+   "raw_patterns": [
+    "/rest/platform/audit/p/${pid}/transRelation/${id}"
+   ],
+   "defs": [
+    "src/components/AuditHistory/api.ts:26"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/AuditHistory/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/platform/audit/transRelation/:param",
+   "raw_patterns": [
+    "/rest/platform/audit/transRelation/${id}"
+   ],
+   "defs": [
+    "src/components/AuditHistory/api.ts:22"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/AuditHistory/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/project/a/{appId}/application/canTestwireRun",
+   "raw_patterns": [
+    "${PROJECT_APP_URL(appId)}/application/canTestwireRun"
+   ],
+   "defs": [
+    "src/service/Api/Global/index.ts:72"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/project/a/{appId}/application/get",
+   "raw_patterns": [
+    "${APPLICATION_URL(options.appId)}/get"
+   ],
+   "defs": [
+    "src/service/Api/Application/index.ts:25"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Application/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/project/a/{appId}/releasePlan/selection",
+   "raw_patterns": [
+    "${PROJECT_APP_URL(props.appId)}/releasePlan/selection"
+   ],
+   "defs": [
+    "src/components/Api/Edition/Edit/EditSelect.ts:128"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/Api/Edition/Edit/EditSelect.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/project/p/:param/project/getProject",
+   "raw_patterns": [
+    "/rest/project/p/${results.pid}/project/getProject"
+   ],
+   "defs": [
+    "src/service/Api/Application/index.ts:27"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Application/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/edition",
+   "raw_patterns": [
+    "${scoped(options.appId)}/api/edition"
+   ],
+   "defs": [
+    "src/service/Api/Edition/index.ts:49"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/Edition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/env/setting/allVariables",
+   "raw_patterns": [
+    "${ENV_URL(aid)}/allVariables"
+   ],
+   "defs": [
+    "src/service/Api/Env/index.ts:61"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Env/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/env/setting/get",
+   "raw_patterns": [
+    "${ENV_URL(aid)}/get"
+   ],
+   "defs": [
+    "src/service/Api/Env/index.ts:51"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Env/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/report/getTempUrl",
+   "raw_patterns": [
+    "${QUALITY_URL(appId)}/api/report/getTempUrl"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioExecute/index.ts:120"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioExecute/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/report/http/get",
+   "raw_patterns": [
+    "${scope(options.appId)}/http/get"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioReport/index.ts:91"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioReport/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param",
+   "raw_patterns": [
+    "${scope(options.appId)}/${expect === \"scenario\" ? \"changeToScenario\" : \"changeToStepSet\"}"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:125"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param/nameless/steps",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/${options.ref}/nameless/steps"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/step.ts:61"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/step.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param/runtimeSetting",
+   "raw_patterns": [
+    "${scope(option.appId)}/${option.scenarioId}/runtimeSetting"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/runtimeSetting.ts:29"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/runtimeSetting.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param/snapshot",
+   "raw_patterns": [
+    "${scope(option.appId)}/${option.scenarioId}/snapshot"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/snapshot.ts:26"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/snapshot.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param/step/:param",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/${options.scenarioId}/step/${options.stepId}"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/detail.ts:75"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenario/detail.ts",
+    "src/service/Api/TestScenario/step.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/changeToScenarioCheck",
+   "raw_patterns": [
+    "${scope(options.appId)}/changeToScenarioCheck"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:135"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/get",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/get"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/detail.ts:38"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenario/detail.ts",
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/:param",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/group/${state.id}"
+   ],
+   "defs": [
+    "src/service/Api/TimedTask/index.ts:36"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TimedTask/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/schedule/:param/count",
+   "raw_patterns": [
+    "${scope(appId)}/api/scenario/group/schedule/${id}/count"
+   ],
+   "defs": [
+    "src/service/Api/TimedTask/index.ts:57"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TimedTask/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/selector/:param",
+   "raw_patterns": [
+    "${scenarioScoped(appId)}/group/selector/${id}"
+   ],
+   "defs": [
+    "src/service/Api/PlayWright/api.ts:64"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PlayWright/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/snapshot/:param",
+   "raw_patterns": [
+    "${scope(appId)}/snapshot/${snapshotId}"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/snapshotDetail.ts:30"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/snapshotDetail.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/service/list",
+   "raw_patterns": [
+    "${QUALITY_URL(aid)}/api/service/list",
+    "${QUALITY_URL(option.aid)}/api/service/list"
+   ],
+   "defs": [
+    "src/service/Api/Env/index.ts:41",
+    "src/service/Api/Setting/index.ts:155"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/Env/index.ts",
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/test/data/get",
+   "raw_patterns": [
+    "${scope(options.appId)}/get"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioData/index.ts:45"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenarioData/index.ts",
+    "src/service/Api/TestScenarioReport/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/test/data/list",
+   "raw_patterns": [
+    "${scope(options.appId)}/list"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioData/index.ts:38"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioData/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/addressSetting",
+   "raw_patterns": [
+    "${URL(aid)}/addressSetting"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:114"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/autoStepRule/builtIn",
+   "raw_patterns": [
+    "${URL(appId)}/autoStepRule/builtIn"
+   ],
+   "defs": [
+    "src/service/Api/StepProcessingRuleService/index.ts:39"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/StepProcessingRuleService/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/getCustomPage/:param",
+   "raw_patterns": [
+    "${URL(aid)}/getCustomPage/${id}"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:80"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/getFetchCode/:param",
+   "raw_patterns": [
+    "${URL(aid)}/getFetchCode/${id}"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:187"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/testEnvironment/delete",
+   "raw_patterns": [
+    "${TEST_ENVIRONMENT_URL(aid)}/delete"
+   ],
+   "defs": [
+    "src/service/Api/Env/index.ts:23"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Env/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/testEnvironment/getList",
+   "raw_patterns": [
+    "${TEST_ENVIRONMENT_URL(aid)}/getList"
+   ],
+   "defs": [
+    "src/service/Api/Env/index.ts:13"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Env/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/a/{appId}/uiStep/:param",
+   "raw_patterns": [
+    "${uiStepScoped(appId)}/${id}"
+   ],
+   "defs": [
+    "src/service/Api/PlayWright/api.ts:40"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PlayWright/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/getMyLibraries",
+   "raw_patterns": [
+    "${COOP_URL}/quality/getMyLibraries"
+   ],
+   "defs": [
+    "src/service/Api/ImportScenario/base.ts:15"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ImportScenario/base.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "GET",
+   "real_path": "/rest/quality/playwright/api/last",
+   "raw_patterns": [
+    "${QUALITY_PLAYWRIGHT_API}/last"
+   ],
+   "defs": [
+    "src/service/Api/Global/index.ts:64"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/case/excute",
+   "raw_patterns": [
+    "/plugin/api/case/excute"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:109"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/cookie",
+   "raw_patterns": [
+    "/plugin/api/cookie"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:18"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/database/delete",
+   "raw_patterns": [
+    "/plugin/api/database/delete"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:70"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/Setting/PublicDatabaseService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/database/queryDetailList",
+   "raw_patterns": [
+    "/plugin/api/database/queryDetailList"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:62"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/Setting/PublicDatabaseService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/database/queryList",
+   "raw_patterns": [
+    "/plugin/api/database/queryList"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:54"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/database/save",
+   "raw_patterns": [
+    "/plugin/api/database/save"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:45"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/Setting/PublicDatabaseService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/import/parse",
+   "raw_patterns": [
+    "/plugin/api/import/parse"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:181"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/job/execute",
+   "raw_patterns": [
+    "/plugin/api/job/execute"
+   ],
+   "defs": [
+    "src/service/Api/TimedTask/index.ts:82"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TimedTask/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/param",
+   "raw_patterns": [
+    "/plugin/api/param"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:100"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/param/preview",
+   "raw_patterns": [
+    "/plugin/api/param/preview"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:118"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/report/search",
+   "raw_patterns": [
+    "plugin/api/report/search"
+   ],
+   "defs": [
+    "src/service/Api/TimedTask/TimedTaskReportService.ts:63"
+   ],
+   "usages": 3,
+   "files": [
+    "src/service/Api/TimedTask/TimedTaskBatchReportService.ts",
+    "src/service/Api/TimedTask/TimedTaskReportService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/scenario/batchTerminate",
+   "raw_patterns": [
+    "plugin/api/scenario/batchTerminate"
+   ],
+   "defs": [
+    "src/service/Api/TimedTask/index.ts:87"
+   ],
+   "usages": 4,
+   "files": [
+    "src/service/Api/TimedTask/index.ts",
+    "src/utils/Vue/useTableDraggable.ts",
+    "src/utils/Vue/useViewTransition.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/scenario/excute",
+   "raw_patterns": [
+    "/plugin/api/scenario/excute"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:162"
+   ],
+   "usages": 3,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/TestScenario/detail.ts",
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/api/scenario/terminate",
+   "raw_patterns": [
+    "/plugin/api/scenario/terminate"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:156"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/user/login",
+   "raw_patterns": [
+    "${TEST_URL_PTRFIX}/user/login"
+   ],
+   "defs": [
+    "src/service/Api/Global/index.ts:50"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/Global/index.ts",
+    "src/service/Api/Login/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/user/logout",
+   "raw_patterns": [
+    "${TEST_URL_PTRFIX}/user/logout"
+   ],
+   "defs": [
+    "src/service/Api/Login/index.ts:19"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Login/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/plugin/variable/reference/scenario",
+   "raw_patterns": [
+    "/plugin/variable/reference/scenario"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:170"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/Local/index.ts",
+    "src/service/Api/TestScenarioReport/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/account/customMenu/type/:param/save",
+   "raw_patterns": [
+    "/rest/account/customMenu/type/${type}/save"
+   ],
+   "defs": [
+    "src/service/Api/User/CustomMenuService.ts:44"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/User/CustomMenuService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/account/recentlyOpen/addRecentlyOpen",
+   "raw_patterns": [
+    "${ACCOUNT_URL}/recentlyOpen/addRecentlyOpen"
+   ],
+   "defs": [
+    "src/service/Api/Global/index.ts:29"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/auth/appSecret/p/:param/getList",
+   "raw_patterns": [
+    "/rest/auth/appSecret/p/${pid}/getList"
+   ],
+   "defs": [
+    "src/service/Api/Project/AppSecretService.ts:36"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Project/AppSecretService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/global/preference/clientCache/:param/:param",
+   "raw_patterns": [
+    "/rest/global/preference/clientCache/${encodeKey}/${project}"
+   ],
+   "defs": [
+    "src/service/Api/PrimaryService/PrimaryCached.ts:92"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PrimaryService/PrimaryCached.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/global/translation/get",
+   "raw_patterns": [
+    "${GLOBAL_URL}/translation/get"
+   ],
+   "defs": [
+    "src/service/Api/Global/index.ts:60"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/investigate/{pid}/interfaceDesign/list",
+   "raw_patterns": [
+    "${PREFIX(pid)}/list"
+   ],
+   "defs": [
+    "src/service/Api/InterfaceDesign/InterfaceDesign.ts:28"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/InterfaceDesign/InterfaceDesign.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/platform/audit/company/pageQuery",
+   "raw_patterns": [
+    "/rest/platform/audit/company/pageQuery"
+   ],
+   "defs": [
+    "src/components/AuditHistory/api.ts:11"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/AuditHistory/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/platform/audit/p/:param/pageQuery",
+   "raw_patterns": [
+    "/rest/platform/audit/p/${pid}/pageQuery"
+   ],
+   "defs": [
+    "src/components/AuditHistory/api.ts:16"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/AuditHistory/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/platform/audit/pageQuery",
+   "raw_patterns": [
+    "/rest/platform/audit/pageQuery"
+   ],
+   "defs": [
+    "src/components/AuditHistory/api.ts:6"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/AuditHistory/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/project/a/{appId}/application/get",
+   "raw_patterns": [
+    "${APPLICATION_URL(options.appId)}/get"
+   ],
+   "defs": [
+    "src/service/Api/Application/index.ts:25"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Application/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/project/application/p/:param/selection",
+   "raw_patterns": [
+    "/rest/project/application/p/${pid}/selection"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:27"
+   ],
+   "usages": 3,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts",
+    "src/service/Api/Global/SystemService.ts",
+    "src/service/Api/ImportScenario/AppService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/project/label/list/project/:param",
+   "raw_patterns": [
+    "/rest/project/label/list/project/${pid}"
+   ],
+   "defs": [
+    "src/service/Api/Global/LabelService.ts:63"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/LabelService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/project/p/:param/customGroup/list",
+   "raw_patterns": [
+    "/rest/project/p/${pid}/customGroup/list"
+   ],
+   "defs": [
+    "src/service/Api/Project/CustomGroupService.ts:24"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Project/CustomGroupService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/project/p/:param/user/pageQuery",
+   "raw_patterns": [
+    "/rest/project/p/${pid}/user/pageQuery"
+   ],
+   "defs": [
+    "src/service/Api/Global/AccountService.ts:62"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/AccountService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/project/p/{projectId}/issue/pageQuery",
+   "raw_patterns": [
+    "${PROJECT_URL(pid)}/issue/pageQuery",
+    "${PROJECT_URL(props.projectId)}/issue/pageQuery"
+   ],
+   "defs": [
+    "src/components/Api/Edition/Edit/EditSelect.ts:52",
+    "src/service/Api/ApiDefinition/index.ts:112"
+   ],
+   "usages": 2,
+   "files": [
+    "src/components/Api/Edition/Edit/EditSelect.ts",
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/project/p/{projectId}/sprint/kanBanList",
+   "raw_patterns": [
+    "${PROJECT_URL(props.projectId)}/sprint/kanBanList"
+   ],
+   "defs": [
+    "src/components/Api/Edition/Edit/EditSelect.ts:176"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/Api/Edition/Edit/EditSelect.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/project/p/{projectId}/user/pageQuery",
+   "raw_patterns": [
+    "${PROJECT_URL(pid)}/user/pageQuery"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:144"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/:param/apiDefinition/mock/response",
+   "raw_patterns": [
+    "/rest/quality/a/${appId.value}/apiDefinition/mock/response"
+   ],
+   "defs": [
+    "src/components/Api/Interface/Components/Document/useContext.ts:14"
+   ],
+   "usages": 49,
+   "files": [
+    "src/components/Api/Interface/Components/Document/Main.vue",
+    "src/components/Api/Interface/Components/Document/useContext.ts",
+    "src/components/Api/Interface/Components/Issue/Main.vue",
+    "src/components/Api/Interface/Components/Run/CaseRunPage/Main.vue",
+    "src/components/Api/Interface/Components/Run/Components/ExecuteHistory/Main.vue",
+    "src/components/Api/Interface/Main.vue",
+    "src/components/Api/Schema/Main.vue",
+    "src/components/AutomatedTesting/TestScenario/Detail/Data/Main.vue",
+    "src/components/AutomatedTesting/TestScenario/Detail/Main.vue",
+    "src/components/AutomatedTesting/TestScenario/Detail/RefRelation/Main.vue",
+    "src/components/AutomatedTesting/TestScenario/Detail/Report/Main.vue",
+    "src/components/AutomatedTesting/TestScenario/Detail/Steps/Main.vue",
+    "src/components/AutomatedTesting/TestScenarioExecute/List/Content/StepItem.vue",
+    "src/components/AutomatedTesting/TimedTask/BaseInfo/Main.vue",
+    "src/components/AutomatedTesting/TimedTask/History/BatchExecution.vue",
+    "src/components/AutomatedTesting/VariableReference/Main.vue",
+    "src/components/DataSetEditor/Main.vue",
+    "src/components/DynamicValue/Main.vue",
+    "src/components/FlexLayout/Wrapper/Main.vue",
+    "src/components/Global/TestScenarioTree/Main.vue",
+    "src/components/GlobalSetting/ServiceManage/Main.vue",
+    "src/components/JsonSchemaTree/JsonSchemaNode.vue",
+    "src/components/JsonSchemaTree/JsonSchemaRef.vue",
+    "src/components/JsonSchemaTree/JsonSchemaTree.vue",
+    "src/components/JsonSchemaTree/JsonSchemaView/JsonShcemaView.vue",
+    "src/components/JsonSchemaTree/JsonSchemaView/JsonShcemaViewNode.vue",
+    "src/components/JsonSchemaTree/JsonSchemaView/JsonShcemaViewRef.vue",
+    "src/components/JsonSchemaTree/Widget/Setting/SettingStatus.vue",
+    "src/components/PlayWright/SelectorSet/Main.vue",
+    "src/components/PlayWright/SelectorTree/Collection/Main.vue",
+    "src/components/PlayWright/SelectorTree/Main.vue",
+    "src/components/PlayWright/SelectorTree/NodeWrapper/Main.vue",
+    "src/components/PlayWright/StepDetail/Main.vue",
+    "src/components/PlayWright/StepDetail/Wrapper/Event.vue",
+    "src/components/PublicSetting/ImportScenario/Wrapper/Import.vue",
+    "src/components/TestCaseEditor/EditorHeader/Main.vue",
+    "src/components/TestCaseEditor/Main.vue",
+    "src/components/TestCaseEditor/StepCollection/Main.vue",
+    "src/components/TestCaseEditor/StepDetailView/Main.vue",
+    "src/components/TestCaseEditor/StepNode/Header/Main.vue",
+    "src/components/TestCaseEditor/StepNode/Main.vue",
+    "src/components/TestCaseEditor/StepNode/Widget/HttpCaseEditor.vue",
+    "src/components/TestCaseEditor/StepWrapper/Main.vue",
+    "src/components/TestStep/Main.vue",
+    "src/components/UploadFile/Widget/CellHandlingRules.vue",
+    "src/components/Widget/AutoFill/index.ts",
+    "src/view/AutomatedTesting/Wrapper/Main.vue",
+    "src/view/InterfaceMenagement/Main.vue",
+    "src/view/PluginManagement/Main.vue"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/:param/apiLibrary/getApiLibrary",
+   "raw_patterns": [
+    "/rest/quality/a/${appId}/apiLibrary/getApiLibrary"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:11"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/case/copy",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/copy"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:86"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/case/create",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/create"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:21"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/case/get",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/get"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:30"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/case/reset",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/reset"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:77"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/case/scenarios ",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/scenarios "
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:40"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/case/stage",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/stage"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:68"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/edition/activate",
+   "raw_patterns": [
+    "${scoped(options.appId)}/api/edition/activate"
+   ],
+   "defs": [
+    "src/service/Api/Edition/index.ts:53"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Edition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/edition/list",
+   "raw_patterns": [
+    "${scoped(options.appId)}/api/edition/list"
+   ],
+   "defs": [
+    "src/service/Api/Edition/index.ts:41"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Edition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/env/setting/save",
+   "raw_patterns": [
+    "${ENV_URL(aid)}/save"
+   ],
+   "defs": [
+    "src/service/Api/Env/index.ts:32"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Env/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/report/getTempUrl",
+   "raw_patterns": [
+    "${QUALITY_URL(appId)}/api/report/getTempUrl"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioExecute/index.ts:120"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioExecute/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/report/http/search",
+   "raw_patterns": [
+    "${scope(options.appId)}/http/search"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioReport/index.ts:79"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioReport/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/report/search",
+   "raw_patterns": [
+    "${scope(options.appId)}/search"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioReport/index.ts:62"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenarioReport/index.ts",
+    "src/service/Api/TimedTask/TimedTaskReportService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/report/task/search",
+   "raw_patterns": [
+    "${scope(options.appId)}/task/search"
+   ],
+   "defs": [
+    "src/service/Api/TimedTask/TimedTaskBatchReportService.ts:59"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TimedTask/TimedTaskBatchReportService.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param",
+   "raw_patterns": [
+    "${scope(options.appId)}/${expect === \"scenario\" ? \"changeToScenario\" : \"changeToStepSet\"}"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:125"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param/ref/ui",
+   "raw_patterns": [
+    "${scenarioScoped(appId)}/${scenarioId}/ref/ui"
+   ],
+   "defs": [
+    "src/service/Api/PlayWright/api.ts:13"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PlayWright/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param/snapshot",
+   "raw_patterns": [
+    "${scope(option.appId)}/${option.scenarioId}/snapshot"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/snapshot.ts:30"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/snapshot.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/changeToScenarioCheck",
+   "raw_patterns": [
+    "${scope(options.appId)}/changeToScenarioCheck"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:135"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/copy",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/copy"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:160"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/create",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/create"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:144"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/description",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/description"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/detail.ts:53"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/detail.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/get",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/get"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/detail.ts:38"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenario/detail.ts",
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group",
+   "raw_patterns": [
+    "${scope(options.appId)}/group"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:112"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/copy",
+   "raw_patterns": [
+    "${scope(options.appId)}/group/copy"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:152"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/copyBetweenApp",
+   "raw_patterns": [
+    "${QUALITY_URL(appId)}/api/scenario/group/copyBetweenApp"
+   ],
+   "defs": [
+    "src/service/Api/ImportScenario/base.ts:10"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ImportScenario/base.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/copyBetweenAppCheck",
+   "raw_patterns": [
+    "${QUALITY_URL(appId)}/api/scenario/group/copyBetweenAppCheck"
+   ],
+   "defs": [
+    "src/service/Api/ImportScenario/base.ts:5"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ImportScenario/base.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/description",
+   "raw_patterns": [
+    "${scenarioScoped(appId)}/group/description"
+   ],
+   "defs": [
+    "src/service/Api/PlayWright/api.ts:55"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PlayWright/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/locator/references",
+   "raw_patterns": [
+    "${QUALITY_URL(options.appId)}/api/scenario/group/locator/references"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/refRelation.ts:43"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/refRelation.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/scenarioTree",
+   "raw_patterns": [
+    "${scope(options.appId)}/group/scenarioTree"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:91"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/schedule",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/group/schedule"
+   ],
+   "defs": [
+    "src/service/Api/TimedTask/index.ts:44"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TimedTask/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/selector",
+   "raw_patterns": [
+    "${scenarioScoped(appId)}/group/selector"
+   ],
+   "defs": [
+    "src/service/Api/PlayWright/api.ts:49"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PlayWright/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/syncLocator",
+   "raw_patterns": [
+    "${scope(options.appId)}/group/syncLocator"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:148"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/visible/scenarioTree",
+   "raw_patterns": [
+    "${scope(options.appId)}/group/visible/scenarioTree"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/BuiltInTress.ts:67"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/BuiltInTress.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/importSteps",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/importSteps"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:176"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/processByRule",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/processByRule"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/detail.ts:69"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/detail.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/references",
+   "raw_patterns": [
+    "${QUALITY_URL(options.appId)}/api/scenario/references"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/refRelation.ts:33"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/refRelation.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/replace",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/replace"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:203"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/replace/check",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/replace/check"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:198"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/search",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/search"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:122"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenario/index.ts",
+    "src/service/Api/TimedTask/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/stepSet",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/stepSet"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:193"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/syncTo",
+   "raw_patterns": [
+    "${scope(options.appId)}/syncTo"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:144"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/service",
+   "raw_patterns": [
+    "${QUALITY_URL(option.aid)}/api/service"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:164"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/data/add",
+   "raw_patterns": [
+    "${scope(options.appId)}/add"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioData/index.ts:52"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioData/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/data/copy",
+   "raw_patterns": [
+    "${scope(options.appId)}/copy"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioData/index.ts:60"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioData/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/execute/case/history",
+   "raw_patterns": [
+    "${QUALITY_URL(aid)}/api/test/execute/case/history"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:104"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/execute/getMockModel",
+   "raw_patterns": [
+    "${EXECUTE_URL(aid)}/getMockModel"
+   ],
+   "defs": [
+    "src/service/Api/Execute/index.ts:11"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Execute/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/autoStepRule",
+   "raw_patterns": [
+    "${URL(option.aid)}/autoStepRule"
+   ],
+   "defs": [
+    "src/service/Api/StepProcessingRuleService/index.ts:58"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/StepProcessingRuleService/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/commonResponse",
+   "raw_patterns": [
+    "${URL(option.aid)}/commonResponse"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:95"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/commonScripts",
+   "raw_patterns": [
+    "${URL(option.aid)}/commonScripts"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:86"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/dbConnection",
+   "raw_patterns": [
+    "${URL(option.aid)}/dbConnection"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:32"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/getItem",
+   "raw_patterns": [
+    "${URL(option.aid)}/getItem"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:59"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/getItemPage",
+   "raw_patterns": [
+    "${URL(option.aid)}/getItemPage"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:69"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/mockMatchRule",
+   "raw_patterns": [
+    "${URL(option.aid)}/mockMatchRule"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:50"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/parameters",
+   "raw_patterns": [
+    "${URL(option.aid)}/parameters"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:22"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/uiSetting",
+   "raw_patterns": [
+    "${URL(aid)}/uiSetting"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:134"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/variables",
+   "raw_patterns": [
+    "${URL(option.aid)}/variables"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:13"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/api/variable/reference/scenario",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/variable/reference/scenario"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:180"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/apiIssue",
+   "raw_patterns": [
+    "${URL(aid)}/apiIssue"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:217"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/associatedIssue",
+   "raw_patterns": [
+    "${URL(aid)}/associatedIssue"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:221"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/copy",
+   "raw_patterns": [
+    "${URL(aid)}/copy"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:161"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/create",
+   "raw_patterns": [
+    "${URL(aid)}/create"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:21"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/createEdition",
+   "raw_patterns": [
+    "${URL(aid)}/createEdition"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:230"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/generateRaw",
+   "raw_patterns": [
+    "${URL(aid)}/generateRaw"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:189"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/get",
+   "raw_patterns": [
+    "${URL(aid)}/get"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:38"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts",
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/getExecData",
+   "raw_patterns": [
+    "${URL(aid)}/getExecData"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:122"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/getShareToCurrentSysApi",
+   "raw_patterns": [
+    "${URL(aid)}/getShareToCurrentSysApi"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:212"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/getShareToOtherSysApi",
+   "raw_patterns": [
+    "${URL(aid)}/getShareToOtherSysApi"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:200"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/mock/list",
+   "raw_patterns": [
+    "${URL(aid)}/mock/list"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:66"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/mock/save",
+   "raw_patterns": [
+    "${URL(aid)}/mock/save"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:92"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/mock/script/get",
+   "raw_patterns": [
+    "${URL(aid)}/mock/script/get"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:151"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/mock/script/save",
+   "raw_patterns": [
+    "${URL(aid)}/mock/script/save"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:141"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/scenarios ",
+   "raw_patterns": [
+    "${URL(aid)}/scenarios "
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:247"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/search",
+   "raw_patterns": [
+    "${URL(aid)}/search"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:12"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/statisticsSystemApi",
+   "raw_patterns": [
+    "${URL(aid)}/statisticsSystemApi"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:207"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/updateEdition",
+   "raw_patterns": [
+    "${URL(aid)}/updateEdition"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:238"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/addGroup",
+   "raw_patterns": [
+    "${URL(aid)}/addGroup"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:51"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/apiTree",
+   "raw_patterns": [
+    "${URL(aid)}/apiTree"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:22"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/getLocalShareConfig",
+   "raw_patterns": [
+    "${URL(aid)}/getLocalShareConfig"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:197"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/getModel",
+   "raw_patterns": [
+    "${URL(aid)}/getModel"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:173"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/getProcessors",
+   "raw_patterns": [
+    "${URL(aid)}/getProcessors"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:145"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/importApiDefinition",
+   "raw_patterns": [
+    "${URL(aid)}/importApiDefinition"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:100"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/modelTree",
+   "raw_patterns": [
+    "${URL(aid)}/modelTree"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:163"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/models",
+   "raw_patterns": [
+    "${URL(aid)}/models"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:109"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/uniqueSetting",
+   "raw_patterns": [
+    "${URL(aid)}/uniqueSetting"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:222"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/testEnvironment/create",
+   "raw_patterns": [
+    "${TEST_ENVIRONMENT_URL(aid)}/create"
+   ],
+   "defs": [
+    "src/service/Api/Env/index.ts:72"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Env/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/testEnvironment/edit",
+   "raw_patterns": [
+    "${TEST_ENVIRONMENT_URL(aid)}/edit"
+   ],
+   "defs": [
+    "src/service/Api/Env/index.ts:66"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Env/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/testwire/param/preview",
+   "raw_patterns": [
+    "${QUALITY_URL(aid)}/testwire/param/preview"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:193"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/uiStep",
+   "raw_patterns": [
+    "${uiStepScoped(appId)}"
+   ],
+   "defs": [
+    "src/service/Api/PlayWright/api.ts:22"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PlayWright/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "POST",
+   "real_path": "/rest/quality/a/{appId}/uiStep/getBySelector/:param",
+   "raw_patterns": [
+    "${uiStepScoped(appId)}/getBySelector/${selectorId}"
+   ],
+   "defs": [
+    "src/service/Api/PlayWright/api.ts:73"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PlayWright/api.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/plugin/api/setting",
+   "raw_patterns": [
+    "/plugin/api/setting"
+   ],
+   "defs": [
+    "src/service/Api/Local/index.ts:34"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Local/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/case/exec",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/exec"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:12"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/case/rename",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/rename"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:95"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/case/update",
+   "raw_patterns": [
+    "${CASE_URL(aid)}/update"
+   ],
+   "defs": [
+    "src/service/Api/ApiCase/index.ts:59"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiCase/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/common/follow",
+   "raw_patterns": [
+    "${QUALITY_URL(aid)}/api/common/follow"
+   ],
+   "defs": [
+    "src/service/Api/Global/index.ts:38"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Global/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param/runtimeSetting",
+   "raw_patterns": [
+    "${scope(option.appId)}/${option.scenarioId}/runtimeSetting"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/runtimeSetting.ts:33"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/runtimeSetting.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/:param/step/:param",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/${options.scenarioId}/step/${options.stepId}"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/detail.ts:82"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenario/detail.ts",
+    "src/service/Api/TestScenario/step.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/changeApiEdition",
+   "raw_patterns": [
+    "${QUALITY_URL(appId.value)}/api/scenario/changeApiEdition"
+   ],
+   "defs": [
+    "src/components/TestCaseEditor/ToogleEdition/Main.vue:107"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/TestCaseEditor/ToogleEdition/Main.vue"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/checkExecCond",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/checkExecCond"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/detail.ts:65"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/detail.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/confirmApiEdition",
+   "raw_patterns": [
+    "${QUALITY_URL(appId.value)}/api/scenario/confirmApiEdition"
+   ],
+   "defs": [
+    "src/components/TestCaseEditor/ToogleEdition/Main.vue:136"
+   ],
+   "usages": 1,
+   "files": [
+    "src/components/TestCaseEditor/ToogleEdition/Main.vue"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group",
+   "raw_patterns": [
+    "${scope(options.appId)}/group"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:116"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/move",
+   "raw_patterns": [
+    "${scope(options.appId)}/group/move"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioGroup/index.ts:120"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/group/schedule/:param/count",
+   "raw_patterns": [
+    "${scope(appId)}/api/scenario/group/schedule/${id}/count"
+   ],
+   "defs": [
+    "src/service/Api/TimedTask/index.ts:70"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TimedTask/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/input",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/input"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:172"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/manualSync",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/manualSync"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/detail.ts:61"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/detail.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/move",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/move"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:188"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/rename",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/rename"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/index.ts:164"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/snapshot/:param",
+   "raw_patterns": [
+    "${scope(option.appId)}/snapshot/${option.snapshotId}"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/snapshot.ts:34"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenario/snapshot.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/scenario/update",
+   "raw_patterns": [
+    "${scope(options.appId)}/api/scenario/update"
+   ],
+   "defs": [
+    "src/service/Api/TestScenario/detail.ts:49"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/TestScenario/detail.ts",
+    "src/service/Api/TestScenario/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/service/:param",
+   "raw_patterns": [
+    "${QUALITY_URL(option.aid)}/api/service/${state.id}"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:182"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/test/data/edit",
+   "raw_patterns": [
+    "${scope(options.appId)}/edit"
+   ],
+   "defs": [
+    "src/service/Api/TestScenarioData/index.ts:56"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/TestScenarioData/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/addressSetting",
+   "raw_patterns": [
+    "${URL(aid)}/addressSetting"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:124"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/baseSetting",
+   "raw_patterns": [
+    "${URL(aid)}/baseSetting"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:104"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/api/test/setting/mockSetting",
+   "raw_patterns": [
+    "${URL(option.aid)}/mockSetting"
+   ],
+   "defs": [
+    "src/service/Api/Setting/index.ts:41"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/Setting/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/edit",
+   "raw_patterns": [
+    "${URL(aid)}/edit"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:29"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/getService",
+   "raw_patterns": [
+    "${URL(aid)}/getService"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:102"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/listResponses",
+   "raw_patterns": [
+    "${URL(aid)}/listResponses"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:131"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/mock/sort",
+   "raw_patterns": [
+    "${URL(aid)}/mock/sort"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:74"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/move",
+   "raw_patterns": [
+    "${URL(aid)}/move"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:171"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiDefinition/rename",
+   "raw_patterns": [
+    "${URL(aid)}/rename"
+   ],
+   "defs": [
+    "src/service/Api/ApiDefinition/index.ts:180"
+   ],
+   "usages": 2,
+   "files": [
+    "src/service/Api/ApiDefinition/index.ts",
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/createModelEdition",
+   "raw_patterns": [
+    "${URL(aid)}/createModelEdition"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:207"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/editGroup",
+   "raw_patterns": [
+    "${URL(aid)}/editGroup"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:139"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/editLocalShareConfig",
+   "raw_patterns": [
+    "${URL(aid)}/editLocalShareConfig"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:202"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/resetFetchCode/:param",
+   "raw_patterns": [
+    "${URL(aid)}/resetFetchCode/${id}"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:192"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/saveCustomPage",
+   "raw_patterns": [
+    "${URL(aid)}/saveCustomPage"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:71"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/saveObjectModel",
+   "raw_patterns": [
+    "${URL(aid)}/saveObjectModel"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:154"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/apiGroup/updateModelEdition",
+   "raw_patterns": [
+    "${URL(aid)}/updateModelEdition"
+   ],
+   "defs": [
+    "src/service/Api/ApiGroup/index.ts:211"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/ApiGroup/index.ts"
+   ],
+   "resolved": true
+  },
+  {
+   "method": "PUT",
+   "real_path": "/rest/quality/a/{appId}/uiStep/:param",
+   "raw_patterns": [
+    "${uiStepScoped(appId)}/${id}"
+   ],
+   "defs": [
+    "src/service/Api/PlayWright/api.ts:31"
+   ],
+   "usages": 1,
+   "files": [
+    "src/service/Api/PlayWright/api.ts"
+   ],
+   "resolved": true
+  }
+ ],
+ "non_interfaces": [
+  {
+   "id": 17129,
+   "method": "",
+   "pattern": "api/:id",
+   "normalized": "api/:id",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 59,
+   "def_code": "path: \"api/:id\"",
+   "path_params": [
+    "id"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17130,
+   "method": "",
+   "pattern": "api/:system/:group/add",
+   "normalized": "api/:system/:group/add",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 66,
+   "def_code": "path: \"api/:system/:group/add\"",
+   "path_params": [
+    "system",
+    "group"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17127,
+   "method": "",
+   "pattern": "/application/:aid",
+   "normalized": "application/:aid",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 32,
+   "def_code": "path: \"/application/:aid\"",
+   "path_params": [
+    "aid"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17126,
+   "method": "",
+   "pattern": "/application/${apiwire.appId}/${to.fullPath}",
+   "normalized": "application/:apiwire.appId/${to.fullPath}",
+   "def_file": "src/controller/Apiwire/AppCreated/initializeRouterBeforeEach.ts",
+   "def_line": 17,
+   "def_code": "path: `/application/${appId}/${to.fullPath}`",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/AppCreated/initializeRouterBeforeEach.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17162,
+   "method": "",
+   "pattern": "/error",
+   "normalized": "error",
+   "def_file": "src/router/routes.ts",
+   "def_line": 17,
+   "def_code": "path: \"/error\"",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/router/routes.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17128,
+   "method": "",
+   "pattern": "group/:system/:id",
+   "normalized": "group/:system/:id",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 52,
+   "def_code": "path: \"group/:system/:id\"",
+   "path_params": [
+    "system",
+    "id"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17118,
+   "method": "",
+   "pattern": "http://localhost:10086",
+   "normalized": "http:/localhost:10086",
+   "def_file": "src/components/PublicSetting/AddressSetting/useContext.ts",
+   "def_line": 13,
+   "def_code": "address: 'http://localhost:10086'",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/components/PublicSetting/AddressSetting/useContext.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17159,
+   "method": "",
+   "pattern": "/login",
+   "normalized": "login",
+   "def_file": "src/router/routes.ts",
+   "def_line": 10,
+   "def_code": "path: \"/login\"",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/router/routes.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17682,
+   "method": "",
+   "pattern": "https://cdn.staticfile.org/monaco-editor/0.38.0/min/vs/loader.min.js",
+   "normalized": "/monaco-editor/0.38.0/min/vs/loader.min.js",
+   "def_file": "src/utils/Source.ts",
+   "def_line": 27,
+   "def_code": "export function loadScriptSrc (src: string): Promise<HTMLScriptElement> {",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/utils/Source.ts"
+   ],
+   "kind": "第三方静态资源",
+   "is_real": false
+  },
+  {
+   "id": 17149,
+   "method": "",
+   "pattern": "/plugin/api/case/excute",
+   "normalized": "/plugin/api/case/excute",
+   "def_file": "src/service/Api/ApiCase/ApiCaseService.ts",
+   "def_line": 78,
+   "def_code": "return AsyncValue.await(caseExec(data));",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/service/Api/ApiCase/ApiCaseService.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17120,
+   "method": "",
+   "pattern": "/plugin/api/cookie",
+   "normalized": "/plugin/api/cookie",
+   "def_file": "src/components/PublicSetting/PublicCookies/Main.vue",
+   "def_line": 53,
+   "def_code": "return getCookie().then(res => {",
+   "path_params": [],
+   "usages": 3,
+   "usage_files": [
+    "src/components/PublicSetting/PublicCookies/EditCookies/Main.vue",
+    "src/components/PublicSetting/PublicCookies/Main.vue"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17119,
+   "method": "",
+   "pattern": "/plugin/api/import/parse",
+   "normalized": "/plugin/api/import/parse",
+   "def_file": "src/components/PublicSetting/ImportData/Main.vue",
+   "def_line": 151,
+   "def_code": "const res = await importParse({ url: form.url });",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/components/PublicSetting/ImportData/Main.vue"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17114,
+   "method": "",
+   "pattern": "/plugin/api/job/refresh",
+   "normalized": "/plugin/api/job/refresh",
+   "def_file": "src/components/AutomatedTesting/TimedTask/BaseInfo/useContext.ts",
+   "def_line": 75,
+   "def_code": "canTestwireRun.value && TimedTaskService.jobRefresh();",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/components/AutomatedTesting/TimedTask/BaseInfo/useContext.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17096,
+   "method": "",
+   "pattern": "/plugin/api/log/download/id/${id}",
+   "normalized": "/plugin/api/log/download/id/${id}",
+   "def_file": "src/components/Api/Interface/Components/Run/Components/Response/Body/Main.vue",
+   "def_line": 31,
+   "def_code": "downloadFile(execResult.id).then(res => {",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/components/Api/Interface/Components/Run/Components/Response/Body/Main.vue"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17111,
+   "method": "",
+   "pattern": "/plugin/api/log/id/${id}",
+   "normalized": "/plugin/api/log/id/${id}",
+   "def_file": "src/components/AutomatedTesting/TestScenarioExecute/List/Content/useContext.ts",
+   "def_line": 22,
+   "def_code": "const promise = TestScenarioExecuteService.detail({ id: result.id }).then(res => {",
+   "path_params": [],
+   "usages": 2,
+   "usage_files": [
+    "src/components/AutomatedTesting/TestScenarioExecute/List/Content/useContext.ts",
+    "src/components/Global/TestScenarioRemoteTree/model/TestScenarioTreeLoader.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17116,
+   "method": "",
+   "pattern": "/plugin/api/param/preview",
+   "normalized": "/plugin/api/param/preview",
+   "def_file": "src/components/DynamicValue/useContext.ts",
+   "def_line": 9,
+   "def_code": "if (canTestwireRun) return AsyncValue.await(previewParam(options).then(res => res.results), \"\");",
+   "path_params": [],
+   "usages": 2,
+   "usage_files": [
+    "src/components/DynamicValue/useContext.ts",
+    "src/hooks/ApiHooks/utils/Automatically.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17226,
+   "method": "",
+   "pattern": "/plugin/api/refresh/all",
+   "normalized": "/plugin/api/refresh/all",
+   "def_file": "src/service/Api/ApiGroup/InterfaceGroupInfoService.ts",
+   "def_line": 36,
+   "def_code": "return AsyncValue.await(refreshAllMock());",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/service/Api/ApiGroup/InterfaceGroupInfoService.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17095,
+   "method": "",
+   "pattern": "/plugin/api/refresh/api",
+   "normalized": "/plugin/api/refresh/api",
+   "def_file": "src/components/Api/Interface/Components/Mock/Script/Main.vue",
+   "def_line": 71,
+   "def_code": "canTestwireRun.value &&  refreshApiMock({",
+   "path_params": [],
+   "usages": 3,
+   "usage_files": [
+    "src/components/Api/Interface/Components/Mock/Script/Main.vue",
+    "src/hooks/ApiHooks/useApiMock.ts",
+    "src/service/Api/ApiDefinition/InterfaceService.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17115,
+   "method": "",
+   "pattern": "plugin/api/report/search",
+   "normalized": "plugin/api/report/search",
+   "def_file": "src/components/AutomatedTesting/TimedTask/MatchScenario/ScenarioTable.vue",
+   "def_line": 92,
+   "def_code": "TimedTaskService.search({",
+   "path_params": [],
+   "usages": 2,
+   "usage_files": [
+    "src/components/AutomatedTesting/TimedTask/MatchScenario/ScenarioTable.vue",
+    "src/service/Api/TestScenarioReport/index.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17113,
+   "method": "",
+   "pattern": "plugin/api/scenario/batchTerminate",
+   "normalized": "plugin/api/scenario/batchTerminate",
+   "def_file": "src/components/AutomatedTesting/TimedTask/History/BatchExecution.vue",
+   "def_line": 114,
+   "def_code": "TimedTaskService.abort({",
+   "path_params": [],
+   "usages": 2,
+   "usage_files": [
+    "src/components/AutomatedTesting/TimedTask/History/BatchExecution.vue",
+    "src/components/AutomatedTesting/TimedTask/History/Main.vue"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17110,
+   "method": "",
+   "pattern": "/plugin/api/scenario/terminate",
+   "normalized": "/plugin/api/scenario/terminate",
+   "def_file": "src/components/AutomatedTesting/TestScenarioExecute/Expose.vue",
+   "def_line": 120,
+   "def_code": "TestScenarioService.end({ reportId: results.value.report.report.id }).then(res => {",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/components/AutomatedTesting/TestScenarioExecute/Expose.vue"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17117,
+   "method": "",
+   "pattern": "Read/Write",
+   "normalized": "Read/Write",
+   "def_file": "src/components/JsonSchemaTree/Widget/Setting/Context.ts",
+   "def_line": 220,
+   "def_code": "label: \"Read/Write\"",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/components/JsonSchemaTree/Widget/Setting/Context.ts"
+   ],
+   "kind": "界面文案",
+   "is_real": false
+  },
+  {
+   "id": 17125,
+   "method": "",
+   "pattern": "/rest/account/customMenu/type/${type}/save",
+   "normalized": "/rest/account/customMenu/type/${type}/save",
+   "def_file": "src/components/TestStep/Main.vue",
+   "def_line": 122,
+   "def_code": "CustomMenuService.saveCustomMenu({type:`favorite${props.testStepType}`, data:favorites}, ).then(res => {",
+   "path_params": [],
+   "usages": 2,
+   "usage_files": [
+    "src/components/TestStep/Main.vue"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17109,
+   "method": "",
+   "pattern": "/rest/global/file/show/${imgId}?isCached=true",
+   "normalized": "rest/global/file/show/:imgId?isCached=true",
+   "def_file": "src/components/AuditHistory/type.ts",
+   "def_line": 67,
+   "def_code": "return url",
+   "path_params": [
+    "imgId",
+    "imgId"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/components/AuditHistory/type.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17138,
+   "method": "",
+   "pattern": "/rest/quality/a/${appId}/apiLibrary/getApiLibrary",
+   "normalized": "/rest/quality/a/${appId}/apiLibrary/getApiLibrary",
+   "def_file": "src/hooks/ApiHooks/useApiTreeList.ts",
+   "def_line": 25,
+   "def_code": "return getApiLibrary(aid).then((res) => {",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/hooks/ApiHooks/useApiTreeList.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17081,
+   "method": "",
+   "pattern": "/rest/quality/a/${appId.value}/apiDefinition/mock/response",
+   "normalized": "/rest/quality/a/${appId.value}/apiDefinition/mock/response",
+   "def_file": "src/components/Api/ApiGroup/Component/ApiTable/Main.vue",
+   "def_line": 64,
+   "def_code": "const context = useContext({ groupId: props.id, groupCode: props.code })",
+   "path_params": [],
+   "usages": 2,
+   "usage_files": [
+    "src/components/Api/ApiGroup/Component/ApiTable/Main.vue",
+    "src/components/Api/Aside/Application/Tree/Main.vue"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  },
+  {
+   "id": 17131,
+   "method": "",
+   "pattern": "run/:apiId/:caseId",
+   "normalized": "run/:apiId/:caseId",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 73,
+   "def_code": "path: \"run/:apiId/:caseId\"",
+   "path_params": [
+    "apiId",
+    "caseId"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17133,
+   "method": "",
+   "pattern": "scenario/:id",
+   "normalized": "scenario/:id",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 97,
+   "def_code": "path: \"scenario/:id\"",
+   "path_params": [
+    "id"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17132,
+   "method": "",
+   "pattern": "schema/:systemCode/:id?",
+   "normalized": "schema/:systemCode/:id?",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 80,
+   "def_code": "path: \"schema/:systemCode/:id?\"",
+   "path_params": [
+    "systemCode",
+    "id"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17135,
+   "method": "",
+   "pattern": "selector/:id",
+   "normalized": "selector/:id",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 111,
+   "def_code": "path: \"selector/:id\"",
+   "path_params": [
+    "id"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17137,
+   "method": "",
+   "pattern": "set/:tab?",
+   "normalized": "set/:tab?",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 128,
+   "def_code": "path: \"set/:tab?\"",
+   "path_params": [
+    "tab"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17683,
+   "method": "",
+   "pattern": "/src/",
+   "normalized": "src",
+   "def_file": "vite.config.ts",
+   "def_line": 51,
+   "def_code": "'@/': '/src/'",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "vite.config.ts"
+   ],
+   "kind": "构建产物 / 路径别名（vite.config）",
+   "is_real": false
+  },
+  {
+   "id": 17686,
+   "method": "",
+   "pattern": "src/index.ts",
+   "normalized": "src/index.ts",
+   "def_file": "vite.config.ts",
+   "def_line": 81,
+   "def_code": "[\"main\"]: \"src/index.ts\"",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "vite.config.ts"
+   ],
+   "kind": "构建产物 / 路径别名（vite.config）",
+   "is_real": false
+  },
+  {
+   "id": 17685,
+   "method": "",
+   "pattern": "static/css/main.css",
+   "normalized": "static/css/main.css",
+   "def_file": "vite.config.ts",
+   "def_line": 76,
+   "def_code": "assetFileNames: \"static/css/main.css\"",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "vite.config.ts"
+   ],
+   "kind": "构建产物 / 路径别名（vite.config）",
+   "is_real": false
+  },
+  {
+   "id": 17684,
+   "method": "",
+   "pattern": "static/js/main.js",
+   "normalized": "static/js/main.js",
+   "def_file": "vite.config.ts",
+   "def_line": 75,
+   "def_code": "entryFileNames: \"static/js/main.js\"",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "vite.config.ts"
+   ],
+   "kind": "构建产物 / 路径别名（vite.config）",
+   "is_real": false
+  },
+  {
+   "id": 17136,
+   "method": "",
+   "pattern": "task/add",
+   "normalized": "task/add",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 118,
+   "def_code": "path: \"task/add\"",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17134,
+   "method": "",
+   "pattern": "task/:id",
+   "normalized": "task/:id",
+   "def_file": "src/controller/Apiwire/Mounted/initializeRootMenu.ts",
+   "def_line": 104,
+   "def_code": "path: \"task/:id\"",
+   "path_params": [
+    "id"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/controller/Apiwire/Mounted/initializeRootMenu.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17165,
+   "method": "",
+   "pattern": "/test",
+   "normalized": "test",
+   "def_file": "src/router/routes.ts",
+   "def_line": 23,
+   "def_code": "path: \"/test\"",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/router/routes.ts"
+   ],
+   "kind": "前端路由（Vue Router / 菜单树）",
+   "is_real": false
+  },
+  {
+   "id": 17394,
+   "method": "",
+   "pattern": "https://coop.logwirecloud.com/testwire/static/pw/api.json",
+   "normalized": "testwire/static/pw/api.json",
+   "def_file": "src/service/Api/PlayWright/ApiService.ts",
+   "def_line": 17,
+   "def_code": "fetch(url)",
+   "path_params": [],
+   "usages": 1,
+   "usage_files": [
+    "src/service/Api/PlayWright/ApiService.ts"
+   ],
+   "kind": "真实路径（未能判定 method）",
+   "is_real": true
+  }
+ ],
+ "plumbing": [
+  {
+   "id": 17679,
+   "method": "DELETE",
+   "pattern": "${url}",
+   "normalized": "${url}",
+   "def_file": "src/service/index.ts",
+   "def_line": 58,
+   "def_code": "axios\n    .delete(url, params as any)\n    .then(handleThen)\n    .catch(handleCatch)",
+   "path_params": [
+    "url",
+    "url"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/service/index.ts"
+   ],
+   "kind": "通用请求封装（WrapAxios 本身）"
+  },
+  {
+   "id": 17666,
+   "method": "POST",
+   "pattern": "${url}",
+   "normalized": "${url}",
+   "def_file": "src/service/index.ts",
+   "def_line": 28,
+   "def_code": "axios\n    .post(url, data, params as any)\n    .then(res => {\n      if (params && params.isFile) {\n        return res\n      }  else if(params && params.needAllResponse) {\n        return res;\n      } el",
+   "path_params": [
+    "url",
+    "url"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/service/index.ts"
+   ],
+   "kind": "通用请求封装（WrapAxios 本身）"
+  },
+  {
+   "id": 17672,
+   "method": "PUT",
+   "pattern": "${url}",
+   "normalized": "${url}",
+   "def_file": "src/service/index.ts",
+   "def_line": 43,
+   "def_code": "axios\n    .put(url, data, params as any)\n    .then(res => {\n      if (params && params.isFile) {\n        return res;\n      } else if(params && params.needAllResponse) {\n        return res;\n      } {\n ",
+   "path_params": [
+    "url",
+    "url"
+   ],
+   "usages": 1,
+   "usage_files": [
+    "src/service/index.ts"
+   ],
+   "kind": "通用请求封装（WrapAxios 本身）"
+  }
+ ],
+ "unresolved": [
+  {
+   "id": 17112,
+   "method": "GET",
+   "pattern": "${url}",
+   "normalized": "${url}",
+   "def_file": "src/components/AutomatedTesting/TestScenarioExecute/List/Videos.vue",
+   "def_line": 152,
+   "def_code": "Axios.get(url, { responseType: 'blob' })",
+   "path_params": [
+    "url"
+   ],
+   "usages": 3,
+   "usage_files": [
+    "src/components/AutomatedTesting/TestScenarioExecute/List/Videos.vue",
+    "src/service/index.ts"
+   ],
+   "real_path": null
+  }
+ ]
+}
