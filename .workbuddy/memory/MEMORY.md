@@ -67,6 +67,14 @@
    **会话态必须绕过 `searchTTLCache`**（缓存键不含历史，命中会返回「无视上文」的答案且无异常）。
    ⚠️ 不要用「打开 v2 checkpointer」代替：累积 reducer + `round` 不重置 ⇒ 同 thread 第二问会继承第一问证据。
    答案引用自检 = `llm/answer-consistency.ts`，`/ask` 与 `/root-cause` 响应带 `consistency` 字段。
+   ⚠️ **它是原生 SQL，不是 LangChain memory**：模块只 `import type { Pool } from 'pg'`（编译期擦除
+   ⇒ 运行时零依赖）。`langchain` 包**没装**（`BufferMemory`/`ConversationSummaryMemory` 不可用）；
+   `@langchain/langgraph-checkpoint-postgres` **只导出 `PostgresSaver`，没有 `PostgresStore`**
+   ⇒ 连 LangGraph 的长期记忆（BaseStore）那一半都还没提供。
+   若要「跨会话长期记忆 / 按语义召回历史 / 存工具轨迹」才值得换 `BaseStore`；
+   当前需求（按 session+repo 取最近 3 轮）一条 SQL 就到顶。
+   另外 `docs/agent-unimplemented-design.md` 里 `conversation_memory → BaseStore` 只是**当初的设计映射**，
+   不是实现记录 —— 实际用的是 `agent_conversations` 且不走 Store。
 
 ## 仓库与历史
 
