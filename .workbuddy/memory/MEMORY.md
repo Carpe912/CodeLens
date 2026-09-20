@@ -45,6 +45,12 @@
    ⚠️ helper 展开**必须按「定义所在文件」判作用域**（`scope` 14 文件同名不同义，全局先到先得
    会给出**错但很像真的**路径）。
    ✅ 清单完整性用**双实现集合差**验（硬编码 vs 数据驱动，归一化占位符后差集须 0）。
+5. **agent 系列 7 张表线上存在但全 0 行**（`agent_conversations`/`agent_executions`/`agent_lessons`/
+   `agent_performance_stats`/`agent_reflections`/`conversation_memory`/`tool_calls`），
+   而**仓库里已无建表 SQL** ⇒ **重建库不会产生它们**，落地相关能力必须先补迁移。
+   仅 `agent_conversations` 被代码读写（`core.ts`：`executeQuery()` 写、`getSession()` 读；
+   **`run()` 不读回历史** ⇒ "多轮对话"实为每轮无状态单轮）。
+   ⚠️ **0 行 ≠ 未调用**：`Failed to save conversation` 只打日志、不影响响应 ⇒ 有静默持久化失败。
 
 ## 仓库与历史
 
@@ -69,3 +75,15 @@
 - 索引器只认 **TS/JS/TSX/JSX 与 `.vue`**（Java/Python/Go 不入库）。
 - 线上仓：29 `test-repo`（**勿动**）、30 `fastify`、33 `testwire-frontend`（**仅 33 重建过**）。
 - 判命中不能按符号名判（关联命中 `symbol_name` 恒空）；BSD grep 的 `\|` 是字面量 → `-E`。
+  （**这条已经重复踩过 3 次**，包括在核查 agent 是否用 LangGraph 时——写 grep 前先想一下要几个模式。）
+- **v2 图 = `apps/api/src/agent/graph/`，真 LangGraph**（`@langchain/langgraph`），
+  拓扑 `retrieve → grade →（回边）→ generate`，`maxRounds = min(config.maxReasoningRounds, 策略计划长度)`。
+  ⚠️ **线上未开启**（`AGENT_GRAPH_ENABLED` 不在 pm2 进程 env、库里无 `checkpoint*` 表 ⇒ 从未执行过）；
+  仅 `POST /agent/v2/query` 暴露，不替换 v1 三条路由。`grade` 是**规则判定**
+  （`computeSufficiency()` 比阈值），**不是 ReAct**。自检：`pnpm --filter @codelens/api verify:graph`。
+- ⚠️ **重写历史的副作用**：新历史每个提交只含该模块的「**最终内容**」，不含演进过程 ⇒
+  被删除的文件（5 个 agent 占位类）在**新历史任何提交里都不存在**，`git show HEAD:<它们>` 必然失败。
+  旧提交只在 `main-before-rewrite` / `backup-before-commit-rewrite` 上，
+  **绝不要把这些旧 ref 推到远程**（含已泄漏的密钥）。依赖 git 考古的演示（如 `interview-prep/11` §491）
+  应改为**把旧代码贴进材料**。
+- 能力边界文档 = `docs/agent-unimplemented-design.md`（2026-09-20 已按线上实况修正）。
