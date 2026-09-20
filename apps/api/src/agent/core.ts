@@ -18,7 +18,9 @@
  * - ❌ 多轮推理循环（config.maxReasoningRounds 恒为死配置）
  * - ❌ 自我反思（REFLECTIONS_IMPLEMENTED 为 false，reflections 恒为 0）
  * - ❌ 任务分解 / 动态重规划（TaskPlanner 是空类，见 planner.ts）
- * - ❌ 跨轮记忆（不读取历史会话，每轮均无状态）
+ * - ❌ 本类不读取历史会话（本管道每轮无状态）
+ *   ⚠️ 注意区分：用户实际走的 `/ask` 链路**已经有**跨轮会话记忆
+ *   （`agent/conversation-memory.ts`），只是不在这里。见 AGENT_CAPABILITIES。
  * - ❌ 学习机制（config.enableLearning 未被读取）
  *
  * 工作流程：
@@ -40,6 +42,8 @@ import type {
 } from './types.js';
 import { MultiStrategySearch } from '../retrieval/multi-strategy-search.js';
 import { DEFAULT_SAMPLE_SIZE, estimateConfidenceFromScores } from '../utils/scoring.js';
+// 超时实现已抽到 utils/async.ts，与 LLM 调用侧共用同一份（避免两处阈值/文案漂移）
+import { withTimeout, withRetry } from '../utils/async.js';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -55,8 +59,25 @@ export const AGENT_CAPABILITIES = {
   REASONING_LOOP_IMPLEMENTED: false,
   /** 自我反思是否已实现 */
   REFLECTIONS_IMPLEMENTED: false,
-  /** 跨轮会话记忆是否已实现 */
+  /**
+   * `AgentCore.run()` 是否读取历史会话。
+   *
+   * ⚠️ 这个字段**只描述 `AgentCore` 自己**，不代表产品有没有会话记忆。
+   * 2026-09-20 起，用户实际使用的 `/ask` 链路**已经具备跨轮会话记忆**，
+   * 但它实现在 `agent/conversation-memory.ts` + `server/routes/ask.ts`，
+   * 与 `AgentCore` 无关（`run()` 依旧不读历史，每轮无状态）。
+   *
+   * 之所以不把这里改成 true：改了就是撒谎 —— `AgentCore` 确实没有。
+   * 之所以要写这么长：不改又有下游（前端 / 指标看板）读到 false
+   * 就断言「产品没有会话记忆」的风险。所以用 `ASK_ROUTE_SESSION_MEMORY_IMPLEMENTED`
+   * 单独声明后者。
+   */
   CONVERSATION_MEMORY_IMPLEMENTED: false,
+  /**
+   * `/ask` 路由的跨轮会话记忆是否已实现。
+   * 与 `AgentCore` 无关，是独立实现（见 `agent/conversation-memory.ts`）。
+   */
+  ASK_ROUTE_SESSION_MEMORY_IMPLEMENTED: true,
 } as const;
 
 /**
@@ -65,23 +86,6 @@ export const AGENT_CAPABILITIES = {
  * 而不是写死的 1。若将来实现多轮循环，应改为动态累计。
  */
 const AGENT_STAGES = ['classify', 'gather_evidence', 'generate_answer'] as const;
-
-/**
- * 给 Promise 套一层超时，超时后以错误拒绝。
- * 用于让 config.toolTimeout 真正生效（此前该配置从未被读取）。
- */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`[AgentCore] ${label} timed out after ${ms}ms`)),
-      ms
-    );
-    promise.then(
-      value => { clearTimeout(timer); resolve(value); },
-      error => { clearTimeout(timer); reject(error); }
-    );
-  });
-}
 
 /**
  * Agent 核心类
@@ -423,12 +427,25 @@ ${evidenceSummary}
     try {
       // 调用 LLM 生成答案（模型名由 config.llmModel 给出，
       // 若为 Claude 风格的名字而当前厂商是 DeepSeek，会由 llm/client.ts 自动映射）
-      const response = await this.llm.messages.create({
-        model: this.config.llmModel,      // 使用配置的模型
-        max_tokens: 2000,                 // 最大生成 2000 个 token
-        temperature: this.config.temperature, // 使用配置的温度参数
-        messages: [{ role: 'user', content: prompt }]
-      });
+      //
+      // 套超时 + 一次重试：LLM 是最容易长时间挂住的一步，此前这里没有任何
+      // 超时，上游不返回就会把整个 HTTP 请求拖死（表现为页面转圈、日志干净）。
+      // 超时后走下方降级答案，至少让调用方拿到明确结果。
+      const response = await withRetry(
+        () => this.llm.messages.create({
+          model: this.config.llmModel,      // 使用配置的模型
+          max_tokens: 2000,                 // 最大生成 2000 个 token
+          temperature: this.config.temperature, // 使用配置的温度参数
+          messages: [{ role: 'user', content: prompt }]
+        }),
+        {
+          attempts: 2,
+          timeoutMs: this.config.toolTimeout, // 与工具调用共用同一超时预算
+          label: 'llm.generateAnswer',
+          onAttemptFailed: (attempt, error) =>
+            console.error(`[AgentCore] Answer generation attempt ${attempt} failed:`, error),
+        }
+      );
 
       // 提取文本内容（第一个文本块；无文本块时返回空字符串，
       // 交回下方降级答案处理）

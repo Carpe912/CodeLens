@@ -2,8 +2,16 @@
 
 > **状态**：本文描述的这些能力**均未实现**（作用域：v1 `AgentCore`，见下文说明）。
 >
-> **唯一的例外是「有界迭代」这一层**：`apps/api/src/agent/graph/`（LangGraph）已把它落地，
-> 但**线上默认关闭**，且它只覆盖「迭代」——不含推理、反思、记忆、工具注册。详见文末「已经落地的部分」。
+> **唯一的两处例外**：
+>
+> 1. **「有界迭代」**：`apps/api/src/agent/graph/`（LangGraph）已落地，
+>    但**线上默认关闭**，且只覆盖「迭代」——不含推理、反思、记忆、工具注册。详见「已经落地的部分」。
+> 2. **「跨轮会话记忆」**（2026-09-20 新增）：已在 **`/ask` 路由**落地，
+>    与 `AgentCore` 无关（`AgentCore.run()` 仍然不读历史）。实现
+>    `apps/api/src/agent/conversation-memory.ts`，见下文「2026-09-20 已落地的两项」。
+>
+> 也就是说：**`AgentCore` 这条管道本身依然没有记忆、推理、反思、规划**，
+> 但产品对用户暴露的主链路（`/ask`）已经具备跨轮上下文。
 >
 > 本文承接原先散落在 `apps/api/src/agent/` 下 5 个占位文件 JSDoc 中的设计笔记。
 > 那些笔记原本挂在 `export class X {}` 这样的空类上，容易让读者误以为能力已经存在。
@@ -30,6 +38,13 @@
 >   `[AgentCore] Failed to save conversation`，而该 catch 只打印日志、**不影响响应返回**
 >   —— 也就是说存在一类**静默的持久化失败**。要判断某张表究竟是没被调用还是写失败了，
 >   必须结合日志，只看行数会得出错误结论。
+> - ✅ **同日已修上面的「落差」**：`agent_conversations` 的建表声明已补回
+>   `apps/api/src/db/index.ts`（`CREATE TABLE IF NOT EXISTS` + 逐列
+>   `ADD COLUMN IF NOT EXISTS` 兜底 + 会话索引），线上表原样可用（幂等 no-op）。
+>   同时 `check:sql` 新增了「SQL 引用但 schema 未声明的表」白名单闸门 ——
+>   此前这张表正是因为那道闸门**刻意跳过未知表**而长期隐形（详见下方「为什么 0 行」一段）。
+> - ⚠️ 另外 6 张表**仍然没有建表声明**，且仍然零引用零行。它们不参与任何闸门校验，
+>   属于「既没被用、也没被声明」的状态。
 
 ---
 
@@ -56,7 +71,7 @@
 | 多轮推理循环 | ⚠️ v1 未实现；**v2 图已实现有界多轮**（规则评分驱动，非 LLM 推理） | `config.maxReasoningRounds` |
 | 自我反思 | ❌ 未实现 | `config.enableReflection`、`agent_reflections` 表 |
 | 任务分解与重规划 | ❌ 未实现 | `TaskPlanner` |
-| 跨轮会话记忆 | ❌ 未实现 | `config.enableLearning`、`conversation_memory` 表 |
+| 跨轮会话记忆 | ✅ **`/ask` 已实现**（2026-09-20）；`AgentCore` 自身仍未实现 | `conversation_memory` 表（仍空置） |
 | 学习机制 | ❌ 未实现 | `agent_lessons` 表 |
 | 工具动态注册 | ❌ 未实现 | `ToolRegistry`、`tool_calls` 表 |
 
@@ -141,6 +156,18 @@ while (!达到目标 && 轮次 < 最大轮次) {
 - **读取**确实存在，但在另一个方法 `getSession()` 里（供「查看会话历史 / 恢复上下文」用）；
   `run()` **不调用它**——这才是「多轮无状态」的真正原因。
 - 与本节能力直接对应的 `conversation_memory` 表：线上 0 行、源码零引用。
+
+> ✅ **2026-09-20：本节能力已在别处落地（但不是在 `AgentCore` 里）。**
+>
+> 真正的跨轮会话记忆做在 **`/ask` 链路**上：`agent/conversation-memory.ts`
+> 负责读写 `agent_conversations`，`server/routes/ask.ts` 在调用 LLM 前把它压缩成
+> 上下文注入提示词。上面列的「`AgentCore` 不读历史」这三点**依然成立**——
+> 两条链路互不影响。
+>
+> 为什么不去改 `AgentCore` 而是另起一处：线上真实流量走的是 `/ask`
+> （前端只调 `/ask`，`/agent/query` 无前端调用方 —— 这正是 `agent_conversations`
+> 长期 0 行的原因）。把记忆做在没人走的链路上，等于没做。
+> 详见文末「2026-09-20 已落地的两项」。
 
 ---
 
@@ -234,3 +261,86 @@ consistencyScore）、效率（timePerStep / toolSuccessRate / resourceUtilizati
 >    「本状态字段 → `agent_executions` 列」，**没有一行代码真的往那张表写**；
 >    LangGraph 的 checkpoint 落进的是它自己的 `checkpoint*` 表。
 >    也就是说：本文档前半部分列的那 6 张 agent 表，与已经落地的 v2 图**还没有接上**。
+
+---
+
+## 2026-09-20 已落地的两项（本次新增）
+
+按「先做投入产出最高的一项」的原则，从上面 6 个未实现能力里只挑了两项落地。
+**没做的四项及否决理由见 `.workbuddy/memory/` 的决策记录**，此处只记做了什么、边界在哪。
+
+### 1. 跨轮会话记忆（`/ask` 链路）
+
+| 项 | 实际情况 |
+|---|---|
+| 位置 | `apps/api/src/agent/conversation-memory.ts`，由 `server/routes/ask.ts` 接线 |
+| 载体 | `agent_conversations` 表（线上已存在，**本次同时补回了建表声明**，见文首 2026-09-20 复核） |
+| 开启方式 | 请求体带 `sessionId` 即开启；**不带则行为与开启前逐字一致**（不读、不写、走缓存） |
+| 读取口径 | `WHERE session_id = $1 AND repo_id = $2 ORDER BY created_at DESC, id DESC LIMIT 3` |
+| 注入方式 | `formatConversationContext()` 压缩成文本块，插在「用户问题」与「本轮代码证据」之间 |
+| 前端 | `apps/web/src/utils/askSession.ts` 按 repo 存 sessionId；结果卡上方显示「本次会话第 N 轮 · 已注入历史 M 轮」+「新会话」按钮 |
+| 自检 | `pnpm --filter @codelens/api verify:memory`（47 项断言 + 真实库往返 25 项） |
+
+**为什么必须带 `repo_id`**：同一 sessionId 可能被复用到别的仓库，不带就会把别的仓库的
+代码问答注入进来 —— 模型会顺着错误上下文往下答，而且看上去「言之有据」。
+
+**为什么 `ORDER BY` 要带 `id` 兜底**：只按 `created_at` 排是不确定的。
+同一条 `INSERT ... VALUES (...), (...), (...)` 里 `NOW()` 是**事务时间戳**，
+三行的 `created_at` 完全相同，此时顺序由存储引擎决定，取回来的「上一轮」可能不是真的上一轮。
+（这条已用真实库断言验证：构造同时间戳的三行，仍按插入顺序返回。）
+
+**为什么会话态要绕过 `searchTTLCache`**：缓存键是
+`(repoId, query, enhanced, strategy)`，**不含会话历史**。而会话态下同一个问题在
+第 1 轮和第 3 轮的正确答案不同。键入相同 ⇒ 第 3 轮会命中第 1 轮的缓存，
+返回一个「无视上文」的答案，且响应里看不出异常。
+
+**为什么结尾要写「证据只能来自本轮证据」**：历史里含上一轮答案的 `文件:行号`。
+不显式禁止复用，模型会把它们当成证据直接用 —— 而这些引用在本轮证据集里并不存在。
+
+> ⚠️ **不要用「打开 v2 checkpointer」来替代本实现**。`graph/state.ts` 的
+> `evidence` / `strategiesUsed` / `trace` 是 `prev.concat(next)` 累积 reducer，
+> 且 `round` 不在每轮重置 ⇒ 同一 `thread_id` 上问第二个问题时，
+> 第一问的证据会被累加进来、`strategiesUsed` 直接是满的，
+> 检索层会误判成「策略都试过了」而不再重试。checkpointer 存的是**执行现场**，
+> 不是**对话轮次**，两者不能互相替代。
+
+### 2. 答案↔证据一致性自检
+
+| 项 | 实际情况 |
+|---|---|
+| 位置 | `apps/api/src/llm/answer-consistency.ts`（纯函数） |
+| 接入点 | `/ask` 与 `/root-cause` 的响应新增 `consistency` 字段；前端在答案卡上方给出告警 |
+| 判定 | 抽出答案里的 `路径:行号`，与本轮证据比对 → `ok` / `no_refs` / `empty_evidence` / `unsupported_refs` / `line_mismatch` |
+| 行为 | **只报告，不改写答案** —— 自动删引用会把「模型编了行号」变成「答案里没有行号」，把问题藏起来 |
+
+要抓的是最危险的一类错：提示词要求模型给出「文件路径和行号」，而**编造的引用在格式上
+与真实引用完全一样**，甚至更具体更像真的。用户会默认它可点、可核对。
+
+已知边界（刻意取舍）：文件匹配允许「路径段边界上的后缀匹配」
+（`llm/qa.ts` 能匹配 `apps/api/src/llm/qa.ts`），代价是不同目录下的同名文件
+（多个 `index.ts`）可能被误判为已匹配。这是**偏向少报**：若对每个裸文件名都报
+`unsupported_refs`，报告会被噪声淹没，等于没有这道拦截。
+
+### 3. 顺带修掉的工具调用超时缺口
+
+`withTimeout` 原本是 `agent/core.ts` 的模块私有函数，只保护了**检索**调用；
+而真正会把整个 HTTP 请求挂住的是 **LLM 调用** —— 它当时**没有任何超时**，
+表现为「页面转圈、服务端日志干净」，极难定位。
+
+现在 `withTimeout` / `withRetry` 抽到 `apps/api/src/utils/async.ts`，
+`answerQuestion` / `analyzeRootCause` / `AgentCore.generateAnswer` 三处 LLM 调用
+统一套上「超时 + 一次重试」，超时预算 `LLM_TIMEOUT_MS`（默认 60s，比工具调用宽）。
+
+> ⚠️ 超时**只以错误拒绝，不会取消底层 promise**（JS 无法真正取消已发出的请求）。
+> 底层仍会跑完，结果被丢弃。所以它不是资源回收手段。
+
+### 4. 闸门缺口修补：`check:sql` 的未知表白名单
+
+`check:sql` 原本**刻意跳过所有未知表**（为避开 CTE / 派生表 / 视图的假阳性）。
+代价是：**代码引用了仓库根本没声明的表时，它一声不响地跳过** ——
+`agent_conversations` 就是这样藏了很久的（`check:live-schema` 只比对「期望 schema 里
+有的表」，也不覆盖它）。
+
+现在改为**显式白名单** `KNOWN_NON_TABLES`：名单内是已确认的 CTE / 视图 / 系统目录
+（8 项），名单外一律 FAIL 并给出处置指引。
+（已实测：临时插入一处引用 `zzz_undeclared_probe_table` 的 SQL ⇒ 立即 FAIL 且指名道姓。）

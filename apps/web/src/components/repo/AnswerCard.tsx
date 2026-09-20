@@ -129,6 +129,46 @@ export function AnswerCard({
           </div>
         )}
 
+        {/*
+          引用一致性告警。
+          后端会把答案里「证据中并不存在的文件:行号」挑出来放进 consistency。
+          这是把「看起来最可信的错」显式暴露出来的一步：编造的行号与真实引用
+          在格式上完全一样，不提示的话用户会默认它可核对。只提示、不改写答案。
+        */}
+        {result.consistency?.verdict === 'unsupported_refs' && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+            <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.5 0L3.16 16.25A2 2 0 005 19z" />
+            </svg>
+            <div className="text-xs leading-relaxed text-amber-900">
+              <p className="font-medium">下方回答里有 {result.consistency.unsupported.length} 处引用不在本次检索到的证据中</p>
+              <p className="mt-1">
+                这些引用未经核实，可能并不存在。请以「检索证据」里的实际代码为准。
+              </p>
+              <p className="mt-1 font-mono text-[11px] text-amber-800 break-all">
+                {result.consistency.unsupported.join('、')}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {result.consistency?.verdict === 'line_mismatch' && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
+            <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="text-xs leading-relaxed text-amber-900">
+              <p>
+                文件对得上，但有 {result.consistency.mismatchedLines.length} 处<b>行号</b>超出了证据覆盖的范围，
+                行号可能不准确：
+              </p>
+              <p className="mt-1 font-mono text-[11px] text-amber-800 break-all">
+                {result.consistency.mismatchedLines.join('、')}
+              </p>
+            </div>
+          </div>
+        )}
+
         <MarkdownBody>{result.answer}</MarkdownBody>
 
         {/* Follow-up question section */}

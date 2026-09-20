@@ -28,6 +28,15 @@ import { mapRawChunksToEvidence } from '../evidence-mapper.js';
 import type { SearchOptions } from '../../retrieval/multi-strategy-search.js';
 // 「这个查询算不算 URL」的唯一实现（`/search` 共用；修掉 /post/123 之类漏判）
 import { looksLikeUrlQuery } from '../../retrieval/query-intent-parser.js';
+// 跨轮会话记忆：读最近 N 轮 / 写本轮 / 压缩成提示词上下文
+import {
+  loadRecentTurns,
+  appendTurn,
+  formatConversationContext,
+  normalizeSessionId,
+} from '../../agent/conversation-memory.js';
+// 答案 ↔ 证据一致性自检（只观测，不改写答案）
+import { checkAnswerConsistency } from '../../llm/answer-consistency.js';
 
 /**
  * 「功能类问题」的检索召回配置（`/ask` 与 `/root-cause` 共用）
@@ -69,12 +78,14 @@ export async function askRoutes(app: FastifyInstance): Promise<void> {
  *
  * 工作流程：
  * 1. 检查缓存，命中则直接返回
- * 2. 根据查询类型选择搜索策略（URL/多策略/增强/默认）
- * 3. 搜索相关代码片段作为证据
- * 4. 获取相似历史问题的反馈
- * 5. 使用 LLM 生成答案
- * 6. 保存问答记录到数据库
- * 7. 缓存结果
+ * 2. 若带 sessionId：读取该会话此前轮次，压缩成上下文
+ * 3. 根据查询类型选择搜索策略（URL/多策略/增强/默认）
+ * 4. 搜索相关代码片段作为证据
+ * 5. 获取相似历史问题的反馈
+ * 6. 使用 LLM 生成答案
+ * 7. 做一次「答案引用的文件行号是否在本轮证据里」自检
+ * 8. 保存问答记录到数据库（questions）+ 追加会话轮次（agent_conversations）
+ * 9. 缓存结果（仅无会话态的请求）
  *
  * 搜索策略：
  * - URL 搜索：针对 URL 格式的查询
@@ -82,10 +93,21 @@ export async function askRoutes(app: FastifyInstance): Promise<void> {
  * - 增强搜索：使用查询改写和重排序
  * - 默认搜索：语义向量搜索
  *
+ * ============================================
+ * 跨轮会话记忆（sessionId）
+ * ============================================
+ * 传入 `sessionId` 即开启会话态：链路会读回该会话此前轮次，注入提示词，
+ * 使用户可以说「那它呢？」「再往下看一层」这类依赖上文的追问。
+ * 不传则行为与开启前**完全一致**（无记忆读写、走缓存）。
+ *
+ * ⚠️ 会话态会**跳过缓存**。原因见下方 cacheKey 处的注释：
+ * 缓存键不含会话历史，命中它会让第 3 轮拿到第 1 轮的答案。
+ *
  * @body repoId - 仓库 ID（必需）
  * @body query - 用户问题（必需）
  * @body enhanced - 是否使用增强搜索（可选，默认 true）
  * @body strategy - 搜索策略（可选，默认 'enhanced'）
+ * @body sessionId - 会话 ID（可选；传入即启用跨轮记忆）
  *
  * @returns {
  *   questionId: number,
@@ -94,16 +116,35 @@ export async function askRoutes(app: FastifyInstance): Promise<void> {
  *   evidence: Array<CodeChunk>,
  *   historicalFeedback?: Array<Feedback>,
  *   enhanced: boolean,
- *   strategy: string
+ *   strategy: string,
+ *   consistency: ConsistencyReport,   // 答案↔证据自检报告
+ *   memory?: {                       // 仅提供 sessionId 时出现
+ *     sessionId: string,
+ *     turnsUsed: number,
+ *     loadError?: string,
+ *     writeError?: string
+ *   }
  * }
  *
  * @throws 400 - 缺少必需参数
  * @throws 404 - 仓库不存在
  */
 app.post<{
-  Body: { repoId: number; query: string; enhanced?: boolean; strategy?: string };
+  Body: {
+    repoId: number;
+    query: string;
+    enhanced?: boolean;
+    strategy?: string;
+    sessionId?: string;
+  };
 }>('/ask', async (request, reply) => {
-  const { repoId, query, enhanced = true, strategy = 'enhanced' } = request.body;
+  const {
+    repoId,
+    query,
+    enhanced = true,
+    strategy = 'enhanced',
+    sessionId: rawSessionId,
+  } = request.body;
 
   if (!repoId || !query) {
     return reply.code(400).send({ error: 'Missing repoId or query' });
@@ -115,11 +156,59 @@ app.post<{
     return reply.code(404).send({ error: `Repository with id ${repoId} not found` });
   }
 
+  // 规范化会话 ID：非字符串 / 空白 / 超长都会被处理；为 null 表示本次无会话态。
+  // 裁剪长度是必要的 —— 该值直接进 `VARCHAR(128)` 与索引，不能由客户端无限撑大。
+  const sessionId = normalizeSessionId(rawSessionId);
+  const startedAt = Date.now();
+
+  /**
+   * 会话记忆使用情况。只在提供 sessionId 时返回，让「记忆到底有没有生效」
+   * 成为一个可观测字段，而不是需要去猜的隐式行为。
+   * 读/写失败分别记在 loadError / writeError 上（失败不阻断回答）。
+   */
+  const memory = sessionId
+    ? ({ sessionId, turnsUsed: 0 } as {
+        sessionId: string;
+        turnsUsed: number;
+        loadError?: string;
+        writeError?: string;
+      })
+    : undefined;
+
   // 先检查缓存
   const cacheKey = generateCacheKey('ask', repoId.toString(), query, enhanced.toString(), strategy);
-  const cached = searchTTLCache.get(cacheKey);
-  if (cached) {
-    return cached;
+
+  // ⚠️ 会话态必须绕过缓存。
+  // 缓存键是 (repoId, query, enhanced, strategy)，**不含会话历史**；而会话态下
+  // 同一个问题在第 1 轮和第 3 轮的正确答案是**不同的**（第 3 轮要结合上文）。
+  // 键相同 ⇒ 第 3 轮会直接命中第 1 轮的缓存，返回一个「无视上文」的答案，
+  // 且响应里看不出任何异常 —— 表现为「会话记忆时灵时不灵」，极难定位。
+  // 会话态本就是少数请求，这里宁可多花一次 LLM 调用换取正确性。
+  if (!sessionId) {
+    const cached = searchTTLCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  // 读取该会话此前轮次（有 sessionId 时）。注意时序：
+  // 必须在写入本轮之前读，否则本轮问题会作为「历史」被注入给自己，
+  // 模型会看到同一个问题出现两次。
+  let conversationContext = '';
+  if (sessionId && memory) {
+    const loaded = await loadRecentTurns(pool, repoId, sessionId);
+    if (loaded.ok) {
+      memory.turnsUsed = loaded.turns.length;
+      conversationContext = formatConversationContext(loaded.turns);
+      console.log(
+        `[ask] session ${sessionId}: 注入历史 ${loaded.turns.length} 轮` +
+          `（上下文 ${conversationContext.length} 字符）`
+      );
+    } else {
+      // 读失败不阻断回答，但**不能静默** —— 否则「记忆没生效」永远没人发现
+      memory.loadError = loaded.error;
+      console.error(`[ask] 会话记忆读取失败 (session=${sessionId}): ${loaded.error}`);
+    }
   }
 
   // ============================================================
@@ -160,6 +249,24 @@ app.post<{
       [repoId, query, answer, evidence.map((e: any) => e.id)]
     );
 
+    // 集合类问题同样记入会话：否则用户接着问「那第 3 个呢」时，
+    // 会话里会缺一轮，模型看到的上下文是**不连续**的 —— 那比没有上下文更误导。
+    // 由 formatConversationContext 在读取侧做长度截断（清单可能上百行）。
+    if (sessionId && memory) {
+      try {
+        await appendTurn(pool, {
+          repoId,
+          sessionId,
+          query,
+          answer,
+          executionTimeMs: Date.now() - startedAt,
+        });
+      } catch (error: any) {
+        memory.writeError = error?.message || String(error);
+        console.error(`[ask] 会话记忆写入失败 (session=${sessionId}):`, error);
+      }
+    }
+
     const enumResult = {
       questionId: questionResult.rows[0].id,
       query,
@@ -175,9 +282,15 @@ app.post<{
         byMethod: inventory.byMethod,
         filters: { method: method ?? null, q: q ?? null },
       },
+      // 会话记忆使用情况；未提供 sessionId 时为 undefined。
+      // 这一支的答案由代码按 url_patterns 拼装，引用天然真实，
+      // 因此不做答案↔证据自检（没有可核验的 LLM 引用）。
+      memory,
     };
 
-    searchTTLCache.set(cacheKey, enumResult);
+    if (!sessionId) {
+      searchTTLCache.set(cacheKey, enumResult);
+    }
     return enumResult;
   }
 
@@ -252,8 +365,24 @@ app.post<{
   // 获取相似历史问题的反馈（用于改进答案质量）
   const historicalFeedback = await getSimilarQuestionsWithFeedback(repoId, query, 3);
 
-  // 使用 LLM 生成答案
-  const answer = await answerQuestion(query, evidence, historicalFeedback);
+  // 使用 LLM 生成答案。
+  // 第 5 个参数是会话上下文（无会话态时为空串，提示词与开启前逐字一致）。
+  // 第 4 个参数 `useExtendedContext` 显式传 true，与默认值相同，仅为可读性。
+  const answer = await answerQuestion(query, evidence, historicalFeedback, true, conversationContext);
+
+  // 答案 ↔ 证据一致性自检。
+  // 提示词要求模型「给出具体的文件路径和行号」，而编造出来的引用在形式上
+  // 与真实引用完全一样（甚至更像模像样）—— 这里把对不上的挑出来放进响应，
+  // 让前端/评测脚本有机会提示「该引用不在本次检索到的证据中」。
+  // 只报告、不改写答案（改写会把「编了行号」变成「没有行号」，把问题藏起来）。
+  const consistency = checkAnswerConsistency(answer, evidence as any);
+  if (consistency.verdict === 'unsupported_refs' || consistency.verdict === 'line_mismatch') {
+    console.warn(
+      `[ask] 答案引用与证据不一致 (${consistency.verdict}): ` +
+        `未匹配文件 [${consistency.unsupported.join(', ')}]` +
+        `${consistency.mismatchedLines.length ? ` 行号越界 [${consistency.mismatchedLines.join(', ')}]` : ''}`
+    );
+  }
 
   // 保存问答记录到数据库
   const questionResult = await pool.query(
@@ -263,6 +392,22 @@ app.post<{
 
   const questionId = questionResult.rows[0].id;
 
+  // 追加本轮到会话（在生成之后写入，保证存的是最终答案）
+  if (sessionId && memory) {
+    try {
+      await appendTurn(pool, {
+        repoId,
+        sessionId,
+        query,
+        answer,
+        executionTimeMs: Date.now() - startedAt,
+      });
+    } catch (error: any) {
+      memory.writeError = error?.message || String(error);
+      console.error(`[ask] 会话记忆写入失败 (session=${sessionId}):`, error);
+    }
+  }
+
   const result = {
     questionId,
     query,
@@ -271,10 +416,15 @@ app.post<{
     historicalFeedback: historicalFeedback.length > 0 ? historicalFeedback : undefined,
     enhanced,
     strategy,
+    consistency,
+    // 未提供 sessionId 时为 undefined（字段存在但为空，便于前端做统一判断）
+    memory,
   };
 
-  // 缓存结果
-  searchTTLCache.set(cacheKey, result);
+  // 缓存结果（仅无会话态；会话态的答案依赖历史，缓存键表达不了这层依赖）
+  if (!sessionId) {
+    searchTTLCache.set(cacheKey, result);
+  }
 
   return result;
 });
@@ -314,7 +464,8 @@ app.post<{
  *   rootCause: string,
  *   evidence: Array<CodeChunk>,
  *   enhanced: boolean,
- *   strategy: string
+ *   strategy: string,
+ *   consistency: ConsistencyReport   // 答案↔证据自检报告
  * }
  *
  * @throws 400 - 缺少必需参数
@@ -388,12 +539,24 @@ app.post<{
   // 使用 LLM 进行根因分析
   const rootCause = await analyzeRootCause(query, evidence);
 
+  // 与 `/ask` 同源的答案↔证据自检：根因分析的提示词同样要求
+  // 「给出具体的文件路径和行号」，因此也有编造引用的风险。
+  const consistency = checkAnswerConsistency(rootCause, evidence as any);
+  if (consistency.verdict === 'unsupported_refs' || consistency.verdict === 'line_mismatch') {
+    console.warn(
+      `[root-cause] 答案引用与证据不一致 (${consistency.verdict}): ` +
+        `未匹配文件 [${consistency.unsupported.join(', ')}]` +
+        `${consistency.mismatchedLines.length ? ` 行号越界 [${consistency.mismatchedLines.join(', ')}]` : ''}`
+    );
+  }
+
   return {
     query,
     rootCause,
     evidence,
     enhanced,
     strategy,
+    consistency,
   };
 });
 

@@ -9,6 +9,8 @@ import {
 } from '../types';
 import { API_BASE } from '../utils/constants';
 import { getSearchHistory, addToSearchHistory, clearSearchHistory, getSearchResult } from '../utils/searchHistory';
+// 会话 ID：让「继续提问」真正带上上下文（此前后端无状态，追问等于新问题）
+import { getAskSessionId, resetAskSession } from '../utils/askSession';
 import { highlightText } from '../utils/textUtils';
 import { CodeBlock } from '../components/common/CodeBlock';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -297,7 +299,13 @@ export function RepoPage() {
         const res = await fetch(`${API_BASE}/ask`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ repoId: parseInt(repoId), query: searchQuery }),
+          body: JSON.stringify({
+            repoId: parseInt(repoId),
+            query: searchQuery,
+            // 带上会话 ID ⇒ 后端会把此前轮次读回来注入提示词，
+            // 「那它呢 / 再往下看一层」这类追问才解析得出来
+            sessionId: getAskSessionId(repoId),
+          }),
           signal: controller.signal,
         });
         if (!res.ok) throw new Error('问答失败');
@@ -328,6 +336,9 @@ export function RepoPage() {
           answer: data.rootCause,
           evidence: data.evidence,
           kind: 'root-cause',
+          // 根因分析的答案同样带引用自检结果，必须转过来，
+          // 否则 AnswerCard 的引用告警在根因模式下永远不显示
+          consistency: data.consistency,
         };
         setResult(newResult);
         resultRef.current = newResult;
@@ -414,7 +425,12 @@ export function RepoPage() {
         const res = await fetch(`${API_BASE}/ask`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ repoId: parseInt(repoId), query: q }),
+          body: JSON.stringify({
+            repoId: parseInt(repoId),
+            query: q,
+            // 与 handleSubmit 的 ask 分支保持一致：重跑历史问题时也带会话
+            sessionId: getAskSessionId(repoId),
+          }),
           signal: controller.signal,
         });
         if (!res.ok) throw new Error('问答失败');
@@ -435,7 +451,7 @@ export function RepoPage() {
         });
         if (!res.ok) throw new Error('根因分析失败');
         const data = await res.json();
-        const newResult: QAResponse = { query: q, answer: data.rootCause, evidence: data.evidence, kind: 'root-cause' };
+        const newResult: QAResponse = { query: q, answer: data.rootCause, evidence: data.evidence, kind: 'root-cause', consistency: data.consistency };
         setResult(newResult);
         resultRef.current = newResult;
         addToSearchHistory(q, m, repoId, newResult);
@@ -513,6 +529,22 @@ export function RepoPage() {
       setFollowUpQuery('');
       setFollowUpSubmitted(false);
     }
+  };
+
+  /**
+   * 「新会话」：清空会话记忆并开始一轮全新的对话。
+   *
+   * 两个动作必须一起做，缺一个都会留下不一致的状态：
+   * 1. 换掉 sessionId ⇒ 后端从此读不到旧轮次（这是真正断开上下文的那一步）
+   * 2. 把 conversationHistory 归零 ⇒ 界面上的「第 N 轮」跟着回到 1
+   *
+   * 为什么必须有这个入口：会话历史会被注入提示词。只增不减的话，
+   * 用户换话题后旧上下文仍在提示词里占预算，甚至被当成「它」的指代对象 ——
+   * 表现为「我问了新问题，它还在回答上一个话题」，而用户没有任何办法摆脱。
+   */
+  const handleNewSession = () => {
+    resetAskSession(repoId);
+    setConversationHistory([]);
   };
 
   const handleCopyAnswer = async () => {
@@ -1043,6 +1075,37 @@ export function RepoPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 搜索模式只做检索定位，不生成回答 —— 命中结果在下方「检索证据」里。想让它解释，切到<b className="text-slate-700">问答</b>。
+              </div>
+            )}
+
+            {/*
+              会话状态条：只在问答模式、且确实有轮次或后端返回了 memory 时出现。
+              把「本轮注入了 N 轮历史」直接写出来 —— 会话记忆是隐式行为，
+              不显式说出来的话，用户遇到「它怎么答非所问」时无从判断
+              是记忆串了还是检索没召回。
+            */}
+            {result.kind === 'ask' && (conversationHistory.length > 0 || result.memory) && (
+              <div className="flex items-center gap-3 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-500 shadow-sm">
+                <svg className="w-4 h-4 text-violet-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 4v-4z" />
+                </svg>
+                <span>
+                  本次会话第 <b className="text-slate-700">{conversationHistory.length}</b> 轮
+                  {result.memory && (
+                    <span className="text-slate-400">
+                      {' '}· 已注入历史 {result.memory.turnsUsed} 轮
+                      {result.memory.loadError && '（历史读取失败）'}
+                      {result.memory.writeError && '（本轮未能写入历史）'}
+                    </span>
+                  )}
+                </span>
+                <button
+                  onClick={handleNewSession}
+                  className="ml-auto px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors"
+                  title="清空会话上下文，下一问将不再参考此前轮次"
+                >
+                  新会话
+                </button>
               </div>
             )}
 

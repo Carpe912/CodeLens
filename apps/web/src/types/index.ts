@@ -277,6 +277,40 @@ export type QAResponse = {
     answer: string;
     feedback: Array<{ feedback_text: string; is_helpful: boolean }>;
   }>;
+  /**
+   * 答案引用与证据的一致性自检（`/ask`、`/root-cause` 都会返回）。
+   *
+   * 模型被要求「给出具体的文件路径和行号」，而编造的引用在形式上与真实引用
+   * 毫无区别，甚至更具体、更像真的。后端会把对不上的引用挑出来放进这里，
+   * 由界面提示用户「这条引用不在本次检索到的证据中」。
+   *
+   * `unsupported` / `mismatchedLines` 里是引用原文（如 `src/a.ts:88`）。
+   */
+  consistency?: {
+    verdict: 'ok' | 'no_refs' | 'empty_evidence' | 'unsupported_refs' | 'line_mismatch';
+    citations: Array<{
+      raw: string;
+      file: string;
+      line: number | null;
+      fileMatched: boolean;
+      lineInEvidence: boolean | null;
+    }>;
+    unsupported: string[];
+    mismatchedLines: string[];
+  };
+  /**
+   * 跨轮会话记忆的使用情况（仅当请求带 `sessionId` 时出现）。
+   *
+   * 这几个字段存在的意义是让「记忆到底有没有生效」可观测：
+   * `turnsUsed = 0` 表示没读到历史，`loadError` / `writeError` 表示读写失败。
+   * 缺了它们，会话记忆失效只会表现为「追问答得莫名其妙」，无从排查。
+   */
+  memory?: {
+    sessionId: string;
+    turnsUsed: number;
+    loadError?: string;
+    writeError?: string;
+  };
 };
 
 export type SearchHistoryItem = {

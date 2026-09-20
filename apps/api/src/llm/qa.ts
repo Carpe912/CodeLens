@@ -28,10 +28,22 @@
 
 import type { CodeChunkRecord } from '../db/index.js';
 import { getChunksWithContext } from '../db/index.js';
+// LLM 调用是最容易长时间挂住的一步，统一走带超时+重试的包装
+import { withRetry } from '../utils/async.js';
 import { getLlmClient, getResponseText } from './client.js';
 
 // 共享 LLM 客户端（由 LLM_PROVIDER 决定走 DeepSeek 还是 Anthropic）
 const llm = getLlmClient();
+
+/**
+ * LLM 单次调用超时（毫秒），可用 `LLM_TIMEOUT_MS` 覆盖。
+ *
+ * 默认 60s：比工具调用的超时预算宽得多。理由是这两件事的最坏情况不同 ——
+ * 检索挂住基本等于故障，早点失败更划算；而长答案本来就可能生成几十秒，
+ * 把它的超时设得太激进会误杀正常请求，反而制造「偶尔返回降级答案」的噪声。
+ * 设 0 或负数表示不限制（不推荐，仅作为应急开关）。
+ */
+const LLM_TIMEOUT_MS = parseInt(process.env.LLM_TIMEOUT_MS || '60000', 10);
 
 /**
  * 查询类型枚举
@@ -337,7 +349,8 @@ function generateUserPrompt(
   query: string,
   queryType: QueryType,
   evidenceText: string,
-  feedbackContext: string
+  feedbackContext: string,
+  conversationContext: string = ''
 ): string {
   const typeSpecificInstructions: Record<QueryType, string> = {
     enumeration: '请把调用方提供的清单**原样、完整**地输出，不要增删、不要重排、不要归纳成类别。',
@@ -351,8 +364,14 @@ function generateUserPrompt(
     general: '请基于代码证据回答问题。',
   };
 
-  return `用户问题: ${query}
+  // 会话历史插在「问题」与「本轮证据」之间：
+  // 模型先读到「刚才聊了什么」（用于解析「它 / 这个」的指代），
+  // 紧接着读到的就是本轮证据，且历史块的结尾指令指向下方证据块 ——
+  // 「证据只能来自本轮证据」这句话紧跟证据出现，约束力最强。
+  const memoryBlock = conversationContext ? `\n${conversationContext}\n` : '';
 
+  return `用户问题: ${query}
+${memoryBlock}
 相关代码证据:
 ${evidenceText}
 ${feedbackContext}
@@ -387,6 +406,10 @@ ${typeSpecificInstructions[queryType]}
  * @param evidence - 搜索到的代码证据数组
  * @param historicalFeedback - 历史问答和反馈（可选）
  * @param useExtendedContext - 是否使用扩展上下文（默认 true）
+ * @param conversationContext - **同一会话此前轮次**的压缩上下文（可选）。
+ *   由 `agent/conversation-memory.ts` 的 `formatConversationContext()` 产出，
+ *   仅用于解析「它 / 这个 / 再往下」这类指代；证据来源仍限定为本轮 `evidence`。
+ *   放在参数表末尾是为了不破坏既有调用方（`agent/graph/nodes.ts` 与 `/ask`）。
  * @returns AI 生成的回答文本
  *
  * @example
@@ -400,7 +423,8 @@ export async function answerQuestion(
   query: string,
   evidence: Array<CodeChunkRecord & { file_path?: string }>,
   historicalFeedback?: Array<{ query: string; answer: string; feedback: Array<{ feedback_text: string; is_helpful: boolean }> }>,
-  useExtendedContext: boolean = true
+  useExtendedContext: boolean = true,
+  conversationContext: string = ''
 ): Promise<string> {
   // 步骤 1: 分类查询类型
   const queryType = classifyQuery(query);
@@ -449,16 +473,37 @@ ${codeToShow}
 
   // 步骤 5: 生成针对性提示词
   const systemPrompt = generateSystemPrompt(queryType);
-  const userPrompt = generateUserPrompt(query, queryType, evidenceText, feedbackContext);
+  const userPrompt = generateUserPrompt(
+    query,
+    queryType,
+    evidenceText,
+    feedbackContext,
+    conversationContext
+  );
 
   // 步骤 6: 调用 LLM 生成回答（模型由 LLM_MODEL / AGENT_LLM_MODEL 决定，
   // 未配置时由 llm/client.ts 按当前厂商解析默认模型）
-  const message = await llm.messages.create({
-    model: process.env.AGENT_LLM_MODEL,
-    max_tokens: 2000,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
-  });
+  //
+  // 带超时 + 一次重试：这是整条 `/ask` 链路里唯一会长时间阻塞的一步。
+  // 此前没有超时保护，上游不返回就会把 HTTP 请求一直挂住，
+  // 服务端日志干净、页面转圈，是极难定位的一类故障。
+  // 超时预算取 LLM_TIMEOUT_MS（默认 60s）—— 比工具调用的预算宽，
+  // 因为长答案本来就可能生成几十秒，误杀比等待更糟。
+  const message = await withRetry(
+    () => llm.messages.create({
+      model: process.env.AGENT_LLM_MODEL,
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    }),
+    {
+      attempts: 2,
+      timeoutMs: LLM_TIMEOUT_MS,
+      label: 'llm.answerQuestion',
+      onAttemptFailed: (attempt, error) =>
+        console.error(`[qa] answerQuestion attempt ${attempt} failed:`, error),
+    }
+  );
 
   return getResponseText(message);
 }
@@ -562,12 +607,23 @@ ${evidenceText}
 - 如果证据不足，明确指出需要查看哪些额外信息`;
 
   // 步骤 4: 调用 LLM 生成根因分析
-  const message = await llm.messages.create({
-    model: process.env.AGENT_LLM_MODEL,
-    max_tokens: 2000,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
-  });
+  // 与 answerQuestion 同样的超时+重试保护：不做这件事的话，
+  // `/root-cause` 会以完全相同的方式挂住（见 answerQuestion 处的说明）。
+  const message = await withRetry(
+    () => llm.messages.create({
+      model: process.env.AGENT_LLM_MODEL,
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    }),
+    {
+      attempts: 2,
+      timeoutMs: LLM_TIMEOUT_MS,
+      label: 'llm.analyzeRootCause',
+      onAttemptFailed: (attempt, error) =>
+        console.error(`[qa] analyzeRootCause attempt ${attempt} failed:`, error),
+    }
+  );
 
   return getResponseText(message);
 }

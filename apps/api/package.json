@@ -16,6 +16,7 @@
     "repair:constraints": "tsx src/scripts/repair-constraints.ts",
     "verify:routes": "tsx src/scripts/verify-routes.ts",
     "verify:graph": "tsx src/scripts/verify-graph.ts",
+    "verify:memory": "tsx src/scripts/verify-memory.ts",
     "check:llm": "tsx src/scripts/check-llm.ts",
     "check:rerank": "tsx src/scripts/check-rerank.ts",
     "reembed": "tsx src/scripts/reembed.ts",
