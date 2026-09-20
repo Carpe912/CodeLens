@@ -8,6 +8,8 @@
    `migrations/` 不在 dist，要单独带。
 2. **最危险 = 静默空转/少做**：`reindex` 0/0+ready、`reembed` 静默留 NULL、`0 chunk ⇒ continue`。
    **计数 == 0 必须显式失败。**
+   变体：**「为了避免假阳性而跳过」的检查会同时放过真问题** —— 正确姿势是把「跳过」变成
+   **显式允许清单**（`check:sql` 的 `KNOWN_NON_TABLES` 就是这么修的），而不是静默跳过。
 3. 重启：`pm2 restart codelens-api --update-env`（`--only` 可能没真重启），核对 uptime 归零 + `/health` 200。
 4. `reindex` 只按 `files` 已登记路径重解析 ⇒ 目录结构一变它就是错的工具（删仓重建或**续跑**）。
 5. **失败先续跑别重建**：`POST /repos/:id/resume`（migration 006）；代价 ∝ 剩余量。
@@ -19,6 +21,12 @@
 - **pm2 把 `console.warn/error` 分流到 `-error.log`** ⇒ out 日志 grep 警告恒空。
 - 前端线上 = **nginx `/code/`→alias `/www/wwwroot/codelens-web/`**；API 公开在 **`/code-api/`**。
   本机 https 被拦 → 直连 `http://47.116.6.132/code-api`。
+- **本机 `pnpm build:web` 曾必挂**：`Host version "0.25.12" does not match binary version "0.27.7"`。
+  根因 = vite 的嵌套 esbuild 是**真实目录**，其兄弟 `@esbuild/` **只有 `darwin-x64`**、缺 `darwin-arm64`
+  ⇒ arm64 查找冒泡到 pnpm hoisted store 命中 **0.27.7**。
+  **已根治**：`ln -sfn $PWD/node_modules/.pnpm/@esbuild+darwin-arm64@0.25.12/node_modules/@esbuild/darwin-arm64 <vite>/node_modules/vite/node_modules/@esbuild/darwin-arm64`
+  （实测**扛得过** `pnpm install --frozen-lockfile`；但 install **不会自己修**）。
+  ⚠️ 只设 `ESBUILD_BINARY_PATH` **救不了自动部署** —— `scripts/deploy.js:133` 跑 `pnpm build:web`，不带该变量。
 - **curl 通 ≠ 无头 Chrome 通**：headless Chrome 只能走 loopback，fetch 公网 IP 报
   `Failed to fetch`（页面渲染但「统计不可用」）⇒ 浏览器验证**必须走 SSH 隧道**。
 - ⚠️ **`github.com` 在本机被 SNI 阻断**：HTTPS 443 在 TLS ClientHello 后即
@@ -46,11 +54,19 @@
    会给出**错但很像真的**路径）。
    ✅ 清单完整性用**双实现集合差**验（硬编码 vs 数据驱动，归一化占位符后差集须 0）。
 5. **agent 系列 7 张表线上存在但全 0 行**（`agent_conversations`/`agent_executions`/`agent_lessons`/
-   `agent_performance_stats`/`agent_reflections`/`conversation_memory`/`tool_calls`），
-   而**仓库里已无建表 SQL** ⇒ **重建库不会产生它们**，落地相关能力必须先补迁移。
-   仅 `agent_conversations` 被代码读写（`core.ts`：`executeQuery()` 写、`getSession()` 读；
-   **`run()` 不读回历史** ⇒ "多轮对话"实为每轮无状态单轮）。
+   `agent_performance_stats`/`agent_reflections`/`conversation_memory`/`tool_calls`）。
+   2026-09-20 起 **`agent_conversations` 已在 `db/index.ts` 补回建表声明**（CREATE + 逐列 ALTER 兜底
+   + `idx_agent_conversations_session`）；**其余 6 张仍无声明、零引用、零行**（重建库仍不会产生）。
    ⚠️ **0 行 ≠ 未调用**：`Failed to save conversation` 只打日志、不影响响应 ⇒ 有静默持久化失败。
+   真实原因另有其一：**唯一写入点 `executeQuery()` 只被 `/agent/query` 调用，而前端从不调它**。
+6. **前端只调 `/ask`（+`/search`、`/root-cause`）**；`/agent/query`、`/agent/v2/query` 无前端调用方。
+   ⇒ **面向用户的能力要做在 `/ask` 上**，做在 `/agent/*` 上等于没做（它们只存在于文档里）。
+7. **`/ask` 跨轮会话记忆已实现**（2026-09-20，`agent/conversation-memory.ts` + 请求体可选 `sessionId`）：
+   不传 `sessionId` ⇒ 行为与开启前逐字一致。三条硬约束：按 `repo_id` 过滤、
+   `ORDER BY created_at DESC, id DESC`（同语句 `NOW()` 是事务时间戳，会打平）、
+   **会话态必须绕过 `searchTTLCache`**（缓存键不含历史，命中会返回「无视上文」的答案且无异常）。
+   ⚠️ 不要用「打开 v2 checkpointer」代替：累积 reducer + `round` 不重置 ⇒ 同 thread 第二问会继承第一问证据。
+   答案引用自检 = `llm/answer-consistency.ts`，`/ask` 与 `/root-cause` 响应带 `consistency` 字段。
 
 ## 仓库与历史
 
@@ -86,4 +102,11 @@
   旧提交只在 `main-before-rewrite` / `backup-before-commit-rewrite` 上，
   **绝不要把这些旧 ref 推到远程**（含已泄漏的密钥）。依赖 git 考古的演示（如 `interview-prep/11` §491）
   应改为**把旧代码贴进材料**。
-- 能力边界文档 = `docs/agent-unimplemented-design.md`（2026-09-20 已按线上实况修正）。
+- 能力边界文档 = `docs/agent-unimplemented-design.md`（2026-09-20 已按线上实况修正，
+  并新增「2026-09-20 已落地的两项」章节）。
+- 自检脚本（都不需要数据库）：`verify:routes`、`verify:graph`、**`verify:memory`**（会话记忆/一致性/
+  超时重试，47 项断言，纯函数）、`check:sql`。需要库的：`check:live-schema`（本地无 PG 会 ECONNREFUSED）。
+- 真实库往返验证的**可复用套路**：把待验模块用 `tsc --module esnext` 单文件编译成 JS
+  （type-only import 会被擦除 ⇒ 零运行时依赖），scp 到服务器 /tmp，`ln -s` 指到 app 的
+  `node_modules` 以解析 `pg`，`{"type":"module"}` 使其按 ESM 解析，用隔离 session + `finally` 清理。
+  服务器无 tsx ⇒ **不要**指望在服务器上跑 TS。
