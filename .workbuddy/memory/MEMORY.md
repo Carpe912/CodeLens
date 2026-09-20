@@ -51,13 +51,12 @@
 - ⚠️ **仓库是公开的**（`Carpe912/CodeLens`）⇒ `.env.production`、`apps/web/.env.production`、
   `ecosystem.config.js` 里的 DeepSeek/Anthropic/DashScope key 与 DB 密码**已泄漏，待用户轮换**。
   新历史已排除这三类文件，但**排除 ≠ 止血**。配置说明留在 `ecosystem.config.example.js`（脱敏）。
-- 提交历史已重建并**已晋级**：**76 条 → 26 条**按模块线性（原 76 条里 26 条标题就是 `#`）。
-  新历史现在**就是 `main`**（`3ce2e74`，27 条：26 条模块提交 + 1 条本次整理的记录提交）；
-  `main-clean` 已删除（其提交 `f431a44` 仍是 main 的祖先，可随时重建）。
+- 提交历史已重建**并已推送**：**76 条 → 27 条**按模块线性（原 76 条里 26 条标题就是 `#`）。
+  远程 `origin` 的 `main` 就是这条新历史（`git ls-remote origin` 可核对），旧历史已强制覆盖。
   旧历史锚点 = 分支 **`main-before-rewrite`** 与 tag `backup-before-commit-rewrite`（同为 `6731ec0`）
-  + `/tmp/codelens-git-backup/*.bundle`。
-  ⚠️ 推远程要 force 且**别 `git pull`**（26 vs 67 会得到合并烂摊子）：先 `git fetch`，
-  再 `git push --force-with-lease origin main`。
+  + `/tmp/codelens-git-backup/*.bundle`（原先的 `origin/main` = `8b1edef`）。
+  ⚠️ **别 `git pull`**（会合并出旧历史，git 自己的提示在这里是错的），要改历史就用
+  `git push --force-with-lease origin main`。
   报告：`/tmp/codelens-git-backup/COMMIT_REWRITE_REPORT.md`。
 - `.gitignore` 已补：`apps/web/dist-preview`、`apps/web/dist.preview`、`*.tsbuildinfo*`、
   `ecosystem.config.js`、`.workbuddy/tmp/`。根因：`dist` 匹配不到 `dist-preview`、
