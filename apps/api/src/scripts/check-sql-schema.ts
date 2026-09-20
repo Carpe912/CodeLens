@@ -24,8 +24,13 @@
  *   - 单表语句（无 JOIN）里的裸列名
  *
  * 刻意不做的事：
- *   - 不校验未知表（CTE、子查询派生表、视图）→ 直接跳过，避免假阳性
+ *   - 不逐条校验未知表的**列**（CTE、子查询派生表、视图没有静态列定义）→ 跳过以避免假阳性
  *   - 不校验函数名、类型转换、关键字
+ *
+ * ⚠️ 但「未知表」本身**不是**无条件放行的：名字必须在 KNOWN_NON_TABLES 白名单内，
+ *    否则 FAIL。这是为了堵住「代码引用了仓库未声明的表」这个盲区
+ *    （2026-09-20：agent_conversations 就是靠这个盲区藏了很久）。
+ *    详见 KNOWN_NON_TABLES 的注释。
  *
  * ============================================
  * 可选的语法校验（默认关闭）
@@ -94,6 +99,47 @@ function resolveDbSourceFile(): string {
 }
 
 const VERBOSE = process.argv.includes('--verbose');
+
+/**
+ * 允许出现在 SQL 里但**不是本项目表**的名字（白名单）。
+ *
+ * ============================================
+ * 为什么需要这份白名单（2026-09-20）
+ * ============================================
+ * 本检查器**刻意不校验未知表**（见文件头「不校验未知表」那条），
+ * 因为 CTE、派生表、视图、系统目录都长得像表名，硬校验会一堆假阳性。
+ *
+ * 但这个「跳过得心安理得」的设计有个代价：**代码引用了仓库里根本没声明的表时，
+ * 它也一声不响地跳过**。2026-09-20 就撞上了：
+ *
+ *   文件：src/agent/core.ts —— 4 处 SQL 引用 agent_conversations
+ *   仓库：db/index.ts 与 migrations/ 里**没有任何一处建表语句**
+ *   真实：线上 information_schema 里这张表确实存在（被带外创建）
+ *   检查：check:sql 一路 PASS（因为「未知表」被跳过）
+ *
+ * 也就是说，这张「有代码在写、仓库没声明、新环境建库必失败、失败还被
+ * try/catch 静默吞掉」的表，**两道闸门都拦不住**（check:live-schema 只比对
+ * 期望 schema 里的表，不在期望里的表同样不参与比对）。
+ *
+ * 修法不是「开始校验所有未知表」（会假阳性爆炸），而是把「跳过」变成
+ * **显式白名单**：名单内是已确认的 CTE / 视图 / 目录，名单外一律 FAIL。
+ * 这样新增一处「引用了不存在的表」会立刻炸出来，而不是变成一条没人看的注释。
+ *
+ * 维护：出现新的 FAIL 时，先确认那个名字到底是（a）CTE/派生表/视图 → 加进本名单，
+ * 还是（b）真的漏了建表声明 → 去 db/index.ts 补 CREATE TABLE。
+ * **不要**为了让它变绿而无脑加名字 —— 那等于把这道闸门关掉。
+ */
+const KNOWN_NON_TABLES = new Set<string>([
+  'columns',                 // information_schema.columns 的别名 / 子查询别名
+  'pg_constraint',           // Postgres 系统目录
+  'schema_migrations',       // 由迁移器自行管理的记账表，不在业务建表语句里
+  'file_import_counts',      // CTE：按文件聚合 import 数量
+  'impacted',                // CTE：影响面分析的递归结果集
+  'url_q_seg',               // CTE：URL 查询串分段
+  'pattern',                 // 派生表别名（JOIN 子查询）
+  'regexp_split_to_table',   // 集合返回函数，被当成表名匹配到
+]);
+
 
 // ---------------------------------------------------------------------------
 // 1. 还原 schema
@@ -796,6 +842,9 @@ async function main(): Promise<void> {
     }
   }
 
+  // 白名单外的新「未知表」= 极可能是引用了未声明的表（历史事故：agent_conversations）
+  const unexpectedTables = [...allUnknown].filter((t) => !KNOWN_NON_TABLES.has(t)).sort();
+
   if (VERBOSE && allUnknown.size > 0) {
     console.log(`\n被跳过的未知表（CTE / 派生表 / 视图，共 ${allUnknown.size} 个）：`);
     console.log(`  ${[...allUnknown].sort().join(', ')}`);
@@ -824,8 +873,28 @@ async function main(): Promise<void> {
   }
 
   console.log(`\n${'='.repeat(72)}`);
+
+  if (unexpectedTables.length > 0) {
+    console.log(`\x1b[31mFAIL\x1b[0m — 发现 ${unexpectedTables.length} 个「SQL 引用但 schema 未声明」的表名`);
+    console.log('');
+    for (const t of unexpectedTables) console.log(`  \x1b[33m${t}\x1b[0m`);
+    console.log('');
+    console.log('这类缺陷在运行时表现为 `relation "x" does not exist`（42P01）。');
+    console.log('若语句被 try/catch 包裹（本项目多处如此），故障会被静默吞掉 ——');
+    console.log('表现为「这张表永远 0 行且不报错」。');
+    console.log('');
+    console.log('处置：');
+    console.log('  · 真的是表 → 去 src/db/index.ts 补 CREATE TABLE IF NOT EXISTS + ALTER 兜底');
+    console.log('  · 是 CTE / 派生表 / 视图 / 系统目录 → 加进本文件的 KNOWN_NON_TABLES 白名单');
+    console.log('='.repeat(72));
+    process.exit(1);
+  }
+
   if (total === 0) {
     console.log('\x1b[32mPASS\x1b[0m — 未发现引用不存在的列');
+    console.log(
+      `INFO — 未知表 ${allUnknown.size} 个，全部在白名单内（${[...KNOWN_NON_TABLES].length} 项）`
+    );
     if (syntaxIssues.length > 0) {
       console.log(`INFO — 另有 ${syntaxIssues.length} 处语法疑点（见上，不作为失败）`);
     }

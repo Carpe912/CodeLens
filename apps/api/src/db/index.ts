@@ -257,6 +257,64 @@ export async function initDatabase() {
     `);
 
     /**
+     * agent_conversations 表：**跨轮会话记忆**的唯一持久化载体
+     * - id: 主键
+     * - session_id: 会话 ID（客户端传入，同一会话的多轮问答共用）
+     * - repo_id: 所属仓库 ID（会话必须按仓库隔离，否则跨仓证据会串味）
+     * - query: 本轮用户问题
+     * - response: 本轮完整响应（JSONB，含 answer / evidence 等）
+     * - execution_time_ms: 本轮耗时
+     * - created_at: 创建时间
+     *
+     * ============================================
+     * ⚠️ 这张表曾经是「只在线上存在、仓库里查不到」的状态
+     * ============================================
+     * 2026-09-20 复核发现：`agent/core.ts` 里有 4 处 SQL 引用本表
+     * （INSERT 1 处 / SELECT 3 处），但**全仓没有任何一处 CREATE TABLE**，
+     * migrations 里也没有。线上 `information_schema` 里它确实存在（7 列），
+     * 说明它是被**带外创建**的 —— 本机或新环境从零建库时，这条 INSERT
+     * 会以 42P01（表不存在）失败，而 core.ts:528 的 catch 只记一条日志，
+     * **响应照常返回**，于是表现为「对话记录永远为空且不报错」。
+     *
+     * 这正是本项目反复踩到的同一形状：代码假定存在、真实库没有 ⇒ 静默空转。
+     * 所以这里补上声明，并逐列 ALTER 兜底（已有线上表补齐缺列）。
+     * 补完之后 `check:live-schema` 才能覆盖它，漂移不再只能靠人工发现。
+     *
+     * 【顺序要求】索引语句必须写在 ALTER 之后。
+     * 2026-09-18 的事故就是 `CREATE INDEX ... ON repos(gitlab_url)` 跑在缺列的表上
+     * 抛 42703，异常冒到调用方导致**整个服务起不来**。
+     */
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS agent_conversations (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(128),
+        repo_id INTEGER REFERENCES repos(id) ON DELETE CASCADE,
+        query TEXT,
+        response JSONB,
+        execution_time_ms INTEGER,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // 老库补列（建表语句里的列只对「从零建库」生效，已存在的表是 no-op）
+    await pool.query(`
+      ALTER TABLE agent_conversations
+        ADD COLUMN IF NOT EXISTS session_id VARCHAR(128),
+        ADD COLUMN IF NOT EXISTS repo_id INTEGER,
+        ADD COLUMN IF NOT EXISTS query TEXT,
+        ADD COLUMN IF NOT EXISTS response JSONB,
+        ADD COLUMN IF NOT EXISTS execution_time_ms INTEGER,
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
+    `);
+
+    // 会话记忆的读取路径：WHERE session_id = $1 AND repo_id = $2 ORDER BY created_at DESC
+    // 走这个复合索引；DESC 与查询排序一致，避免额外 sort。
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_agent_conversations_session
+        ON agent_conversations (session_id, repo_id, created_at DESC, id DESC);
+    `);
+
+    /**
      * 删除旧的 IVFFlat 索引（如果存在）
      * IVFFlat 是一种向量索引算法，但在删除操作时性能较差
      * 我们改用 HNSW 索引，性能更好
