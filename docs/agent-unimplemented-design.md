@@ -1,6 +1,9 @@
 # Agent 未实现部分的设计意图
 
-> **状态**：全部为「设计意图」，**尚未实现**。
+> **状态**：本文描述的这些能力**均未实现**（作用域：v1 `AgentCore`，见下文说明）。
+>
+> **唯一的例外是「有界迭代」这一层**：`apps/api/src/agent/graph/`（LangGraph）已把它落地，
+> 但**线上默认关闭**，且它只覆盖「迭代」——不含推理、反思、记忆、工具注册。详见文末「已经落地的部分」。
 >
 > 本文承接原先散落在 `apps/api/src/agent/` 下 5 个占位文件 JSDoc 中的设计笔记。
 > 那些笔记原本挂在 `export class X {}` 这样的空类上，容易让读者误以为能力已经存在。
@@ -13,10 +16,24 @@
 > 与新人误判能力边界。设计意图全部收敛到本文档，需要时再按下面章节落地。
 > 下表中提到的 `agent_reflections` / `conversation_memory` / `agent_lessons` / `tool_calls`
 > 等表，其建表 SQL 也已一并移除——落地对应能力时需重新添加迁移。
+>
+> **2026-09-20 复核**（口径：线上 `information_schema`，**不由迁移文件推断**）：
+>
+> - 这批表的建表 SQL 确实已不在仓库里，但**线上库中依然存在**，共 7 张：
+>   `agent_conversations`、`agent_executions`、`agent_lessons`、`agent_performance_stats`、
+>   `agent_reflections`、`conversation_memory`、`tool_calls`。
+>   ⇒ 由此产生一条**容易踩的落差**：线上有表，但**重新建库不会产生这些表**。
+>   落地任一相关能力时必须先补迁移，否则代码会直接撞在缺表上。
+> - 7 张中只有 `agent_conversations` 被代码真实读写（`AgentCore.executeQuery()` 写入、
+>   `getSession()` 读取）；其余 6 张在 `apps/api/src/` 中**零引用**，且线上**全部 0 行**。
+> - ⚠️ **「0 行」不能直接读作「从未被调用」**：错误日志里出现过
+>   `[AgentCore] Failed to save conversation`，而该 catch 只打印日志、**不影响响应返回**
+>   —— 也就是说存在一类**静默的持久化失败**。要判断某张表究竟是没被调用还是写失败了，
+>   必须结合日志，只看行数会得出错误结论。
 
 ---
 
-## 当前实现的真实边界
+## 当前实现的真实边界（v1 `AgentCore`）
 
 `AgentCore` 是一条**单轮线性管道**，不具备下列任何能力：
 
@@ -24,11 +41,19 @@
 分类(正则) → 多策略检索(1 次) → LLM 生成(1 次) → 落库
 ```
 
-未实现清单（与 `AGENT_CAPABILITIES` 常量保持一致）：
+> ⚠️ **作用域很关键**：下面这份清单描述的是 **v1 `AgentCore`**，不是整个项目。
+> 项目另有 `apps/api/src/agent/graph/`——一张 LangGraph **有环图**，已实现**有界多轮**
+> （`retrieve → grade →（证据不足则回边换策略重检索）→ generate`）。
+> 它经 `POST /agent/v2/query` 暴露、由 `AGENT_GRAPH_ENABLED` 控制，**不替换**
+> `/ask`、`/root-cause`、`/agent/query`。
+> 所以：v1 的边界描述仍然成立，但**不能据此认为「项目不具备多轮能力」**。
+> 该图的实现程度与线上状态见文末「与 LangGraph 的对应关系」。
+
+未实现清单（与 `AGENT_CAPABILITIES` 常量保持一致；该常量同样只描述 v1）：
 
 | 能力 | 状态 | 相关死配置 / 空表 |
 |---|---|---|
-| 多轮推理循环 | ❌ 未实现 | `config.maxReasoningRounds` |
+| 多轮推理循环 | ⚠️ v1 未实现；**v2 图已实现有界多轮**（规则评分驱动，非 LLM 推理） | `config.maxReasoningRounds` |
 | 自我反思 | ❌ 未实现 | `config.enableReflection`、`agent_reflections` 表 |
 | 任务分解与重规划 | ❌ 未实现 | `TaskPlanner` |
 | 跨轮会话记忆 | ❌ 未实现 | `config.enableLearning`、`conversation_memory` 表 |
@@ -50,8 +75,9 @@
 
 **规划策略**：前向规划（从现状推进到目标）、后向规划（从目标反推步骤）、分层规划（先高层后细化）。
 
-**现状**：`apps/api/src/agent/planner.ts` 中的类为空实现。任务类型分类由 `agent-core.ts`
-内部的**关键词正则**完成（`classifyTaskType`），没有 LLM 参与，也没有真正的计划对象产出。
+**现状**：完全未实现。（原来的占位类 `apps/api/src/agent/planner.ts` 已删除，见文首说明。）
+任务类型分类由 `core.ts` 内部的**关键词正则**完成（`classifyTaskType`），没有 LLM 参与，
+也没有真正的计划对象产出。
 
 ---
 
@@ -75,11 +101,17 @@ while (!达到目标 && 轮次 < 最大轮次) {
 **置信度管理**：每个假设带 0-1 评分，支持证据时上调、反驳时下调；低于阈值则继续收集证据。
 终止条件为：达成目标 / 置信度足够 / 轮次耗尽 / 无可用行动。
 
-> ⚠️ 注意区分：当前 `AgentResponse.confidence` 是 `agent-core.ts` 里
+> ⚠️ 注意区分：当前 `AgentResponse.confidence` 是 `core.ts` 里
 > `estimateConfidence()` 依据"证据条数与相关度"算出的**启发式分数**，
 > 不是这里描述的、基于假设图的置信度。两者语义不同，不要混用。
 
-**现状**：完全未实现。`AgentResponse.reasoning` 恒为空数组。
+**现状**：**v1 `AgentCore` 完全未实现**，`AgentResponse.reasoning` 恒为空数组。
+
+> **唯一沾边的是「迭代」这一层**：`graph/`（v2）已让流程可以回边——`grade` 用**规则判定**
+> （`computeSufficiency()` 算出证据充分度、与阈值比较）决定是否打回 `retrieve` 换策略重检索，
+> 轮次由 `min(config.maxReasoningRounds, 策略计划长度)` 封顶，且条件边**先查轮次上限**以保证必然收敛。
+> 但它**没有**实现本节描述的假设图与置信度推理：判断依据是分数阈值而非逐步推理，也不产出推理链。
+> **不要把 v2 的「有界重试」当作 ReAct 已落地。**
 
 ---
 
@@ -99,7 +131,16 @@ while (!达到目标 && 轮次 < 最大轮次) {
 
 **现状**：完全未实现。`AgentCore.memoryStats` 只是两个计数器，`clearMemory()` 也只是把计数器清零。
 `/agent/query` 虽接收 `sessionId` 并写库，但 `run()` **从不读回历史**——所以"多轮对话"实际上是
-每轮独立的无状态单轮。`conversation_memory` 表为空且零代码引用。
+每轮独立的无状态单轮。
+
+精确到调用点（这里最容易看错）：
+
+- **写入**发生在 `executeQuery()` 中、`run()` **返回之后**，落到 `agent_conversations` 表——
+  性质是**审计日志**，不是喂给下一轮的上下文。而且这个 INSERT 被 `try/catch` 包住，
+  失败只打日志、**不影响响应**（线上确实出现过 `Failed to save conversation`）。
+- **读取**确实存在，但在另一个方法 `getSession()` 里（供「查看会话历史 / 恢复上下文」用）；
+  `run()` **不调用它**——这才是「多轮无状态」的真正原因。
+- 与本节能力直接对应的 `conversation_memory` 表：线上 0 行、源码零引用。
 
 ---
 
@@ -119,8 +160,9 @@ while (!达到目标 && 轮次 < 最大轮次) {
 **评估指标**：进度（onTrack / progress / estimatedRemaining）、质量（confidence / evidenceQuality /
 consistencyScore）、效率（timePerStep / toolSuccessRate / resourceUtilization）、问题（issues / severity / needsReplan）。
 
-**现状**：完全未实现。`agent_reflections` 表已建好（含 `round`、`on_track`、`needs_replan` 字段）
-但零代码引用；`AgentResponse.metadata.reflections` 恒为 0。
+**现状**：完全未实现。`agent_reflections` 表**线上库中存在**（含 `round`、`on_track`、`needs_replan`
+等字段——但建表 SQL 已不在仓库，重新建库不会产生它），线上 0 行、源码零引用；
+`AgentResponse.metadata.reflections` 恒为 0。
 
 ---
 
@@ -147,10 +189,10 @@ consistencyScore）、效率（timePerStep / toolSuccessRate / resourceUtilizati
 
 **错误处理**：超时取消并记录；网络类错误指数退避重试 3 次，参数类错误不重试；主工具失败降级到备选。
 
-**现状**：完全未实现。检索被**硬编码**在 `agent-core.ts` 的 `gatherEvidence()` 中，只调用
-`MultiStrategySearch.search()` 一个入口。`tool_calls` 表零代码引用。
+**现状**：完全未实现。检索被**硬编码**在 `core.ts` 的 `gatherEvidence()` 中，只调用
+`MultiStrategySearch.search()` 一个入口。`tool_calls` 表零代码引用（线上 0 行，建表 SQL 亦不在仓库）。
 
-> 补充：`agent-core.ts` 现已写入 `toolCallHistory` 并发出 `tool_called` 事件，
+> 补充：`core.ts` 现已写入 `toolCallHistory` 并发出 `tool_called` 事件，
 > 但这只是**调用日志**，不等于动态工具注册与选择能力。
 
 ---
@@ -169,3 +211,26 @@ consistencyScore）、效率（timePerStep / toolSuccessRate / resourceUtilizati
 | `config.maxReasoningRounds` | 图循环上限 |
 
 即：这套 schema 当初是按"状态机 + 迭代 + 反思"设计的，只是从未有代码去驱动它。
+
+### 已经落地的部分（2026-09-20 复核）
+
+`apps/api/src/agent/graph/` 是这套设计的**第一个真实落地件**，但它只覆盖了「迭代」这一层：
+
+| 项 | 实际情况 |
+|---|---|
+| 依赖 | `@langchain/langgraph ^1.4.15` + `@langchain/langgraph-checkpoint-postgres ^1.0.5` —— **真的在用 LangGraph**，不是手写状态机 |
+| 拓扑 | `START → retrieve → grade →（条件边）→ retrieve \| generate → END`；`grade` 为规则判定，那条回边就是「多轮」 |
+| 收敛 | `maxRounds = min(config.maxReasoningRounds, 策略计划长度)`，条件边先查轮次上限 ⇒ 最坏情况必然终止 |
+| 暴露面 | 仅 `POST /agent/v2/query`（`apps/api/src/server/routes/agent.ts`）；v1 三条路由行为完全不变 |
+| 开关 | `AGENT_GRAPH_ENABLED`。**线上进程环境变量中未设置 ⇒ 生产环境未开启** |
+| 持久化 | `PostgresSaver` checkpointer，以 `sessionId` 作 `thread_id`，`setup()` 懒建表 |
+| 自检 | `pnpm --filter @codelens/api verify:graph`（`src/scripts/verify-graph.ts`） |
+
+> ⚠️ **两个最容易误读的点**：
+>
+> 1. **代码里有 ≠ 线上在跑。** 该图线上默认关闭，且线上库中**没有任何 `checkpoint*` 表**
+>    （`PostgresSaver.setup()` 是懒建表）——这本身就是「这张图在线上从未真正执行过」的证据。
+> 2. **上表的"对应关系"目前仍只是形状对齐，并未接通。** `graph/state.ts` 只在注释里声明
+>    「本状态字段 → `agent_executions` 列」，**没有一行代码真的往那张表写**；
+>    LangGraph 的 checkpoint 落进的是它自己的 `checkpoint*` 表。
+>    也就是说：本文档前半部分列的那 6 张 agent 表，与已经落地的 v2 图**还没有接上**。
