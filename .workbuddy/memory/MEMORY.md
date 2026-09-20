@@ -10,15 +10,35 @@
    **计数 == 0 必须显式失败。**
    变体：**「为了避免假阳性而跳过」的检查会同时放过真问题** —— 正确姿势是把「跳过」变成
    **显式允许清单**（`check:sql` 的 `KNOWN_NON_TABLES` 就是这么修的），而不是静默跳过。
-3. 重启：`pm2 restart codelens-api --update-env`（`--only` 可能没真重启），核对 uptime 归零 + `/health` 200。
-4. `reindex` 只按 `files` 已登记路径重解析 ⇒ 目录结构一变它就是错的工具（删仓重建或**续跑**）。
-5. **失败先续跑别重建**：`POST /repos/:id/resume`（migration 006）；代价 ∝ 剩余量。
+3. **产物断言必须带「规模断言」**：只 grep「我改的那个文件里的新标识符」**不能**区分
+   「整个 dist 完整」和「只有那 1 个文件在」。
+   2026-09-20 实测：`mv dist` 走但**忘移 `tsconfig.tsbuildinfo`** ⇒ tsc 增量**只重发 1 个文件**
+   （`find dist -type f | wc -l` = **1**）⇒ 打出来的包没有 `dist/index.js` ⇒ **线上直接挂（health=000）**。
+   ⇒ ① `mv dist` 必须**同时** `mv tsconfig.tsbuildinfo`（原 `build` 脚本是 `rm -rf dist tsbuildinfo`，
+   **它是对的**，拆成 `mv` 时漏了一半）；② 打包后立刻 `tar tzf | grep -x "dist/index.js"` +
+   条目数 ≥ 阈值；③ 基线：API **172 文件 / 189 条目**、web `index.html` **490 B**。
+4. **`CREATE INDEX IF NOT EXISTS` 只按名字判存在、不比对定义** ⇒ 撞上带外建过的同名索引就**整条静默 no-op**。
+   2026-09-20 实测：`idx_agent_conversations_session` 线上是 `btree (session_id)`，
+   而仓内声明的是四列复合 —— 复合索引从未建出、无报错、启动日志正常。
+   ⇒ 往 **out-of-band 表**补索引前先查 `pg_indexes.indexdef`，必要时换名（已改为 `_session_recent`）。
+   ⚠️ `check:sql` / `check:live-schema` **都覆盖不到索引定义**；判据是 `pg_indexes` 文本，不是「有没有报错」。
+   ⚠️ 表小时 `EXPLAIN` 仍走 Seq Scan，**别据此以为索引没生效**。
+5. 重启：`pm2 restart codelens-api --update-env`（`--only` 可能没真重启），核对 uptime 归零 + `/health` 200。
+6. `reindex` 只按 `files` 已登记路径重解析 ⇒ 目录结构一变它就是错的工具（删仓重建或**续跑**）。
+7. **失败先续跑别重建**：`POST /repos/:id/resume`（migration 006）；代价 ∝ 剩余量。
+8. **回滚点（`dist.prev.*` / `codelens-web.prev.*`）就是事故时的救命路径** ——
+   2026-09-20 靠 `mv dist.prev.<ts> dist` 把线上从 000 救回来。保留最近 5 个，多出的 `mv` 到
+   `/tmp/old-rollbacks/`，**别 `rm`**。
 
 ## 环境
 
 - **线上配置唯一来源 = `ecosystem.config.js::env_production`**；`.env` 只对手工脚本生效且**值不同**
   ⇒ **别手跑 `reembed.js`**。
 - **pm2 把 `console.warn/error` 分流到 `-error.log`** ⇒ out 日志 grep 警告恒空。
+  ⚠️ **日志路径以 `pm2 describe codelens-api | grep -i "log path"` 为准**：
+  线上实际是 **`/var/log/codelens-api-{out,error}.log`**（out 已 672 MB）。
+  `/root/.pm2/logs/` 里那两个文件**停在 5 月 1 日**、早就不写了 —— `tail` 它们会看到「5 月的错误」，
+  极易误判成本次启动的问题。
 - 前端线上 = **nginx `/code/`→alias `/www/wwwroot/codelens-web/`**；API 公开在 **`/code-api/`**。
   本机 https 被拦 → 直连 `http://47.116.6.132/code-api`。
 - **本机 `pnpm build:web` 曾必挂**：`Host version "0.25.12" does not match binary version "0.27.7"`。
@@ -68,11 +88,16 @@
    ⚠️ 不要用「打开 v2 checkpointer」代替：累积 reducer + `round` 不重置 ⇒ 同 thread 第二问会继承第一问证据。
    答案引用自检 = `llm/answer-consistency.ts`，`/ask` 与 `/root-cause` 响应带 `consistency` 字段。
    ⚠️ **它是原生 SQL，不是 LangChain memory**：模块只 `import type { Pool } from 'pg'`（编译期擦除
-   ⇒ 运行时零依赖）。`langchain` 包**没装**（`BufferMemory`/`ConversationSummaryMemory` 不可用）；
-   `@langchain/langgraph-checkpoint-postgres` **只导出 `PostgresSaver`，没有 `PostgresStore`**
-   ⇒ 连 LangGraph 的长期记忆（BaseStore）那一半都还没提供。
-   若要「跨会话长期记忆 / 按语义召回历史 / 存工具轨迹」才值得换 `BaseStore`；
-   当前需求（按 session+repo 取最近 3 轮）一条 SQL 就到顶。
+   ⇒ 运行时零依赖）。`langchain` 包**没装**（`BufferMemory`/`ConversationSummaryMemory` 不可用）。
+   ✅ **更正（2026-09-20）**：`@langchain/langgraph-checkpoint-postgres@1.0.5` **确实导出 `PostgresStore`**，
+   但**只在子路径** `@langchain/langgraph-checkpoint-postgres/store`（根 `index` 只导 `PostgresSaver`；
+   包 `exports` 含 `./store`）。早期「没提供 Store」的结论是只看了根入口 ⇒ **错的**。
+   Store 需要 `CREATE EXTENSION vector` + 3 张表（`store`/`store_vectors`/`store_migrations`）——
+   线上 **pgvector 0.7.0 已装**（PG 13.23，`code_chunks` 等已有 5 个 embedding 索引含 HNSW）
+   ⇒ **基础设施零成本，能不能用不是问题**。真正的判据是**检索函数该不该是「相似」**：
+   短追问（「那它呢」）的指代物就在**上一轮**，按向量近邻召回会把 20 轮前语义相似但对话无关的轮次捞回来
+   ⇒ **当前需求是「近因」不是「相似」，Store 在这里不仅更贵、而且更差**。
+   只有当需求真的右移（跨会话累积 / 语义召回历史 / 工具轨迹与偏好 / 多命名空间隔离）才值得换。
    另外 `docs/agent-unimplemented-design.md` 里 `conversation_memory → BaseStore` 只是**当初的设计映射**，
    不是实现记录 —— 实际用的是 `agent_conversations` 且不走 Store。
 
@@ -81,6 +106,10 @@
 - ⚠️ **仓库是公开的**（`Carpe912/CodeLens`）⇒ `.env.production`、`apps/web/.env.production`、
   `ecosystem.config.js` 里的 DeepSeek/Anthropic/DashScope key 与 DB 密码**已泄漏，待用户轮换**。
   新历史已排除这三类文件，但**排除 ≠ 止血**。配置说明留在 `ecosystem.config.example.js`（脱敏）。
+  ⚠️ **2026-09-20 追加泄漏面（不在仓库里，在服务器磁盘上）**：
+  `/var/log/codelens-api-error.log` 存着完整 git clone 命令行，内嵌明文凭据
+  `https://leon.sun%40…:SUNlingyao0912@gitlab.logwire.cn/…` ⇒ 轮换清单**要加上 GitLab 账号密码/
+  access token**，且**日志文件本身要清理**（74 MB 里可能不止一处）。
 - 提交历史已重建**并已推送**：**76 条 → 27 条**按模块线性（原 76 条里 26 条标题就是 `#`）。
   远程 `origin` 的 `main` 就是这条新历史（`git ls-remote origin` 可核对），旧历史已强制覆盖。
   旧历史锚点 = 分支 **`main-before-rewrite`** 与 tag `backup-before-commit-rewrite`（同为 `6731ec0`）

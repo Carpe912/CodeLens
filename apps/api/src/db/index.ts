@@ -307,10 +307,23 @@ export async function initDatabase() {
         ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
     `);
 
-    // 会话记忆的读取路径：WHERE session_id = $1 AND repo_id = $2 ORDER BY created_at DESC
-    // 走这个复合索引；DESC 与查询排序一致，避免额外 sort。
+    /**
+     * 会话记忆的读取路径：WHERE session_id = $1 AND repo_id = $2
+     * ORDER BY created_at DESC, id DESC —— 本索引与查询的列序、排序方向都对齐，
+     * 过滤 + 排序一条路径走完，不需要额外 sort。
+     *
+     * ⚠️ 名字故意与线上那张历史遗留的单列索引 `idx_agent_conversations_session`
+     * **区分开**（`_session_recent`）。原因：`agent_conversations` 最初是 out-of-band
+     * 建的表，线上已存在同名索引 `btree (session_id)`。若这里沿用同名 + `IF NOT EXISTS`，
+     * 整条 DDL 会**静默 no-op** —— 报错没有、索引也没建，而读代码的人会以为复合索引已在。
+     * （2026-09-20 实测踩到：`pg_indexes.indexdef` 是 `btree (session_id)`，
+     * 与这里的声明不一致，而启动日志一切正常。）
+     *
+     * `CREATE INDEX IF NOT EXISTS` 只按**名字**判存在，不比对定义 ——
+     * 所以只要可能与历史索引撞名，就必须换名字，否则闸门是关着的。
+     */
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_agent_conversations_session
+      CREATE INDEX IF NOT EXISTS idx_agent_conversations_session_recent
         ON agent_conversations (session_id, repo_id, created_at DESC, id DESC);
     `);
 
