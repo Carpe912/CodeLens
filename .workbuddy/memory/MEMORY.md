@@ -21,6 +21,14 @@
   本机 https 被拦 → 直连 `http://47.116.6.132/code-api`。
 - **curl 通 ≠ 无头 Chrome 通**：headless Chrome 只能走 loopback，fetch 公网 IP 报
   `Failed to fetch`（页面渲染但「统计不可用」）⇒ 浏览器验证**必须走 SSH 隧道**。
+- ⚠️ **`github.com` 在本机被 SNI 阻断**：HTTPS 443 在 TLS ClientHello 后即
+  `Recv failure: Connection reset by peer`；`api.github.com`/`codeload`/`raw` 正常；
+  **22 端口 TCP 能连但 SSH 握手被切**（`kex_exchange_identification`）。
+  ⇒ **remote 用 `ssh://git@ssh.github.com:443/Carpe912/CodeLens.git`**（已切换，实测可认证/可 ls-remote）。
+  `~/.ssh/config` 里那个 `Host github.com` 块带 `ProxyCommand ... 127.0.0.1:7890`，
+  而 **7890 无监听** ⇒ 走 `git@github.com` 会卡死（配置写好 ≠ 能跑）。原 HTTPS 地址存 `/tmp/origin-url-before.txt`。
+- **别用 `nc -z` 判断可用性**：它只验 TCP 三次握手，对 SNI 阻断/协议层切断会给假阳性，
+  必须做到 TLS/SSH 握手层。
 
 ## 数据口径（反直觉）
 
