@@ -38,6 +38,25 @@
    会给出**错但很像真的**路径）。
    ✅ 清单完整性用**双实现集合差**验（硬编码 vs 数据驱动，归一化占位符后差集须 0）。
 
+## 仓库与历史
+
+- ⚠️ **仓库是公开的**（`Carpe912/CodeLens`）⇒ `.env.production`、`apps/web/.env.production`、
+  `ecosystem.config.js` 里的 DeepSeek/Anthropic/DashScope key 与 DB 密码**已泄漏，待用户轮换**。
+  新历史已排除这三类文件，但**排除 ≠ 止血**。配置说明留在 `ecosystem.config.example.js`（脱敏）。
+- 提交历史已重建并**已晋级**：**76 条 → 26 条**按模块线性（原 76 条里 26 条标题就是 `#`）。
+  新历史现在**就是 `main`**（`3ce2e74`，27 条：26 条模块提交 + 1 条本次整理的记录提交）；
+  `main-clean` 已删除（其提交 `f431a44` 仍是 main 的祖先，可随时重建）。
+  旧历史锚点 = 分支 **`main-before-rewrite`** 与 tag `backup-before-commit-rewrite`（同为 `6731ec0`）
+  + `/tmp/codelens-git-backup/*.bundle`。
+  ⚠️ 推远程要 force 且**别 `git pull`**（26 vs 67 会得到合并烂摊子）：先 `git fetch`，
+  再 `git push --force-with-lease origin main`。
+  报告：`/tmp/codelens-git-backup/COMMIT_REWRITE_REPORT.md`。
+- `.gitignore` 已补：`apps/web/dist-preview`、`apps/web/dist.preview`、`*.tsbuildinfo*`、
+  `ecosystem.config.js`、`.workbuddy/tmp/`。根因：`dist` 匹配不到 `dist-preview`、
+  `*.tsbuildinfo` 匹配不到 `.bak.*`/`.stale.*` 变体 ⇒ 垃圾文件才被跟踪。
+- 重建历史的方法论 + 6 个坑（备份 ref 取内容会丢未提交改动、覆盖率断言空转、quotepath 转义、
+  并行编辑覆盖、孤儿分支禁 reset --hard、排除密钥≠止血）→ skill `git-history-module-rewrite`。
+
 ## 边界
 
 - 索引器只认 **TS/JS/TSX/JSX 与 `.vue`**（Java/Python/Go 不入库）。
