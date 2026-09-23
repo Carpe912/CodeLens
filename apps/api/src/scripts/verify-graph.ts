@@ -12,6 +12,7 @@
  *   B. 真实依赖探测 —— 数据库是否可连（信息性，失败不视为错误）
  *   C. 循环行为端到端 —— 注入桩件检索器/生成器，在**不依赖数据库和 LLM** 的
  *      前提下验证「证据不足 → 换策略重检索 → 充足后生成」确实发生
+ *      （C5 额外验证答案引用自检：捏造的「文件:行号」会被挑出来且答案不被改写）
  *
  * 之所以能做到 C 层：createCodeLensGraph 支持注入 search 与 generateAnswer。
  * 若日后移除这两个注入点，本脚本将退化为只能验证 A、B 两层。
@@ -190,6 +191,34 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   check('C4 无证据时不调用 LLM', generateCalls === 0, `calls=${generateCalls}`);
   check('C4 返回明确的失败说明', r.answer.includes('无法基于证据回答'), r.answer.slice(0, 40) + '...');
   check('C4 置信度为 0', r.confidence === 0, `conf=${r.confidence}`);
+}
+
+// C5. 引用自检：答案里的「文件:行号」是否真在本轮证据中
+// 桩件证据位于 a.ts，区间 [1,2]，因此 a.ts:2 应当对得上、src/ghost.ts:999 不应当。
+{
+  const graph = await createCodeLensGraph({
+    pool,
+    search: stubSearch(() => STRONG),
+    // 头部引用真实证据，尾部捏造一条 —— 正是提示词要求「给出文件路径和行号」时的典型失败形态
+    generateAnswer: async () => '见 a.ts:2 的实现；另见 src/ghost.ts:999 中的调度逻辑。',
+  });
+  const r = await runGraphQuery(graph, { query: 'stub query', repoId: 1 });
+
+  check('C5 自检报告随结果返回', !!r.consistency, `verdict=${r.consistency?.verdict}`);
+  check('C5 判定为 unsupported_refs', r.consistency.verdict === 'unsupported_refs', r.consistency.verdict);
+  check('C5 只挑出对不上的那条引用', r.consistency.unsupported.length === 1
+    && r.consistency.unsupported[0] === 'src/ghost.ts:999', JSON.stringify(r.consistency.unsupported));
+  check('C5 对得上的引用未被误报', !r.consistency.unsupported.includes('a.ts:2'));
+  check('C5 答案本身未被改写', r.answer === '见 a.ts:2 的实现；另见 src/ghost.ts:999 中的调度逻辑。');
+
+  // 反向用例：引用全部落在证据区间内 → 不应告警
+  const clean = await createCodeLensGraph({
+    pool,
+    search: stubSearch(() => STRONG),
+    generateAnswer: async () => '见 a.ts:1 与 b.ts:2。',
+  });
+  const rc = await runGraphQuery(clean, { query: 'stub query', repoId: 1 });
+  check('C5 引用全部对得上时判定 ok', rc.consistency.verdict === 'ok', rc.consistency.verdict);
 }
 
 // ============================================================

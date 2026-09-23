@@ -216,3 +216,26 @@ export function checkAnswerConsistency(
 
   return { verdict, citations, unsupported, mismatchedLines };
 }
+
+/**
+ * 把「需要人工关注」的判定格式化成一行告警文案；判定正常时返回 null。
+ *
+ * 存在的原因：`/ask`、`/root-cause`、`AgentCore`、编排图四条链路都要打同一句日志。
+ * 文案分散在各处必然漂移 —— 某天只在一条链路上补上「行号越界」，
+ * 另一条就静默漏报。判定留在 checkAnswerConsistency，措辞留在这里，
+ * 调用方只负责决定要不要 warn 以及标签叫什么。
+ */
+export function describeConsistencyIssue(
+  report: ConsistencyReport,
+  label: string
+): string | null {
+  if (report.verdict !== 'unsupported_refs' && report.verdict !== 'line_mismatch') {
+    return null;
+  }
+
+  return (
+    `${label} 答案引用与证据不一致 (${report.verdict}): ` +
+    `未匹配文件 [${report.unsupported.join(', ')}]` +
+    `${report.mismatchedLines.length ? ` 行号越界 [${report.mismatchedLines.join(', ')}]` : ''}`
+  );
+}

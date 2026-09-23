@@ -36,7 +36,7 @@ import {
   normalizeSessionId,
 } from '../../agent/conversation-memory.js';
 // 答案 ↔ 证据一致性自检（只观测，不改写答案）
-import { checkAnswerConsistency } from '../../llm/answer-consistency.js';
+import { checkAnswerConsistency, describeConsistencyIssue } from '../../llm/answer-consistency.js';
 
 /**
  * 「功能类问题」的检索召回配置（`/ask` 与 `/root-cause` 共用）
@@ -374,13 +374,8 @@ app.post<{
   // 让前端/评测脚本有机会提示「该引用不在本次检索到的证据中」。
   // 只报告、不改写答案（改写会把「编了行号」变成「没有行号」，把问题藏起来）。
   const consistency = checkAnswerConsistency(answer, evidence as any);
-  if (consistency.verdict === 'unsupported_refs' || consistency.verdict === 'line_mismatch') {
-    console.warn(
-      `[ask] 答案引用与证据不一致 (${consistency.verdict}): ` +
-        `未匹配文件 [${consistency.unsupported.join(', ')}]` +
-        `${consistency.mismatchedLines.length ? ` 行号越界 [${consistency.mismatchedLines.join(', ')}]` : ''}`
-    );
-  }
+  const consistencyWarning = describeConsistencyIssue(consistency, '[ask]');
+  if (consistencyWarning) console.warn(consistencyWarning);
 
   // 保存问答记录到数据库
   const questionResult = await pool.query(
@@ -538,13 +533,8 @@ app.post<{
   // 与 `/ask` 同源的答案↔证据自检：根因分析的提示词同样要求
   // 「给出具体的文件路径和行号」，因此也有编造引用的风险。
   const consistency = checkAnswerConsistency(rootCause, evidence as any);
-  if (consistency.verdict === 'unsupported_refs' || consistency.verdict === 'line_mismatch') {
-    console.warn(
-      `[root-cause] 答案引用与证据不一致 (${consistency.verdict}): ` +
-        `未匹配文件 [${consistency.unsupported.join(', ')}]` +
-        `${consistency.mismatchedLines.length ? ` 行号越界 [${consistency.mismatchedLines.join(', ')}]` : ''}`
-    );
-  }
+  const consistencyWarning = describeConsistencyIssue(consistency, '[root-cause]');
+  if (consistencyWarning) console.warn(consistencyWarning);
 
   return {
     query,

@@ -42,6 +42,8 @@ import type {
 } from './types.js';
 import { MultiStrategySearch } from '../retrieval/multi-strategy-search.js';
 import { DEFAULT_SAMPLE_SIZE, estimateConfidenceFromScores } from '../utils/scoring.js';
+// 答案 ↔ 证据一致性自检（只观测，不改写答案）
+import { checkAnswerConsistency, describeConsistencyIssue } from '../llm/answer-consistency.js';
 // 超时实现已抽到 utils/async.ts，与 LLM 调用侧共用同一份（避免两处阈值/文案漂移）
 import { withTimeout, withRetry } from '../utils/async.js';
 import { EventEmitter } from 'events';
@@ -158,6 +160,14 @@ export class AgentCore extends EventEmitter {
       // 3. 生成答案：基于证据生成结构化回答
       const answer = await this.generateAnswer(task, evidence);
 
+      // 3.5 答案引用自检：核对答案里写的「文件:行号」是否真在本轮证据中。
+      // generateAnswer 的提示词明确要求"关键证据（文件路径和行号）"，
+      // 而编造的引用在形式上与真实引用无异 —— 因此生成之后必须对一遍账。
+      // 与 /ask、/root-cause 共用同一实现，同样**只观测、不改写**答案。
+      const consistency = checkAnswerConsistency(answer, evidence);
+      const consistencyWarning = describeConsistencyIssue(consistency, '[AgentCore]');
+      if (consistencyWarning) console.warn(consistencyWarning);
+
       // 本轮实际发生的工具调用（不再硬编码为 ['vector_search']）
       const toolsCalled = Array.from(
         new Set(this.toolCallHistory.slice(toolCallWatermark).map(c => c.tool))
@@ -174,6 +184,7 @@ export class AgentCore extends EventEmitter {
         // 评分规则集中在 utils/scoring.ts，与图编排层共用同一实现
         confidence: estimateConfidenceFromScores(evidence.map(e => e.relevance)),
         executionTime: Date.now() - startTime, // 总执行时间
+        consistency,                 // 引用自检报告（不改写答案，交调用方处置）
         metadata: {
           planId: task.id,           // 任务 ID
           stepsExecuted: AGENT_STAGES.length, // 真实执行阶段数（分类 → 检索 → 生成）
@@ -326,9 +337,14 @@ export class AgentCore extends EventEmitter {
       // 取相关性最高的若干条并转换为 Evidence 格式
       return results.slice(0, DEFAULT_SAMPLE_SIZE).map(r => ({
         type: 'code' as const,       // 证据类型：代码
-        source: `${r.filePath}:${r.lineStart}`, // 来源：文件路径和起始行号
+        source: `${r.filePath}:${r.lineStart}`, // 来源：给人看的展示串（提示词在用）
         content: r.content,          // 代码内容
-        relevance: r.score           // 相关性评分（0-1）
+        relevance: r.score,          // 相关性评分（0-1）
+        // 结构化位置：search 结果本来就有这些字段，此前只在 source 里拼成字符串，
+        // 导致答案引用自检无法做机器比对。现在原样保留，供 checkAnswerConsistency 使用。
+        file_path: r.filePath,
+        line_start: r.lineStart,
+        line_end: r.lineEnd
       }));
     } catch (error) {
       this.recordToolCall(toolName, startedAt, false, error);

@@ -27,6 +27,9 @@ import type { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { MultiStrategySearch } from '../../retrieval/multi-strategy-search.js';
 import { getAgentConfig } from '../../config/index.js';
+// 答案 ↔ 证据一致性自检（只观测，不改写答案）
+import { checkAnswerConsistency, describeConsistencyIssue } from '../../llm/answer-consistency.js';
+import type { ConsistencyReport } from '../../llm/answer-consistency.js';
 import { GraphState } from './state.js';
 import type { GraphEvidence } from './state.js';
 import {
@@ -58,6 +61,14 @@ export interface GraphRunResult {
   executionTime: number;
   /** 会话 ID，同时作为 checkpointer 的 thread_id */
   sessionId: string;
+  /**
+   * 答案引用 ↔ 证据的一致性自检报告（只观测，不改写答案）。
+   *
+   * `GraphEvidence` 就是 `CodeChunkRecord` 加上 file_path/score，本身就带
+   * line_start/line_end，因此这里无需任何形状转换。与 /ask、/agent/query
+   * 共用同一实现，四条生成链路在这一点上不再有缺口。
+   */
+  consistency: ConsistencyReport;
 }
 
 /**
@@ -163,6 +174,13 @@ export async function runGraphQuery(
     { configurable: { thread_id: sessionId } }
   );
 
+  // 答案引用自检：与 /ask、/agent/query 同一道关卡。
+  // 图这条链路此前是最容易漏掉的 —— 它复用了 answerQuestion 的提示词
+  // （同样要求给出"文件路径和行号"），却没有任何校验。
+  const consistency = checkAnswerConsistency(finalState.answer, finalState.evidence);
+  const consistencyWarning = describeConsistencyIssue(consistency, '[graph]');
+  if (consistencyWarning) console.warn(consistencyWarning);
+
   return {
     answer: finalState.answer,
     evidence: finalState.evidence,
@@ -173,5 +191,6 @@ export async function runGraphQuery(
     trace: finalState.trace,
     executionTime: Date.now() - startedAt,
     sessionId,
+    consistency,
   };
 }

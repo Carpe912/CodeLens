@@ -7,6 +7,7 @@
 
 import type { Pool } from 'pg';
 import type { LlmClient } from '../llm/client.js';
+import type { ConsistencyReport } from '../llm/answer-consistency.js';
 
 // ============================================
 // 基础类型
@@ -184,9 +185,27 @@ export interface Hypothesis {
  */
 export interface Evidence {
   type: 'code' | 'log' | 'config' | 'documentation'; // 证据类型
-  source: string;              // 证据来源（如文件路径、URL）
+  /**
+   * 证据来源（如文件路径、URL）。
+   *
+   * ⚠️ 这是给人看的展示字段，可能把路径与行号拼在一起（`a/b.ts:12`）。
+   * 需要机器比对时请用下面的 file_path / line_start / line_end，
+   * 别去解析这个字符串。
+   */
+  source: string;
   content: string;             // 证据内容
   relevance: number;           // 相关性评分（0-1）
+  /**
+   * 结构化的文件位置。
+   *
+   * 字段名刻意与 `CodeChunkRecord`、图证据 `GraphEvidence` 保持一致（snake_case），
+   * 因此 `Evidence[]` 可直接传给 `checkAnswerConsistency` 做引用比对，
+   * 既不需要转换层，也不需要 `as any`。
+   * 可选是为了兼容只构造了 source 的历史调用方。
+   */
+  file_path?: string;
+  line_start?: number;
+  line_end?: number;
   metadata?: Record<string, any>; // 额外的元数据
 }
 
@@ -298,6 +317,16 @@ export interface AgentResponse {
   reasoning: ReasoningStep[];  // 推理步骤列表
   confidence: number;          // 答案置信度（0-1）
   executionTime: number;       // 总执行时间（毫秒）
+  /**
+   * 答案引用 ↔ 证据的一致性自检报告（由 `checkAnswerConsistency` 计算）。
+   *
+   * 只观测、不改写答案：`unsupported_refs` / `line_mismatch` 表示模型写的
+   * 「文件:行号」在本轮证据里对不上，属于幻觉引用的强信号，交调用方处置。
+   *
+   * 可选：`agent_conversations` 里已落库的历史响应不含该字段，
+   * 反序列化时不能假设它存在。
+   */
+  consistency?: ConsistencyReport;
   metadata: {                  // 执行元数据
     planId: string;            // 执行计划 ID
     stepsExecuted: number;     // 执行的步骤数
