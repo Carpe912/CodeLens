@@ -3,10 +3,19 @@
  *
  * 背景：
  * 本项目的问答链路（llm/qa.ts）与 Agent（agent/core.ts）历史上直接依赖
- * 手写的 OpenAI SDK 适配层。改用 LangChain 后有三个收益：
- * 1. 代码量减少 ~280 行，维护成本降低；
- * 2. 获得结构化输出能力（withStructuredOutput），替代正则提取引用；
- * 3. Prompt 模板管理（ChatPromptTemplate），实现提示词与代码分离。
+ * 手写的 SDK 适配层（334 行，其中非注释代码 188 行）。改用 LangChain 的收益
+ * **只有一项**：两个手写厂商类收敛成一个由 @langchain/openai 支撑的类，
+ * 非注释代码降到 131 行（-57）；总行数 334 → 257，差额主要是注释体量变化 ——
+ * 少维护一层适配，SDK 细节交给了框架。
+ *
+ * （行数按"非注释代码行"口径统计，因为总行数会随注释增减而变，算收益会失真。）
+ *
+ * ⚠️ 这里刻意不列举"结构化输出""Prompt 模板"之类的收益，因为它们没有发生：
+ * withStructuredOutput 与 ChatPromptTemplate 在全仓零使用，提示词仍是模板字符串。
+ * 尤其 withStructuredOutput 对本项目是**不该用**的 —— 引用校验必须独立于模型
+ * 自述，理由见 docs/design/framework-comparison-05-boundaries.md §4.9（查伪 ≠ 自证）。
+ * 之前把"能力可用"写成"收益已获得"，又被反复引来当作"已迁移"的证据，
+ * 因此这句负面清单本身就是注释的一部分，勿删。
  *
  * 环境变量：
  * - LLM_MODEL             覆盖模型名（优先级最高），默认 deepseek-chat
