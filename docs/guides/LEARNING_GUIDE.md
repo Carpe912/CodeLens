@@ -452,7 +452,7 @@ CREATE INDEX idx_pattern_trigram ON url_patterns USING gin(pattern gin_trgm_ops)
 - Fastify（Web 框架）
 - PostgreSQL + pgvector（向量数据库）
 - Redis + BullMQ（任务队列）
-- LLM：DeepSeek（默认 `deepseek-chat`；`LLM_PROVIDER` 可回滚 Anthropic Claude）
+- LLM：DeepSeek `deepseek-chat`（单一路径；`LLM_PROVIDER` 开关已移除）
 - 阿里云 DashScope（Embeddings `qwen3.7-text-embedding` + Rerank 精排 `qwen3.7-text-rerank`）
 
 **代码分析**：
@@ -704,7 +704,6 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 
 # 编辑 .env 文件（完整变量见 apps/api/.env.example）
-LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=your-key
 EMBED_API_KEY=your-dashscope-key
 DB_HOST=localhost
@@ -764,8 +763,7 @@ redis-server
 ### Q2: 如何获取 API Key？
 
 **A**: 
-- **DeepSeek API Key**（默认 LLM）: https://platform.deepseek.com/
-- **Anthropic API Key**（回滚路径才需要）: https://console.anthropic.com/
+- **DeepSeek API Key**（本项目唯一的 LLM）: https://platform.deepseek.com/
 - **阿里云 DashScope**（Embedding + Rerank）: https://dashscope.aliyun.com/
 
 ### Q3: 支持哪些编程语言？

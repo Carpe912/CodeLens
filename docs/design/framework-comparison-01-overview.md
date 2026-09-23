@@ -5,7 +5,7 @@
 > 🗓️ **设计阶段文档**：写作时项目用的是 Anthropic Claude，文中的 `Anthropic` /
 > `claude-sonnet-4-6` 是**当时的选型背景与对比对象**，保留以反映决策过程。
 > **当前实际技术栈**以 `ecosystem.config.js` + `docs/deployment/SERVER_RUNBOOK.md` 为准：
-> LLM = DeepSeek `deepseek-chat`（`LLM_PROVIDER` 可回滚 Anthropic）、
+> LLM = DeepSeek `deepseek-chat`（单一 provider；`LLM_PROVIDER` 与 Anthropic 回滚路径均已移除）、
 > Embedding = DashScope `qwen3.7-text-embedding`（1536 维）、
 > Rerank = DashScope `qwen3.7-text-rerank`。
 
@@ -38,7 +38,7 @@
 - **框架**：Fastify (Node.js)
 - **数据库**：PostgreSQL + Redis
 - **队列**：BullMQ
-- **LLM**：DeepSeek `deepseek-chat`（默认；`LLM_PROVIDER` 可回滚 Anthropic Claude）
+- **LLM**：DeepSeek `deepseek-chat`（单一路径；`LLM_PROVIDER` 开关已移除）
 - **代码解析**：Babel, ts-morph, @vue/compiler-sfc
 
 **前端：**

@@ -4,7 +4,7 @@
 
 > ⚠️ **模型/厂商的权威来源**是 `ecosystem.config.js`（运行时真值）+ `SERVER_RUNBOOK.md`（变更记录）。
 > 本文档是 Agent 升级时的部署说明，含部分当时快照。**当前实际技术栈**：
-> - **LLM**：DeepSeek `deepseek-chat`（`LLM_PROVIDER=deepseek`，可回滚 Anthropic）
+> - **LLM**：DeepSeek `deepseek-chat`（代码内固定为单一 provider；`LLM_PROVIDER` / `ANTHROPIC_*` 均已移除）
 > - **Embedding**：DashScope `qwen3.7-text-embedding`，`EMBED_DIMENSIONS=1536`
 > - **Rerank**：DashScope `qwen3.7-text-rerank`（`retrieval/rerank.ts`）
 >
@@ -203,13 +203,10 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 8787,
 
-        // ===== LLM（默认 DeepSeek，ANTHROPIC_* 保留作回滚路径）=====
-        LLM_PROVIDER: 'deepseek',
+        // ===== LLM（只用 DeepSeek；LLM_PROVIDER / ANTHROPIC_* 已移除，设了不会生效）=====
         LLM_MODEL: 'deepseek-chat',
         DEEPSEEK_BASE_URL: 'https://api.deepseek.com',
         DEEPSEEK_API_KEY: 'your_deepseek_key',
-        ANTHROPIC_BASE_URL: 'http://118.89.81.103:8081',   // 回滚用
-        ANTHROPIC_AUTH_TOKEN: 'your_token',                // 回滚用
 
         // ===== Embedding（与 LLM 厂商无关，不要随 LLM 一起改）=====
         EMBED_API_KEY: 'your_dashscope_key',
@@ -351,13 +348,10 @@ DB_PASSWORD=your_password
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
-# LLM 配置（默认 DeepSeek；ANTHROPIC_* 为回滚路径）
-LLM_PROVIDER=deepseek
+# LLM 配置（只用 DeepSeek；LLM_PROVIDER / ANTHROPIC_* 已移除，设了不会生效）
 LLM_MODEL=deepseek-chat
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_API_KEY=your_deepseek_key
-ANTHROPIC_BASE_URL=http://118.89.81.103:8081
-ANTHROPIC_AUTH_TOKEN=your_token
 
 # 阿里百炼 Embedding API（与 LLM 厂商无关，不要随 LLM 一起换）
 EMBED_API_KEY=your_dashscope_key

@@ -2,7 +2,7 @@
 
 > 🗓️ **设计阶段文档**：文中的 `Anthropic` / `ChatAnthropic` / 旧版 Claude 模型名是
 > **当时的选型背景与代码示例**，保留以反映决策过程，**不代表当前配置**。
-> 当前 LLM 为 DeepSeek `deepseek-chat`（`LLM_PROVIDER` 可回滚 Anthropic），
+> 当前 LLM 为 DeepSeek `deepseek-chat`（单一 provider；`LLM_PROVIDER` 与 Anthropic 路径均已移除），
 > 详见 `docs/deployment/SERVER_RUNBOOK.md` 第 8 节。
 
 ## 1. 混合架构设计原则

@@ -61,8 +61,7 @@ nano .env
 更新以下配置：
 
 ```bash
-# LLM（默认 DeepSeek；ANTHROPIC_* 为回滚路径）
-LLM_PROVIDER=deepseek
+# LLM（只用 DeepSeek；LLM_PROVIDER / ANTHROPIC_* 已移除，设了不会生效）
 LLM_MODEL=deepseek-chat
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_API_KEY=your_deepseek_key

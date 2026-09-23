@@ -4,7 +4,7 @@
 >
 > 🗓️ **设计阶段文档**：文中的 `Anthropic` / `claude-sonnet-4-6` 是**当时的选型背景与对比示例**，
 > 保留以反映决策过程，**不代表当前配置**。当前 LLM 为 DeepSeek `deepseek-chat`
-> （`LLM_PROVIDER` 可回滚 Anthropic），详见 `docs/deployment/SERVER_RUNBOOK.md`。
+> （单一 provider；`LLM_PROVIDER` 与 Anthropic 路径均已移除），详见 `docs/deployment/SERVER_RUNBOOK.md`。
 
 ---
 

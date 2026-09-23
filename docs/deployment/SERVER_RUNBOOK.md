@@ -405,7 +405,7 @@ pm2 logs codelens-api --err --lines 50
 
 | 项 | 值 |
 |---|---|
-| Provider | `LLM_PROVIDER=deepseek` |
+| Provider | DeepSeek（代码内固定为单一 provider；`LLM_PROVIDER` 已移除） |
 | 模型 | `LLM_MODEL=deepseek-chat`（稳定别名，实际生效 `deepseek-flash`） |
 | Base URL | `https://api.deepseek.com` |
 | 备选模型 | `deepseek-v4-pro`（推理模型，更强但更慢；推理 token 会占用 `max_tokens`） |
@@ -452,6 +452,10 @@ pm2 logs codelens-api --err --lines 50
 （`llm/embeddings.ts` 在用）且已在服务器安装。这条很重要——见 2.1，漏装依赖
 曾直接把服务搞挂。
 
+> 🗓️ **后续变更（2026-09-23）**：LLM 客户端已改用 `@langchain/openai` 的 `ChatOpenAI`
+> （`refactor(llm)` 提交），因此 **LLM 路径不再复用 `openai` 包** —— 上面这条「零新增依赖」
+> 只描述了 DeepSeek 切换当时的做法。`openai` 包现在仅由 `llm/embeddings.ts` 使用。
+
 ### 8.4 切换时一并修掉的两个「静默失效」地雷
 
 换厂商会暴露那些**把具体厂商当成硬前提**的代码。这次发现两处，都属于「不报错、
@@ -460,6 +464,8 @@ pm2 logs codelens-api --err --lines 50
 1. **启动门禁**：`validateEnv()` 只认 `ANTHROPIC_AUTH_TOKEN/API_KEY`，否则
    `process.exit(1)`。切到 DeepSeek 且移除 Anthropic 凭据后，**服务根本起不来**。
    → 已改为按 `LLM_PROVIDER` 校验对应凭据。
+   （🗓️ 后续：`LLM_PROVIDER` 本身也已移除，现为固定校验 `DEEPSEEK_API_KEY`
+   与 `EMBED_API_KEY` —— 见 8.6）
 2. **增强索引被静默跳过**：`indexing/indexer.ts` 曾以「`ANTHROPIC_API_KEY` 是否存在」
    作为是否运行 AST 增强索引的开关。但 `EnhancedIndexer` **只做 AST 分析，不调用
    任何 LLM**（它那个 Anthropic 字段只赋值、从未读取，注释里写的「用于向量生成」
@@ -500,9 +506,8 @@ ssh root@47.116.6.132 'grep -aE "\[LLM\]|Agent initialized" /var/log/codelens-ap
 
 ### 8.6 回滚
 
-把 `ecosystem.config.js`（以及 `.env.production`）里的 `LLM_PROVIDER` 改回
-`anthropic`，`pm2 restart ... --update-env` 即可。`ANTHROPIC_*` 配置本次刻意保留，
-就是为了让回滚只改一行。
+⚠️ **已不存在「切回 Anthropic」的配置回滚路径**：`LLM_PROVIDER` 与 `ANTHROPIC_*`
+已随依赖一并从代码中移除（2026-09-23），要重新启用必须改代码并重新引入依赖。
 
 若整包回退代码：`git checkout` 后重新构建，或直接用服务器上保留的
 `apps/api/dist.prev.<时间戳>` 换回来。

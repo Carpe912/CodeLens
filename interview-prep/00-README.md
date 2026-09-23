@@ -285,7 +285,7 @@
 
 - **后端**：TypeScript 5.7 + Fastify 5 + pg 8 + ioredis + BullMQ 5
 - **数据库**：PostgreSQL + pgvector（HNSW / ivfflat），Redis
-- **AI**：LLM = DeepSeek `deepseek-chat`（`LLM_PROVIDER` 可回滚 Anthropic `claude-sonnet-4-6`）
+- **AI**：LLM = DeepSeek `deepseek-chat`（单一 provider；Anthropic 回滚路径与 `LLM_PROVIDER` 开关均已移除）
   ＋ DashScope `qwen3.7-text-embedding`（1536 维）＋ DashScope `qwen3.7-text-rerank`（精排）
 - **编排**：`@langchain/langgraph` 1.4（**本次新增**）
 - **解析**：ts-morph 24 + @babel/parser + @vue/compiler-sfc + segmentit

@@ -61,7 +61,7 @@
 | 存储 | PostgreSQL、pgvector（1536 维，HNSW） |
 | 检索 | 多路混合召回、模型 rerank、URL 模板推导、查询意图解析 |
 | 索引 | 自研 AST 解析（TypeScript/JavaScript/Vue）、调用图构建、依赖关系抽取 |
-| LLM | DeepSeek（主）/ Anthropic（回滚）、DashScope 嵌入与重排模型 |
+| LLM | DeepSeek `deepseek-chat`（单一路径）、DashScope 嵌入与重排模型 |
 | 编排 | LangGraph（`@langchain/langgraph`）状态图 |
 | 前端 | React、Vite、ReactFlow、Monaco Editor |
 

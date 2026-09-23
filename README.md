@@ -295,7 +295,7 @@ CodeLens/
 │   │       │       ├── nodes.ts      #     retrieve / grade / generate
 │   │       │       └── state.ts      #     图状态定义
 │   │       ├── llm/                  # 生成层
-│   │       │   ├── client.ts         #   厂商适配层（DeepSeek 默认 / Anthropic 回滚）
+│   │       │   ├── client.ts         #   LLM 客户端（DeepSeek，LangChain ChatOpenAI 适配）
 │   │       │   ├── embeddings.ts     #   向量化（DashScope）
 │   │       │   └── qa.ts             #   问答 / 根因生成
 │   │       ├── cache/                # 缓存
