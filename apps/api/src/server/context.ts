@@ -32,8 +32,8 @@ export const multiStrategySearch = new MultiStrategySearch(pool);
 /** Agent 配置 */
 export const agentConfig = getAgentConfig();
 
-/** Agent 核心（单轮线性管道） */
-export const agent = new AgentCore(pool, llm, agentConfig);
+/** Agent 核心（单轮线性管道；答案生成复用 llm/qa.ts，不再自持 LLM 客户端） */
+export const agent = new AgentCore(pool, agentConfig);
 console.log(`[Server] Agent initialized (LLM: ${describeLlmConfig()})`);
 console.log(`[Server] Retrieval (${describeRerankConfig()})`);
 

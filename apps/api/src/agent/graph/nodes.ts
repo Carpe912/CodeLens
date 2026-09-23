@@ -11,11 +11,12 @@
  * 换句话说：LangGraph 接管的是**编排**，不是检索。这是本次改造的核心边界。
  */
 
-import type { SearchOptions, SearchResult } from '../../retrieval/multi-strategy-search.js';
+import type { SearchOptions } from '../../retrieval/multi-strategy-search.js';
 import type { MultiStrategySearch } from '../../retrieval/multi-strategy-search.js';
 import { answerQuestion } from '../../llm/qa.js';
 import { computeSufficiency, estimateConfidenceFromScores, DEFAULT_SAMPLE_SIZE } from '../../utils/scoring.js';
-import type { GraphEvidence, GraphStateType, GraphUpdate } from './state.js';
+import { toEvidenceRecord, type EvidenceRecord, type GenerateAnswerFn } from '../evidence.js';
+import type { GraphStateType, GraphUpdate } from './state.js';
 
 /**
  * 逐轮升级的检索策略计划。
@@ -70,28 +71,6 @@ export const SEARCH_STRATEGY_PLAN: ReadonlyArray<{
 const MAX_EVIDENCE_PER_ROUND = 15;
 
 /**
- * 把检索结果转换为图证据。
- *
- * 注意这里的字段映射与 index.ts 中 /ask 路由的映射**保持一致**，
- * 使图产出的证据结构与既有管道逐字段等价 —— 这是「可平滑替换」的前提。
- * 差别仅在于这里是显式类型化，而路由那边用了 `as any`。
- */
-function toGraphEvidence(r: SearchResult): GraphEvidence {
-  return {
-    // SearchResult.id 形如 "table:123"，取数字部分；取不到时回退 0
-    id: parseInt(r.id.split(':')[1], 10) || 0,
-    file_id: 0,
-    symbol_name: r.context?.symbolName || '',
-    symbol_type: r.type || 'unknown',
-    line_start: r.lineStart,
-    line_end: r.lineEnd,
-    code_text: r.content,
-    file_path: r.filePath,
-    score: r.score,
-  };
-}
-
-/**
  * 检索节点工厂。
  *
  * 每次执行按当前 round 取用对应策略，并把 round 自增。
@@ -106,7 +85,7 @@ export function createRetrieveNode(search: MultiStrategySearch) {
 
     const startedAt = Date.now();
     const results = await search.search(state.repoId, state.query, plan.options);
-    const evidence = results.slice(0, MAX_EVIDENCE_PER_ROUND).map(toGraphEvidence);
+    const evidence = results.slice(0, MAX_EVIDENCE_PER_ROUND).map(toEvidenceRecord);
     const elapsed = Date.now() - startedAt;
 
     return {
@@ -167,15 +146,14 @@ export function routeAfterGrade(state: GraphStateType): 'retrieve' | 'generate' 
 }
 
 /**
- * 答案生成函数的签名。
+ * 答案生成函数的签名，由 `agent/evidence.ts` 统一定义。
  *
  * 抽成可注入类型的目的：让图可以在**不依赖数据库和 LLM** 的情况下被测试。
  * 默认实现走既有的 answerQuestion，生产行为不变。
+ * 这里转出是为了让 `graph/index.ts` 与 `agent/core.ts` 从同一处取类型 ——
+ * AgentCore 的注入参数也用它，两处签名必须一致。
  */
-export type GenerateAnswerFn = (
-  query: string,
-  evidence: GraphEvidence[]
-) => Promise<string>;
+export type { GenerateAnswerFn };
 
 /**
  * 默认答案生成实现：复用 llm/qa.ts 的 answerQuestion。
@@ -183,7 +161,7 @@ export type GenerateAnswerFn = (
  */
 async function defaultGenerateAnswer(
   query: string,
-  evidence: GraphEvidence[]
+  evidence: EvidenceRecord[]
 ): Promise<string> {
   return answerQuestion(query, evidence);
 }

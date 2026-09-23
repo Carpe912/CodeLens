@@ -18,22 +18,17 @@
  */
 
 import { Annotation } from '@langchain/langgraph';
-import type { CodeChunkRecord } from '../../db/index.js';
+import type { EvidenceRecord } from '../evidence.js';
 
 /**
  * 图中流转的证据条目。
  *
- * 结构上兼容 `answerQuestion()` 期望的
- * `Array<CodeChunkRecord & { file_path?: string }>`，
- * 因此图可以直接把证据交给现有的 LLM 层，无需适配器。
- * 这一点是有意为之：**复用而非重写**检索与问答逻辑。
+ * 就是 `EvidenceRecord` 的别名 —— 四条生成链路（/ask、/root-cause、AgentCore、编排图）
+ * 共用同一形状，定义收在 `agent/evidence.ts`。历史上这里各有各的定义，
+ * 一旦某个字段名漂移（例如 `file_path` 写成 `filePath`），
+ * 引用自检会静默降级为 `empty_evidence` 而不报错，因此必须同源。
  */
-export type GraphEvidence = CodeChunkRecord & {
-  /** 文件路径，由 MultiStrategySearch 提供（CodeChunkRecord 本身不含） */
-  file_path: string;
-  /** 相关性评分，来自检索层 */
-  score: number;
-};
+export type GraphEvidence = EvidenceRecord;
 
 /**
  * 图状态通道定义。

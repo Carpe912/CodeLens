@@ -10,12 +10,14 @@
  * 已实现：
  * - 任务类型分类（基于关键词正则，非 LLM）
  * - 证据收集（委托给 MultiStrategySearch，单次调用）
- * - 答案生成（单次 LLM 调用，无重试、无校验）
+ * - 答案生成（委派给 `llm/qa.ts` 的 `answerQuestion`，含查询分类、
+ *   扩展上下文、超时与一次重试）
+ * - 答案 ↔ 证据引用自检（`llm/answer-consistency.ts`，只观测不改写）
  * - 会话与工具调用记录的持久化
  * - 事件发射（task_started / tool_called / answer / error）
  *
  * 未实现（此前注释与 AGENTRAG_UPGRADE.md 有过不实描述，已于 Phase 0 修正）：
- * - ❌ 多轮推理循环（config.maxReasoningRounds 恒为死配置）
+ * - ❌ 多轮推理循环（config.maxReasoningRounds 对本类无效，它只被编排图读取）
  * - ❌ 自我反思（REFLECTIONS_IMPLEMENTED 为 false，reflections 恒为 0）
  * - ❌ 任务分解 / 动态重规划（TaskPlanner 是空类，见 planner.ts）
  * - ❌ 本类不读取历史会话（本管道每轮无状态）
@@ -28,8 +30,6 @@
  * 4. 生成结构化答案 -> 5. 持久化到数据库 -> 6. 返回响应
  */
 
-import type { LlmClient } from '../llm/client.js';
-import { getResponseText } from '../llm/client.js';
 import type { Pool } from 'pg';
 import type {
   Task,
@@ -37,15 +37,23 @@ import type {
   AgentContext,
   AgentConfig,
   TaskType,
-  Evidence,
   ToolCall
 } from './types.js';
 import { MultiStrategySearch } from '../retrieval/multi-strategy-search.js';
 import { DEFAULT_SAMPLE_SIZE, estimateConfidenceFromScores } from '../utils/scoring.js';
 // 答案 ↔ 证据一致性自检（只观测，不改写答案）
 import { checkAnswerConsistency, describeConsistencyIssue } from '../llm/answer-consistency.js';
+// 答案生成直接复用 llm/qa.ts，不再自建提示词：见 generateAnswer 的注释
+import { answerQuestion } from '../llm/qa.js';
+// 证据的统一形状与转换（四条生成链路同源，避免字段名漂移）
+import {
+  toEvidenceRecord,
+  toResponseEvidence,
+  type EvidenceRecord,
+  type GenerateAnswerFn,
+} from './evidence.js';
 // 超时实现已抽到 utils/async.ts，与 LLM 调用侧共用同一份（避免两处阈值/文案漂移）
-import { withTimeout, withRetry } from '../utils/async.js';
+import { withTimeout } from '../utils/async.js';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -90,6 +98,20 @@ export const AGENT_CAPABILITIES = {
 const AGENT_STAGES = ['classify', 'gather_evidence', 'generate_answer'] as const;
 
 /**
+ * 默认答案生成实现：复用 `llm/qa.ts` 的 `answerQuestion`。
+ *
+ * 与 `graph/nodes.ts` 的默认实现是同一个函数 —— 这是本次改造的重点：
+ * 四条生成链路（/ask、/root-cause、AgentCore、编排图）从此共用
+ * **同一套查询分类 + 提示词工程 + 超时重试**，而不是各写一份。
+ */
+async function defaultGenerateAnswer(
+  query: string,
+  evidence: EvidenceRecord[]
+): Promise<string> {
+  return answerQuestion(query, evidence);
+}
+
+/**
  * Agent 核心类
  *
  * 继承自 EventEmitter，支持事件驱动的架构
@@ -105,21 +127,32 @@ export class AgentCore extends EventEmitter {
   // 记忆统计：跟踪短期和长期记忆的使用情况
   private memoryStats = { shortTermCount: 0, longTermCount: 0 };
 
+  // 答案生成函数：默认走 llm/qa.ts 的 answerQuestion
+  private generateAnswerImpl: GenerateAnswerFn;
+
   /**
    * 构造函数
    *
    * @param db - PostgreSQL 连接池，用于数据持久化
-   * @param llm - LLM 客户端（DeepSeek），用于自然语言处理
    * @param config - Agent 配置，控制行为参数
+   * @param generateAnswer - 可注入的答案生成函数；不传则走 `answerQuestion`。
+   *   这个注入点与 `createCodeLensGraph({ generateAnswer })` 是同一个用法，
+   *   目的是让「无 LLM 环境下验证引用自检确实生效」成为可能。
+   *
+   * 此前这里还有第三个参数 `llm: LlmClient`。已随答案生成改为复用
+   * `answerQuestion` 一并去掉 —— 它唯一的使用点就是那段自建提示词的
+   * `this.llm.messages.create()`。保留一个没人用的客户端只会让
+   * 「AgentCore 自己调模型」的错觉继续存在。
    */
   constructor(
     private db: Pool,
-    private llm: LlmClient,
-    private config: AgentConfig
+    private config: AgentConfig,
+    generateAnswer?: GenerateAnswerFn
   ) {
     super();
     // 初始化多策略搜索引擎（检索是纯算法融合，不消耗 LLM）
     this.multiStrategySearch = new MultiStrategySearch(db);
+    this.generateAnswerImpl = generateAnswer ?? defaultGenerateAnswer;
     console.log('[AgentCore] Initialized');
   }
 
@@ -155,16 +188,18 @@ export class AgentCore extends EventEmitter {
       this.emit('task_started', { type: 'task_started', task });
 
       // 2. 执行搜索：收集相关代码证据
-      const evidence = await this.gatherEvidence(task);
+      //    内部持有的是 EvidenceRecord（含结构化 file_path/line_start/line_end），
+      //    对外才转成展示形态的 Evidence —— 自检和置信度都要机器可比的字段。
+      const records = await this.gatherEvidence(task);
 
       // 3. 生成答案：基于证据生成结构化回答
-      const answer = await this.generateAnswer(task, evidence);
+      const answer = await this.generateAnswer(task, records);
 
       // 3.5 答案引用自检：核对答案里写的「文件:行号」是否真在本轮证据中。
       // generateAnswer 的提示词明确要求"关键证据（文件路径和行号）"，
       // 而编造的引用在形式上与真实引用无异 —— 因此生成之后必须对一遍账。
       // 与 /ask、/root-cause 共用同一实现，同样**只观测、不改写**答案。
-      const consistency = checkAnswerConsistency(answer, evidence);
+      const consistency = checkAnswerConsistency(answer, records);
       const consistencyWarning = describeConsistencyIssue(consistency, '[AgentCore]');
       if (consistencyWarning) console.warn(consistencyWarning);
 
@@ -176,13 +211,13 @@ export class AgentCore extends EventEmitter {
       // 4. 构建响应：组装完整的 Agent 响应对象
       const response: AgentResponse = {
         answer,                      // 最终答案文本
-        evidence,                    // 支持答案的证据列表
+        evidence: records.map(toResponseEvidence), // 展示形态：含人读的 source 串
         // 推理轨迹：当前是单轮管道，没有可填充的推理过程，因此确实是空的。
         // 这不是"为了省事留空"，而是多轮推理尚未实现（见文件头实现状态说明）。
         reasoning: [],
         // 由证据数量与相关度启发式估算，取代此前的固定值 0.85
         // 评分规则集中在 utils/scoring.ts，与图编排层共用同一实现
-        confidence: estimateConfidenceFromScores(evidence.map(e => e.relevance)),
+        confidence: estimateConfidenceFromScores(records.map(e => e.score)),
         executionTime: Date.now() - startTime, // 总执行时间
         consistency,                 // 引用自检报告（不改写答案，交调用方处置）
         metadata: {
@@ -297,7 +332,7 @@ export class AgentCore extends EventEmitter {
    * 结合向量搜索（语义相似度）和精确搜索（关键词匹配）
    *
    * @param task - 任务对象
-   * @returns {Promise<Evidence[]>} 证据列表，按相关性排序
+   * @returns {Promise<EvidenceRecord[]>} 证据列表，按相关性排序
    *
    * 搜索策略：
    * - 向量搜索：基于语义理解，找到概念相关的代码
@@ -305,7 +340,7 @@ export class AgentCore extends EventEmitter {
    *
    * 结果处理：
    * - 取相关性最高的 DEFAULT_SAMPLE_SIZE 条
-   * - 转换为统一的 Evidence 格式
+   * - 转换为统一的 EvidenceRecord 格式（与 /ask、编排图同一份转换函数）
    * - 包含文件路径、行号和相关性评分
    *
    * 副作用：
@@ -316,7 +351,7 @@ export class AgentCore extends EventEmitter {
    * - 搜索失败或超时时返回空数组，不中断任务执行
    * - 记录错误日志便于调试
    */
-  private async gatherEvidence(task: Task): Promise<Evidence[]> {
+  private async gatherEvidence(task: Task): Promise<EvidenceRecord[]> {
     const toolName = 'multi_strategy_search';
     const startedAt = Date.now();
 
@@ -334,18 +369,11 @@ export class AgentCore extends EventEmitter {
 
       this.recordToolCall(toolName, startedAt, true);
 
-      // 取相关性最高的若干条并转换为 Evidence 格式
-      return results.slice(0, DEFAULT_SAMPLE_SIZE).map(r => ({
-        type: 'code' as const,       // 证据类型：代码
-        source: `${r.filePath}:${r.lineStart}`, // 来源：给人看的展示串（提示词在用）
-        content: r.content,          // 代码内容
-        relevance: r.score,          // 相关性评分（0-1）
-        // 结构化位置：search 结果本来就有这些字段，此前只在 source 里拼成字符串，
-        // 导致答案引用自检无法做机器比对。现在原样保留，供 checkAnswerConsistency 使用。
-        file_path: r.filePath,
-        line_start: r.lineStart,
-        line_end: r.lineEnd
-      }));
+      // 取相关性最高的若干条并转换为统一证据形状。
+      // 转换函数收在 agent/evidence.ts：此前这段字段映射在本文件、/ask 路由
+      // 和 graph/nodes.ts 各存一份，任一处漏掉 file_path 就会让
+      // checkAnswerConsistency 静默降级为 empty_evidence（不报错、只是不再校验）。
+      return results.slice(0, DEFAULT_SAMPLE_SIZE).map(toEvidenceRecord);
     } catch (error) {
       this.recordToolCall(toolName, startedAt, false, error);
       console.error('[AgentCore] Evidence gathering failed:', error);
@@ -381,33 +409,34 @@ export class AgentCore extends EventEmitter {
   /**
    * 生成答案
    *
-   * 基于收集到的证据，使用 LLM 生成结构化的答案
+   * 委派给注入的生成函数，默认即 `llm/qa.ts` 的 `answerQuestion`。
    *
    * @param task - 任务对象
-   * @param evidence - 证据列表
+   * @param evidence - 证据列表（EvidenceRecord，含结构化 file_path/行号）
    * @returns {Promise<string>} 生成的答案文本
    *
-   * 工作流程：
-   * 1. 构建证据摘要：将证据格式化为可读文本
-   * 2. 构建提示词：包含问题、证据和答案要求
-   * 3. 调用 LLM：使用 DeepSeek 生成答案
-   * 4. 提取文本：从响应中提取答案内容
+   * 为什么不再自建提示词：
+   * 本方法此前有一段内联提示词 + 直接调 `this.llm.messages.create()`。
+   * 它与 `answerQuestion` 做的是同一件事，但**少了三样东西**：
+   *   1. 查询类型分类（classifyQuery → 不同问题用不同提示词与结构）
+   *   2. 扩展上下文（getChunksWithContext，给证据补前后 5 行）
+   *   3. 60s 的 LLM 专用超时预算（这里用的是 config.toolTimeout，
+   *      是给**工具调用**设的，比答案生成该有的预算短）
+   * 也就是说，同一句问题经 /ask 与经 /agent/query 得到的是两套提示词、
+   * 两种上下文、两个超时 —— 而答案质量差异无从解释。现在收敛到一份。
    *
-   * 提示词设计：
-   * - 角色定位：专业的代码分析助手
-   * - 输入：用户问题 + 代码证据
-   * - 输出要求：清晰、结构化、包含证据引用
+   * 代价（明确记录，避免日后误判为回退）：
+   * - 模型不再读 `config.llmModel`，而是 `process.env.AGENT_LLM_MODEL`
+   *   （与 /ask 同源，见 llm/qa.ts）；未配置时由 llm/client.ts 按厂商取默认模型。
+   * - temperature 不再读 `config.temperature`，统一用客户端默认 0.7
+   *   （恰好与 config 默认值相同，因此默认部署下行为无变化）。
+   * - 失败时不再返回"基于收集到的信息，请查看代码证据。"，而是把
+   *   answerQuestion 内部的降级/异常路径交给上层 catch。
    *
-   * 答案结构：
-   * 1. 直接回答问题
-   * 2. 关键证据（文件路径和行号）
-   * 3. 简要解释
-   *
-   * 错误处理：
-   * - LLM 调用失败时返回降级答案
-   * - 记录错误日志便于调试
+   * 保留的只有空证据护栏 —— 它属于**编排决策**（没证据就别问模型），
+   * 不属于提示词工程，因此留在这一层。
    */
-  private async generateAnswer(task: Task, evidence: Evidence[]): Promise<string> {
+  private async generateAnswer(task: Task, evidence: EvidenceRecord[]): Promise<string> {
     // 空证据护栏：没有检索到任何证据时不调用 LLM。
     // 此时让模型"基于证据回答"只可能产生幻觉，直接如实告知更可靠。
     // 调用方可通过 metadata.toolsCalled / confidence=0 判断这是检索失败而非答案为空。
@@ -417,61 +446,13 @@ export class AgentCore extends EventEmitter {
         + '建议换用更具体的函数名、文件名或 URL 路径重试。';
     }
 
-    // 构建证据摘要：每条证据包含序号、来源和内容片段
-    const evidenceSummary = evidence.map((e, i) =>
-      `${i + 1}. ${e.source}:\n${e.content.substring(0, 300)}` // 限制每条证据最多 300 字符
-    ).join('\n\n');
-
-    // 构建提示词：指导 LLM 如何生成答案
-    const prompt = `你是一个专业的代码分析助手。基于以下代码证据回答问题。
-
-问题: ${task.description}
-
-代码证据:
-${evidenceSummary}
-
-请生成一个清晰、结构化的答案，包括：
-1. 直接回答问题
-2. 关键证据（文件路径和行号）
-3. 简要解释
-
-保持简洁专业。`;
-
     try {
-      // 调用 LLM 生成答案（模型名由 config.llmModel 给出，
-      // 若为 Claude 风格的名字而当前厂商是 DeepSeek，会由 llm/client.ts 自动映射）
-      //
-      // 套超时 + 一次重试：LLM 是最容易长时间挂住的一步，此前这里没有任何
-      // 超时，上游不返回就会把整个 HTTP 请求拖死（表现为页面转圈、日志干净）。
-      // 超时后走下方降级答案，至少让调用方拿到明确结果。
-      const response = await withRetry(
-        () => this.llm.messages.create({
-          model: this.config.llmModel,      // 使用配置的模型
-          max_tokens: 2000,                 // 最大生成 2000 个 token
-          temperature: this.config.temperature, // 使用配置的温度参数
-          messages: [{ role: 'user', content: prompt }]
-        }),
-        {
-          attempts: 2,
-          timeoutMs: this.config.toolTimeout, // 与工具调用共用同一超时预算
-          label: 'llm.generateAnswer',
-          onAttemptFailed: (attempt, error) =>
-            console.error(`[AgentCore] Answer generation attempt ${attempt} failed:`, error),
-        }
-      );
-
-      // 提取文本内容（第一个文本块；无文本块时返回空字符串，
-      // 交回下方降级答案处理）
-      const text = getResponseText(response);
-      if (text) {
-        return text;
-      }
+      return await this.generateAnswerImpl(task.description, evidence);
     } catch (error) {
       console.error('[AgentCore] Answer generation failed:', error);
+      // 降级答案：生成失败时返回，保证调用方始终拿到明确结果
+      return '基于收集到的信息，请查看代码证据。';
     }
-
-    // 降级答案：LLM 调用失败时返回
-    return '基于收集到的信息，请查看代码证据。';
   }
 
   /**
