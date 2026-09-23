@@ -35,7 +35,7 @@ import {
   MAX_HISTORY_QUERY_CHARS,
   type ConversationTurn,
 } from '../agent/conversation-memory.js';
-import { checkAnswerConsistency } from '../llm/answer-consistency.js';
+import { checkAnswerConsistency, describeConsistencyIssue } from '../llm/answer-consistency.js';
 import { withRetry, withTimeout, TimeoutError } from '../utils/async.js';
 
 let failures = 0;
@@ -254,6 +254,27 @@ async function main(): Promise<void> {
     // 前缀边界：`xqa.ts` 不该被当作 `qa.ts` 的后缀匹配
     const r = checkAnswerConsistency('见 mysrc/xqa.ts:1。', evidence);
     check('不把 xqa.ts 误判为 qa.ts 的后缀', r.verdict === 'unsupported_refs', `verdict=${r.verdict}`);
+  }
+
+  // 告警文案：四条链路共用同一个格式化函数，措辞正确性同样要验
+  {
+    const r = checkAnswerConsistency('实现在 src/auth/login.ts:88。', evidence);
+    const msg = describeConsistencyIssue(r, '[test]');
+    check('unsupported_refs → 告警含未匹配文件', !!msg && msg.includes('未匹配文件 ['),
+      String(msg));
+
+    // line_mismatch 时 unsupported 天然为空，不能打出「未匹配文件 []」
+    const m = checkAnswerConsistency('见 apps/api/src/llm/qa.ts:99999。', evidence);
+    const mMsg = describeConsistencyIssue(m, '[test]');
+    check('line_mismatch → 告警只提行号越界', !!mMsg && mMsg.includes('行号越界 [')
+      && !mMsg.includes('未匹配文件'), String(mMsg));
+
+    // 判定正常时必须返回 null —— 否则调用方那句 `if (warning)` 形同虚设
+    const ok = checkAnswerConsistency('见 apps/api/src/llm/qa.ts:420。', evidence);
+    check('判定 ok → 不产出告警', describeConsistencyIssue(ok, '[test]') === null);
+    check('无引用判定 → 不产出告警',
+      describeConsistencyIssue(checkAnswerConsistency('没有引用的回答。', evidence), '[test]')
+        === null);
   }
 
   // ============================================================

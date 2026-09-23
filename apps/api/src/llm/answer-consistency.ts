@@ -224,6 +224,9 @@ export function checkAnswerConsistency(
  * 文案分散在各处必然漂移 —— 某天只在一条链路上补上「行号越界」，
  * 另一条就静默漏报。判定留在 checkAnswerConsistency，措辞留在这里，
  * 调用方只负责决定要不要 warn 以及标签叫什么。
+ *
+ * 两个列表按需拼接：`line_mismatch` 时 unsupported 本来就是空的，
+ * 无条件输出会打出「未匹配文件 []」这种像坏了一样的日志。
  */
 export function describeConsistencyIssue(
   report: ConsistencyReport,
@@ -233,9 +236,13 @@ export function describeConsistencyIssue(
     return null;
   }
 
-  return (
-    `${label} 答案引用与证据不一致 (${report.verdict}): ` +
-    `未匹配文件 [${report.unsupported.join(', ')}]` +
-    `${report.mismatchedLines.length ? ` 行号越界 [${report.mismatchedLines.join(', ')}]` : ''}`
-  );
+  const parts: string[] = [];
+  if (report.unsupported.length > 0) {
+    parts.push(`未匹配文件 [${report.unsupported.join(', ')}]`);
+  }
+  if (report.mismatchedLines.length > 0) {
+    parts.push(`行号越界 [${report.mismatchedLines.join(', ')}]`);
+  }
+
+  return `${label} 答案引用与证据不一致 (${report.verdict}): ${parts.join('；')}`;
 }
