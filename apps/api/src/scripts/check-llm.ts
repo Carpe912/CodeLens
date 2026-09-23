@@ -28,8 +28,8 @@ async function main(): Promise<void> {
   console.log(`配置: ${describeLlmConfig()}`);
   console.log('');
 
-  if (!hasApiKey(provider)) {
-    console.error(`✗ 未配置 ${provider} 的密钥，无法自检`);
+  if (!hasApiKey()) {
+    console.error(`✗ 未配置 DeepSeek 的密钥，无法自检`);
     process.exit(2);
   }
 

@@ -94,10 +94,31 @@
    包 `exports` 含 `./store`）。早期「没提供 Store」的结论是只看了根入口 ⇒ **错的**。
    Store 需要 `CREATE EXTENSION vector` + 3 张表（`store`/`store_vectors`/`store_migrations`）——
    线上 **pgvector 0.7.0 已装**（PG 13.23，`code_chunks` 等已有 5 个 embedding 索引含 HNSW）
-   ⇒ **基础设施零成本，能不能用不是问题**。真正的判据是**检索函数该不该是「相似」**：
-   短追问（「那它呢」）的指代物就在**上一轮**，按向量近邻召回会把 20 轮前语义相似但对话无关的轮次捞回来
-   ⇒ **当前需求是「近因」不是「相似」，Store 在这里不仅更贵、而且更差**。
-   只有当需求真的右移（跨会话累积 / 语义召回历史 / 工具轨迹与偏好 / 多命名空间隔离）才值得换。
+   ⇒ **基础设施零成本，能不能用不是问题**。
+
+   ✅ **二次更正（2026-09-20，读实现后）：「Store 表达不了『最近 N 条』」也是错的。**
+   `index.js:315` —— `search()` **不给 `query`** 时走 `textSearch`；
+   `search-operations.js:138` —— 无 `query` 时 `ORDER BY updated_at DESC`（带 `LIMIT/OFFSET`）。
+   ⇒ Store **能做**「取最近 N 条」。**别再用「检索函数错配（近因 vs 相似）」当论据** ——
+   那只在「传了 `query`」时才成立，而不传 `query` 就是纯时间序。
+
+   **真正站得住的差别（都已读码核实）**：
+   1. **隔离语义（决定性）**：SQL 是 `session_id = $1` 精确相等；
+      Store 的 `namespace_path LIKE 'conv:33:s1%'` 是**前缀**匹配
+      ⇒ `s1` 会匹到 `s10`，**不报错**，多返回的轮次还会把正确轮次从 `LIMIT 3` 里挤出去。
+      `validateNamespace` 只拦 `%_\\`（`LIKE_RESERVED_PATTERN`），**不拦前缀碰撞**。
+      要精确匹配必须改用 `filter: {…: {$eq}}`（`FilterOperators` 有 `$eq`）—— 可行，但**不直观**。
+   2. **排序键**：`updated_at DESC` **无 tiebreaker** vs 我们的 `created_at DESC, id DESC`。
+      append-only 表上影响小，但本项目刚被「同语句 `NOW()` 打平」教育过，属同一族风险。
+   3. **代价是「再付一次」**：现有实现已部署、已验证（47 条离线断言 + 25 条真库往返 + 线上端到端），
+      换过去 = 3 张新表 + 平行迁移体制（`store.setup()` 另立 `store_migrations`）+ 用 ~15 个方法里的 2 个。
+   4. 本仓已有「装了但从未执行」的 LangChain 集成（`AGENT_GRAPH_ENABLED` 未设、无 `checkpoint*` 表）
+      ⇒ **部分采用的失败模式已经发生过一次**。
+
+   **反过来，Store 确有 SQL 不容易做的（这才是真正的切换信号）**：
+   `put(..., {ttl})` + `sweepExpiredItems()` 做**过期遗忘**（手搓 = 一个定时任务）；
+   `search(ns, {query})` 直接拿到**语义召回**（复用已装 pgvector，「用户问过类似的问题吗」）；
+   `listNamespaces` 枚举会话。**所以切换成本很低，等需求右移再引一点都不亏。**
    另外 `docs/agent-unimplemented-design.md` 里 `conversation_memory → BaseStore` 只是**当初的设计映射**，
    不是实现记录 —— 实际用的是 `agent_conversations` 且不走 Store。
 

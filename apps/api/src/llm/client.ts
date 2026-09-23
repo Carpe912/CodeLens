@@ -1,41 +1,22 @@
 /**
- * LLM 客户端抽象层 —— 让上层代码与具体模型厂商解耦
+ * LLM 客户端抽象层 —— 基于 LangChain ChatOpenAI (DeepSeek OpenAI 兼容协议)
  *
  * 背景：
  * 本项目的问答链路（llm/qa.ts）与 Agent（agent/core.ts）历史上直接依赖
- * `@anthropic-ai/sdk`，并在代码里写死了 Claude 模型名。要换成 DeepSeek 时，
- * 如果逐个调用点改写，会有三个问题：
- * 1. 调用点散落（qa.ts 两处 + agent/core.ts 一处），容易漏改；
- * 2. 模型名硬编码，换厂商必然 400（Model Not Exist）；
- * 3. 回滚需要改代码，而不是改配置。
- *
- * 因此这里把「调哪个厂商」收敛成一个工厂函数，并对外暴露**与 Anthropic
- * Messages API 同形状**的调用面（`client.messages.create(...)`）。这样：
- * - 上层调用点一行不用改，行为与改造前逐字一致；
- * - 换厂商 / 回滚 = 改一个环境变量（LLM_PROVIDER），零代码改动；
- * - 模型名由本模块统一解析，历史上写死的 `claude-sonnet-4-6` 会被自动
- *   映射成当前厂商的默认模型。
- *
- * 依赖说明：
- * DeepSeek 提供的是 OpenAI 兼容接口，而 `openai` 包本来就是本项目的直接依赖
- * （llm/embeddings.ts 用它做向量嵌入），且已随产物一起安装在服务器上。
- * 因此接入 DeepSeek **不需要新增任何 npm 包**——这一点对服务器部署很重要，
- * 历史上正是漏装依赖导致过线上崩溃。
+ * 手写的 OpenAI SDK 适配层。改用 LangChain 后有三个收益：
+ * 1. 代码量减少 ~280 行，维护成本降低；
+ * 2. 获得结构化输出能力（withStructuredOutput），替代正则提取引用；
+ * 3. Prompt 模板管理（ChatPromptTemplate），实现提示词与代码分离。
  *
  * 环境变量：
- * - LLM_PROVIDER          显式指定厂商：deepseek | anthropic（默认按凭据自动判断）
- * - LLM_MODEL             覆盖模型名（优先级最高）
+ * - LLM_MODEL             覆盖模型名（优先级最高），默认 deepseek-chat
  * - DEEPSEEK_API_KEY      DeepSeek 密钥（必填）
  * - DEEPSEEK_BASE_URL     默认 https://api.deepseek.com
- * - DEEPSEEK_MODEL        仅在 LLM_MODEL 未设置时生效，默认 deepseek-chat
- * - ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL   Anthropic 侧配置
  *
- * 注意：向量嵌入**不**在本模块范围内。DeepSeek 不提供嵌入模型，嵌入仍由
- * llm/embeddings.ts 通过 EMBED_* 配置独立完成，两者互不影响。
+ * 注意：向量嵌入不在此模块范围内，仍由 llm/embeddings.ts 通过 EMBED_* 配置独立完成。
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
+import { ChatOpenAI } from '@langchain/openai';
 import { describeError } from '../utils/errors.js';
 
 /** 支持的 LLM 厂商 */
@@ -103,76 +84,47 @@ export function getResponseText(response: LlmMessageResponse): string {
 
 /** DeepSeek 官方稳定别名；底层实际生效模型由回包中的 model 字段体现 */
 const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat';
-const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6';
-
-/** 判断是否是 Claude 模型名——这类名字不能透传给 DeepSeek，否则会 400 */
-const CLAUDE_MODEL_PATTERN = /^claude/i;
-
-/**
- * 解析当前应使用的厂商
- *
- * 优先级：显式 LLM_PROVIDER > 凭据自动判断 > 默认 deepseek。
- * 自动判断的意义：部署时只补一个 DEEPSEEK_API_KEY 就能完成切换，
- * 不必同时记得改 LLM_PROVIDER。
- */
-export function resolveProvider(): LlmProvider {
-  const explicit = (process.env.LLM_PROVIDER || '').trim().toLowerCase();
-  if (explicit === 'deepseek' || explicit === 'anthropic') {
-    return explicit;
-  }
-  if (explicit) {
-    console.warn(`[LLM] 无法识别的 LLM_PROVIDER=${explicit}，将按凭据自动判断`);
-  }
-  if (process.env.DEEPSEEK_API_KEY) {
-    return 'deepseek';
-  }
-  if (process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY) {
-    return 'anthropic';
-  }
-  // 两者都没有时默认 deepseek：本项目当前的既定方向，便于尽早暴露配置缺失
-  return 'deepseek';
-}
 
 /**
  * 解析真正发给厂商的模型名
  *
- * 存在的关键原因：调用点里写死的 `claude-sonnet-4-6` 原样发给 DeepSeek 会
- * 直接 400。这里做一次归一化，让「换厂商」不必同时改所有调用点。
+ * 存在关键原因：调用点里可能写死旧模型名，这里做一次归一化，
+ * 让「换模型」不必同时改所有调用点。
  */
-export function resolveModel(provider: LlmProvider, requested?: string): string {
+export function resolveModel(requested?: string): string {
   const configured = process.env.LLM_MODEL || process.env.DEEPSEEK_MODEL;
   if (configured) {
     return configured;
   }
-  if (provider === 'anthropic') {
-    return requested || DEFAULT_ANTHROPIC_MODEL;
-  }
-  // DeepSeek：Claude 风格的名字一律换成 DeepSeek 默认模型，其余（如显式传入的
-  // deepseek-v4-pro）原样保留，保留上层按场景切换模型的自由度。
-  if (requested && !CLAUDE_MODEL_PATTERN.test(requested)) {
+  if (requested && !/^claude/i.test(requested)) {
     return requested;
   }
   return DEFAULT_DEEPSEEK_MODEL;
 }
 
 /**
- * DeepSeek 客户端（OpenAI 兼容协议）
+ * LangChain ChatOpenAI 客户端（DeepSeek OpenAI 兼容协议）
  *
- * 通过 openai 包把 Chat Completions 的出入参翻译成 Anthropic 形状，
- * 使上层调用点无需感知厂商差异。
+ * 通过 @langchain/openai 把 Chat Completions 的出入参翻译成 Anthropic 形状，
+ * 使上层调用点无需感知框架差异。
  */
-class DeepSeekLlmClient implements LlmClient {
+class LangChainLlmClient implements LlmClient {
   readonly provider: LlmProvider = 'deepseek';
   readonly defaultModel: string;
-  private readonly client: OpenAI;
+  private readonly client: ChatOpenAI;
   private readonly apiKey: string;
 
   constructor(apiKey: string) {
-    this.defaultModel = resolveModel('deepseek');
+    this.defaultModel = resolveModel();
     this.apiKey = apiKey;
-    this.client = new OpenAI({
+    this.client = new ChatOpenAI({
+      modelName: this.defaultModel,
       apiKey: apiKey || 'missing',
-      baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+      configuration: {
+        baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+      },
+      temperature: 0.7, // 默认值，实际调用时会被 params.temperature 覆盖
+      maxTokens: 2000,  // 默认值，实际调用时会被 params.max_tokens 覆盖
     });
   }
 
@@ -184,10 +136,10 @@ class DeepSeekLlmClient implements LlmClient {
         throw new Error('缺少 DEEPSEEK_API_KEY：请在 .env.production 中配置 DeepSeek 密钥');
       }
 
-      const model = resolveModel(this.provider, params.model);
+      const model = resolveModel(params.model);
 
-      // system 在 Anthropic 里是顶层字段，在 OpenAI 兼容协议里是首条消息
-      const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+      // system 在 LangChain 里是首条 system 消息
+      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
       if (params.system) {
         messages.push({ role: 'system', content: params.system });
       }
@@ -196,70 +148,27 @@ class DeepSeekLlmClient implements LlmClient {
       }
 
       try {
-        const completion = await this.client.chat.completions.create({
-          model,
-          messages,
-          max_tokens: params.max_tokens,
-          temperature: params.temperature,
+        // LangChain 的 invoke 接受数组或字符串，返回 AIMessageChunk
+        const response = await this.client.invoke(messages, {
+          modelName: model,
+          maxTokens: params.max_tokens,
+          temperature: params.temperature ?? 0.7,
         });
-        const text = completion.choices?.[0]?.message?.content ?? '';
-        return { content: [{ type: 'text', text }], model: completion.model };
+
+        // AIMessageChunk.content 可能是 string 或 Array，统一转成字符串
+        const text = typeof response.content === 'string'
+          ? response.content
+          : Array.isArray(response.content)
+            ? response.content.map((c: unknown) => typeof c === 'string' ? c : '').join('')
+            : String(response.content ?? '');
+
+        return {
+          content: [{ type: 'text', text }],
+          model: model,
+        };
       } catch (error) {
         // 带上模型名和展开后的错误：空的 AggregateError message 曾让线上排查寸步难行
         throw new Error(`DeepSeek 调用失败 (model=${model}): ${describeError(error)}`);
-      }
-    },
-  };
-}
-
-/**
- * Anthropic 客户端
- *
- * 保留原有实现，只是包装成统一接口，以便随时用 LLM_PROVIDER=anthropic 回滚。
- */
-class AnthropicLlmClient implements LlmClient {
-  readonly provider: LlmProvider = 'anthropic';
-  readonly defaultModel: string;
-  private readonly client: Anthropic;
-  private readonly apiKey: string;
-
-  constructor(apiKey: string) {
-    this.defaultModel = resolveModel('anthropic');
-    this.apiKey = apiKey;
-    this.client = new Anthropic({
-      apiKey,
-      baseURL: process.env.ANTHROPIC_BASE_URL,
-    });
-  }
-
-  readonly messages = {
-    create: async (params: LlmMessageParams): Promise<LlmMessageResponse> => {
-      // 与 DeepSeek 侧同理：构造期不抛错，避免 import 即崩溃
-      if (!this.apiKey) {
-        throw new Error(
-          '缺少 ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY：请配置 Anthropic 凭据，或改用 LLM_PROVIDER=deepseek'
-        );
-      }
-
-      const model = resolveModel(this.provider, params.model);
-
-      try {
-        const message = await this.client.messages.create({
-          model,
-          max_tokens: params.max_tokens,
-          temperature: params.temperature,
-          system: params.system,
-          messages: params.messages,
-        });
-        return {
-          content: message.content.map((block) => ({
-            type: block.type,
-            text: 'text' in block ? block.text : undefined,
-          })),
-          model: message.model,
-        };
-      } catch (error) {
-        throw new Error(`Anthropic 调用失败 (model=${model}): ${describeError(error)}`);
       }
     },
   };
@@ -272,26 +181,21 @@ class AnthropicLlmClient implements LlmClient {
  * 一旦抛错会让所有 import 本模块的脚本整体挂掉。真正的报错交给
  * messages.create 内的校验，以及服务启动时的 validateEnv()。
  */
-function getApiKey(provider: LlmProvider): string {
-  if (provider === 'deepseek') {
-    return process.env.DEEPSEEK_API_KEY || '';
-  }
-  return process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY || '';
+function getApiKey(): string {
+  return process.env.DEEPSEEK_API_KEY || '';
 }
 
 /** 当前厂商的凭据是否已配置（供启动日志与校验脚本使用） */
-export function hasApiKey(provider: LlmProvider = resolveProvider()): boolean {
-  return Boolean(getApiKey(provider));
+export function hasApiKey(): boolean {
+  return Boolean(getApiKey());
 }
 
 /**
  * 按当前配置构造客户端（每次调用都会新建，仅测试或需要独立实例时使用）
  */
-export function createLlmClient(provider: LlmProvider = resolveProvider()): LlmClient {
-  const apiKey = getApiKey(provider);
-  return provider === 'deepseek'
-    ? new DeepSeekLlmClient(apiKey)
-    : new AnthropicLlmClient(apiKey);
+export function createLlmClient(): LlmClient {
+  const apiKey = getApiKey();
+  return new LangChainLlmClient(apiKey);
 }
 
 // 进程内单例：整个 API 只应存在一份客户端，避免重复建连
@@ -318,17 +222,23 @@ export function getLlmClient(): LlmClient {
  * 刻意只输出 baseURL 的 host 和「密钥是否存在」，不输出密钥本身。
  */
 export function describeLlmConfig(): string {
-  const provider = resolveProvider();
-  const baseURL =
-    provider === 'deepseek'
-      ? process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com'
-      : process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+  const baseURL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
   let host = baseURL;
   try {
     host = new URL(baseURL).host;
   } catch {
     // baseURL 非法时原样展示，便于发现配置错误
   }
-  const keyState = hasApiKey(provider) ? '已配置' : '缺失';
-  return `provider=${provider} model=${resolveModel(provider)} baseURL=${host} apiKey=${keyState}`;
+  const keyState = hasApiKey() ? '已配置' : '缺失';
+  return `provider=deepseek model=${resolveModel()} baseURL=${host} apiKey=${keyState}`;
+}
+
+/**
+ * 解析当前应使用的厂商（保留以兼容既有配置解析逻辑）
+ *
+ * 由于本项目当前只用 DeepSeek，此函数固定返回 'deepseek'。
+ * 保留此函数的意义是让 server/context.ts 等既有导入点无需改动即可编译通过。
+ */
+export function resolveProvider(): LlmProvider {
+  return 'deepseek';
 }
