@@ -330,7 +330,7 @@ maxRounds = min(config.maxReasoningRounds, SEARCH_STRATEGY_PLAN.length)
 | 推理轨迹 | `reasoning: []` 恒空 | `trace` 逐节点记录 | `GET /agent/v2/query` 返回值 |
 | 置信度 | 硬编码 0.85 | 由证据启发式算出 | `utils/scoring.ts` |
 | 工具调用记录 | 硬编码 `['vector_search']` | 真实写入 + 发事件 | `toolCallHistory` |
-| `config` 生效项 | 3 / 7 | 5 / 7 | `config.ts` 注释标注 |
+| `config` 生效项 | 3 / 7 | 3 / 7（**换了成员**：`maxReasoningRounds`/`confidenceThreshold` 转正为图读；`llmModel`/`temperature` 因答案生成收敛到 `answerQuestion` 而退役） | `config.ts` 注释标注 |
 | 循环收敛保证 | 不适用（无循环） | 穷举 `maxRounds` 1..6 证明 | `verify:graph` 脚本 |
 | 会话持久化 | 只写不读 | 支持 checkpoint（需显式开启） | `AGENT_GRAPH_CHECKPOINTER` |
 
@@ -351,7 +351,7 @@ maxRounds = min(config.maxReasoningRounds, SEARCH_STRATEGY_PLAN.length)
 
 ### 验证体系
 
-`src/scripts/verify-graph.ts`，30 项断言，三层：
+`src/scripts/verify-graph.ts`，36 项断言，三层：
 
 - **A 层 纯函数**：评分边界（空 / NaN / Infinity）、条件边各分支、穷举收敛性
 - **B 层 真实依赖探测**：数据库连通性（信息性输出，不计入失败）
@@ -452,7 +452,7 @@ cannot also be used as a node name.
    `url-derivation.ts` 1571 行的跨文件 URL 拼接链推导是通用框架不提供的能力
 2. **主动审计出自己代码与文档不符，并真正修复** —— 展示自我审视能力
 3. **改造边界的判断** —— 「检索层一行不动」体现知道何时**不**用框架
-4. **可验证的验证体系** —— 30 项断言 + 穷举收敛证明
+4. **可验证的验证体系** —— 36 项断言 + 穷举收敛证明
 
 ### 问题预判（真实版本）
 

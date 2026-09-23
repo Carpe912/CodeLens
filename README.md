@@ -468,7 +468,7 @@ pnpm --filter @codelens/api typecheck      # 类型
 pnpm --filter @codelens/api build          # 构建
 pnpm --filter @codelens/api check:sql      # 静态校验：SQL 引用的列是否真实存在
 pnpm --filter @codelens/api verify:routes  # 路由表可 ready（不需要数据库）
-pnpm --filter @codelens/api verify:graph   # LangGraph 编排的 30 项断言
+pnpm --filter @codelens/api verify:graph   # LangGraph 编排的 36 项断言
 ```
 
 ### 为什么需要 `check:sql`

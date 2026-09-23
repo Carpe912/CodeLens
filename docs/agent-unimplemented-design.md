@@ -286,7 +286,7 @@ consistencyScore）、效率（timePerStep / toolSuccessRate / resourceUtilizati
 | 读取口径 | `WHERE session_id = $1 AND repo_id = $2 ORDER BY created_at DESC, id DESC LIMIT 3` |
 | 注入方式 | `formatConversationContext()` 压缩成文本块，插在「用户问题」与「本轮代码证据」之间 |
 | 前端 | `apps/web/src/utils/askSession.ts` 按 repo 存 sessionId；结果卡上方显示「本次会话第 N 轮 · 已注入历史 M 轮」+「新会话」按钮 |
-| 自检 | `pnpm --filter @codelens/api verify:memory`（47 项断言 + 真实库往返 25 项） |
+| 自检 | `pnpm --filter @codelens/api verify:memory`（51 项断言 + 真实库往返 25 项） |
 
 **为什么必须带 `repo_id`**：同一 sessionId 可能被复用到别的仓库，不带就会把别的仓库的
 代码问答注入进来 —— 模型会顺着错误上下文往下答，而且看上去「言之有据」。
@@ -335,8 +335,13 @@ consistencyScore）、效率（timePerStep / toolSuccessRate / resourceUtilizati
 表现为「页面转圈、服务端日志干净」，极难定位。
 
 现在 `withTimeout` / `withRetry` 抽到 `apps/api/src/utils/async.ts`，
-`answerQuestion` / `analyzeRootCause` / `AgentCore.generateAnswer` 三处 LLM 调用
-统一套上「超时 + 一次重试」，超时预算 `LLM_TIMEOUT_MS`（默认 60s，比工具调用宽）。
+`answerQuestion` / `analyzeRootCause` 两处 LLM 调用统一套上「超时 + 一次重试」，
+超时预算 `LLM_TIMEOUT_MS`（默认 60s，比工具调用宽）。
+
+> 📌 `AgentCore.generateAnswer` 原本是第三处，现已改为直接复用 `answerQuestion`
+> （见 `agent/evidence.ts` 与 `AgentCore.generateAnswer` 的注释），
+> 因此三处收敛成两处，超时预算也从「借用的 `config.toolTimeout`」变成了
+> 专为生成设的 60s。**没有该文件就不存在超时保护的调用点已经消失。**
 
 > ⚠️ 超时**只以错误拒绝，不会取消底层 promise**（JS 无法真正取消已发出的请求）。
 > 底层仍会跑完，结果被丢弃。所以它不是资源回收手段。

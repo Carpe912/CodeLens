@@ -186,9 +186,13 @@ LangChain 的 `Retriever` 契约是 `invoke(query) → Document[]`，单路、�
 
 消费方（grep 可验证）：
 - `llm/qa.ts` → LLM 调用（**是** LangChain 的调用点）
-- `agent/core.ts:314` → **检索**调用（不是 LLM）
-- `agent/core.ts:431` → LLM 调用
+- `agent/core.ts:360` → **检索**调用（不是 LLM）
 - `scripts/verify-memory.ts` → 自检脚本
+
+📌 **原先这里还有第二条**：`agent/core.ts:431` → LLM 调用。
+那条随 `AgentCore` 复用 `answerQuestion` 一并消失（2026-09-23），
+于是「用框架 Runnable 替换 async.ts」的理由更弱了 —— 消费方里只剩一个 LLM 调用点，
+而检索那条（`withTimeout` 诞生的原因）框架版本根本接不住。
 
 **理由**（准则 5）：它服务的是「任意 `Promise<T>`」，不是「Runnable」。
 换成框架版本会反过来要求调用点改变类型，且会**排除掉非 LLM 的调用点**（检索超时是刚需 ——
@@ -253,7 +257,12 @@ LangChain 的 `Retriever` 契约是 `invoke(query) → Document[]`，单路、�
 **关键提醒**：这是**技术债，不是替换机会**。不要因为「上了 LangChain 就能让它们有用」
 而去补实现 —— 那是倒果为因：先有需求，再选实现。
 当前真实状况是 `AgentCore` 是**单轮线性管道**（无循环、无反思），
-`getAgentConfig()` 的 JSDoc 已明确标注哪 4 个环境变量「设了也不会生效」。
+`getAgentConfig()` 的 JSDoc 已明确标注哪 4 个字段「设了也不会生效」。
+
+📌 **这处 JSDoc 本身曾被证明不可信**：它长期把 `maxReasoningRounds` /
+`confidenceThreshold` 列为死配置，而编排图早已在读它们。2026-09-23 已按实际读取点重写，
+并补了一句「判定某配置是否生效要以当前代码的读取点为准，不要沿用旧注释」。
+引用本节时，请直接看 `config/index.ts` 的注释，**不要引用本文档复述的那份清单**。
 
 **建议**：单独决策「删掉」或「保留并标注为未实现」（现状），与框架选型无关。
 
@@ -287,7 +296,7 @@ LangChain 的 `Retriever` 契约是 `invoke(query) → Document[]`，单路、�
 |------|--------|------|
 | `/ask` | `server/routes/ask.ts:376` | 最早接入 |
 | `/root-cause` | `server/routes/ask.ts:535` | 与 `/ask` 同源 |
-| `/agent/query` | `agent/core.ts:167` | 曾缺此关卡；为此让 `Evidence` 保留结构化的 `file_path`/`line_start`/`line_end` |
+| `/agent/query` | `agent/core.ts:202` | 曾缺此关卡；为此让 `Evidence` 保留结构化的 `file_path`/`line_start`/`line_end`。现自检直接吃 `EvidenceRecord`（`agent/evidence.ts`），不再需要为校验单独留字段 |
 | `/agent/v2/query` | `agent/graph/index.ts:180` | 图这条最容易漏 —— 它复用 `answerQuestion` 的提示词却没有任何校验 |
 
 告警文案由 `describeConsistencyIssue()` 统一产出：四条链路打同一句日志，
@@ -423,6 +432,25 @@ messages     system 为首条，与改造前逐字段一致              ✓
    —— 例如改为「只允许模型从给定的证据 ID 列表里挑选」，那是**事前约束**，
    值得做；但它**不能替代事后核验**（自证 ≠ 查伪，准则 7）。
    两者是叠加关系：事前约束减少出错概率，事后核验负责发现漏网的。
+7. **编排图在线上真实跑起来、且观察过一段时间之后**（合并三条 Agent 链路）
+   —— 现在 `/ask`、`/root-cause`、`/agent/query`、`/agent/v2/query` 是四条独立链路：
+   前两条是产品主路径，`/agent/query` 是遗留单轮管道，`/agent/v2/query` 是图，
+   由 `AGENT_GRAPH_ENABLED` 控制且**从未在生产开启**。
+   把前三者合并进图、只留一条编排路径，是理论上正确的终局 —— 但**顺序不能反**：
+
+   ```
+   先开图（AGENT_GRAPH_ENABLED=true） → 观察真实流量下的轮次/耗时/答案质量 → 再谈合并
+   ```
+
+   理由：合并的收益是「少维护两条链路」，代价是「改的是线上主路径」。
+   在图还没有一天真实流量数据之前就合并，等于把两件高风险的事叠在一起做 ——
+   一旦出问题，无法区分是「图本身不行」还是「合并动作做错了」。
+   而且 `/ask` 特有的东西（跨轮会话记忆、反馈回写、结果缓存）在图上**都还没有**，
+   合并等于要把它们一并移植过去，那是另一个量级的改动。
+
+   ⚠️ 这里要特别提防准则 2 式的诱惑：三条链路合并后**代码更少、更"统一"、PR 更好看**，
+   但它们与用户的距离不同（`/ask` 每天在跑，`/agent/query` 几乎没人用）。
+   按「哪一个离用户更近」排序，比按「哪一个代码更丑」排序更安全。
 
 ---
 
@@ -456,7 +484,23 @@ rg "prebuilt|createReactAgent|createAgent" apps/api/src   # 期望：零命中
 node -e "console.log(Object.keys(require('@langchain/langgraph/prebuilt')).join(', '))"
 # 期望看到 createReactAgent 等 —— 证明"没装"不是理由，"不用"才是结论
 pnpm --filter @codelens/api verify:graph         # 断言轮次/策略顺序/无证据不调 LLM
+
+# 7. 确认 zod 是被框架要求、而不是本仓在用（别把它当"没人用的依赖"删掉）
+cd apps/api && node -p "require('@langchain/langgraph/package.json').peerDependencies.zod"
+# 期望：^3.25.32 || ^4.2.0
+node -p "require('@langchain/langgraph/package.json').peerDependenciesMeta"
+# 期望：undefined —— 没有 peerDependenciesMeta 就代表它是**必需** peer
+rg "from 'zod'|require\(.zod.\)" apps/api/src     # 期望：零命中
+
+# 8. 确认编排层之外没有第二套提示词（AgentCore 曾自建一份）
+rg "messages\.create" apps/api/src/agent    # 期望：仅命中 core.ts 里两处"曾如此"的说明性注释
+rg "answerQuestion" apps/api/src/agent      # 期望：core.ts 与 graph/nodes.ts 各一处（两条链路同源）
 ```
+
+⚠️ 第 7 条踩过一次真实的坑：因为「源码里零 import」而判定 zod 是可直接删除的
+多余依赖。**peer 依赖对本仓源码不可见** —— `rg` 搜不到任何使用点，
+但 langgraph 的 dist 会 `require("zod")`，删掉它编译期毫无反应、运行时才炸。
+判断依赖能否删除，要同时看两处：本仓的 import，与依赖方的 peer 声明。
 
 ---
 
