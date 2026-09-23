@@ -36,6 +36,7 @@
     "@langchain/core": "^1.2.11",
     "@langchain/langgraph": "^1.4.15",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.5",
+    "@langchain/openai": "^1.5.13",
     "@vue/compiler-sfc": "^3.5.13",
     "bullmq": "^5.30.5",
     "dotenv": "^17.4.2",

@@ -107,25 +107,43 @@ export function resolveModel(requested?: string): string {
  *
  * 通过 @langchain/openai 把 Chat Completions 的出入参翻译成 Anthropic 形状，
  * 使上层调用点无需感知框架差异。
+ *
+ * ⚠️ 为什么按 (model, maxTokens, temperature) 缓存实例：
+ * LangChain v1 的 `invoke(input, options)` **不接受** model / maxTokens / temperature
+ * 这三个参数（它们只能在构造时指定，见 BaseChatOpenAIFields）。
+ * 而本项目各调用点的 max_tokens（64 / 2000）、temperature（0 / 未指定）确实不同，
+ * 所以这里按参数组合做实例缓存：既保住「按次覆盖」的既有语义，
+ * 又避免每次调用都新建客户端（重复建连）。
+ * 组合数极少（模型名基本被 resolveModel 收敛成 1 个），缓存不会膨胀。
  */
 class LangChainLlmClient implements LlmClient {
   readonly provider: LlmProvider = 'deepseek';
   readonly defaultModel: string;
-  private readonly client: ChatOpenAI;
   private readonly apiKey: string;
+  private readonly instances = new Map<string, ChatOpenAI>();
 
   constructor(apiKey: string) {
     this.defaultModel = resolveModel();
     this.apiKey = apiKey;
-    this.client = new ChatOpenAI({
-      modelName: this.defaultModel,
-      apiKey: apiKey || 'missing',
-      configuration: {
-        baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-      },
-      temperature: 0.7, // 默认值，实际调用时会被 params.temperature 覆盖
-      maxTokens: 2000,  // 默认值，实际调用时会被 params.max_tokens 覆盖
-    });
+  }
+
+  /** 取（或创建）指定参数组合对应的实例 */
+  private getClient(model: string, maxTokens: number, temperature: number): ChatOpenAI {
+    const key = `${model}|${maxTokens}|${temperature}`;
+    let client = this.instances.get(key);
+    if (!client) {
+      client = new ChatOpenAI({
+        model,
+        apiKey: this.apiKey || 'missing',
+        configuration: {
+          baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+        },
+        maxTokens,
+        temperature,
+      });
+      this.instances.set(key, client);
+    }
+    return client;
   }
 
   readonly messages = {
@@ -137,6 +155,8 @@ class LangChainLlmClient implements LlmClient {
       }
 
       const model = resolveModel(params.model);
+      // 未显式传 temperature 时用 0.7，与改造前 OpenAI SDK 的缺省行为一致
+      const client = this.getClient(model, params.max_tokens, params.temperature ?? 0.7);
 
       // system 在 LangChain 里是首条 system 消息
       const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
@@ -148,14 +168,10 @@ class LangChainLlmClient implements LlmClient {
       }
 
       try {
-        // LangChain 的 invoke 接受数组或字符串，返回 AIMessageChunk
-        const response = await this.client.invoke(messages, {
-          modelName: model,
-          maxTokens: params.max_tokens,
-          temperature: params.temperature ?? 0.7,
-        });
+        // LangChain 的 invoke 接受消息数组或字符串，返回 AIMessageChunk
+        const response = await client.invoke(messages);
 
-        // AIMessageChunk.content 可能是 string 或 Array，统一转成字符串
+        // AIMessageChunk.content 可能是 string 或内容块数组，统一转成字符串
         const text = typeof response.content === 'string'
           ? response.content
           : Array.isArray(response.content)
@@ -164,7 +180,7 @@ class LangChainLlmClient implements LlmClient {
 
         return {
           content: [{ type: 'text', text }],
-          model: model,
+          model,
         };
       } catch (error) {
         // 带上模型名和展开后的错误：空的 AggregateError message 曾让线上排查寸步难行
