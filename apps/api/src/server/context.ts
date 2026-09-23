@@ -4,7 +4,7 @@
  * 这里集中构造整个 API 进程只应存在一份的重对象：
  * - 数据库连接池（pool）
  * - 多策略搜索引擎（multiStrategySearch）
- * - Anthropic 客户端（anthropic）—— 现为「当前 LLM 客户端」，见下方说明
+ * - LLM 客户端（llm）
  * - Agent 核心（agent）
  * - LangGraph 编排图（getGraph，懒加载）
  *
@@ -23,24 +23,11 @@ import { createCodeLensGraph, type CodeLensGraph } from '../agent/graph/index.js
 import { getLlmClient, describeLlmConfig } from '../llm/client.js';
 import { describeRerankConfig } from '../retrieval/rerank.js';
 
-/**
- * LLM 客户端（厂商由 LLM_PROVIDER 决定：deepseek | anthropic）
- *
- * 变量名 `anthropicApiKey` 与 `anthropic` 为历史遗留：这两个名字被 server/deps.ts
- * 再导出、进而被各个路由模块解构引用。为了把改动面控制在最小（不触碰 7 个路由
- * 文件），这里保留原导出名，但其语义已经变成「当前配置的 LLM」。
- */
+/** 当前 LLM 客户端（provider 固定为 deepseek，见 llm/client.ts） */
 export const llm = getLlmClient();
 
-/** @deprecated 语义已变为「当前 LLM 客户端」，请使用 `llm` */
-export const anthropic = llm;
-
-/** @deprecated 已不再使用具体厂商的密钥变量，保留仅为兼容既有导入 */
-export const anthropicApiKey =
-  process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY || '';
-
 /** 多策略搜索引擎：向量 / 关键词 / 模糊 / URL / 依赖感知 */
-export const multiStrategySearch = new MultiStrategySearch(pool, anthropicApiKey);
+export const multiStrategySearch = new MultiStrategySearch(pool);
 
 /** Agent 配置 */
 export const agentConfig = getAgentConfig();
@@ -64,7 +51,7 @@ let graphPromise: Promise<CodeLensGraph> | null = null;
 
 export function getGraph(): Promise<CodeLensGraph> {
   if (!graphPromise) {
-    graphPromise = createCodeLensGraph({ pool, anthropicApiKey });
+    graphPromise = createCodeLensGraph({ pool });
   }
   return graphPromise;
 }

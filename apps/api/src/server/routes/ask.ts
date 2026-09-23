@@ -9,7 +9,7 @@ import type { FastifyInstance } from 'fastify';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  pool, multiStrategySearch, agent, getGraph, anthropicApiKey, anthropic,
+  pool, multiStrategySearch, agent, getGraph,
   createRepo, getRepo, searchByKeyword, searchByEmbedding,
   addQuestionFeedback, getQuestionFeedback, getSimilarQuestionsWithFeedback,
   clearRepoData, getIndexProgress,
@@ -340,9 +340,7 @@ app.post<{
     })) as any;
   } else if (enhanced) {
     console.log('Using enhanced search for Q&A');
-    // 第二个参数是历史遗留：MultiStrategySearch 内部并不使用 LLM 客户端，
-    // 故不再去读某个具体厂商的密钥（换 LLM 厂商时这里会变成空字符串，容易误导）
-    const multiSearch = new MultiStrategySearch(pool, '');
+    const multiSearch = new MultiStrategySearch(pool);
     const results = await multiSearch.search(repoId, query, { limit: 10, ...ASK_RETRIEVAL_OPTIONS });
     evidence = results.map((r, index) => ({
       id: index + 1, // 为每个结果生成唯一 ID
@@ -514,9 +512,7 @@ app.post<{
     })) as any;
   } else if (enhanced) {
     console.log('Using enhanced search for root cause analysis');
-    // 第二个参数是历史遗留：MultiStrategySearch 内部并不使用 LLM 客户端，
-    // 故不再去读某个具体厂商的密钥（换 LLM 厂商时这里会变成空字符串，容易误导）
-    const multiSearch = new MultiStrategySearch(pool, '');
+    const multiSearch = new MultiStrategySearch(pool);
     const results = await multiSearch.search(repoId, query, { limit: 15, ...ASK_RETRIEVAL_OPTIONS });
     evidence = results.map((r, index) => ({
       id: index + 1, // 为每个结果生成唯一 ID

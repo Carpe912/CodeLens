@@ -10,46 +10,38 @@
  * 技术栈：
  * - Fastify: 高性能 Web 框架
  * - PostgreSQL + pgvector: 向量数据库
- * - LLM: 由 LLM_PROVIDER 决定（deepseek | anthropic）
+ * - LLM: DeepSeek（经 llm/client.ts 的 LangChain 适配层）
  * - BullMQ: 任务队列（索引任务）
  */
 
 import 'dotenv/config';
 
 import { buildServer } from './server/app.js';
-import { resolveProvider } from './llm/client.js';
 
 /**
  * 验证必需的环境变量
  *
  * 必需：
- * - LLM 密钥：按 LLM_PROVIDER 决定的厂商校验
- *     deepseek  → DEEPSEEK_API_KEY
- *     anthropic → ANTHROPIC_AUTH_TOKEN 或 ANTHROPIC_API_KEY
+ * - DEEPSEEK_API_KEY: LLM 密钥（推理/问答）
  * - OPENAI_API_KEY 或 EMBED_API_KEY: 向量嵌入 API 密钥
  *
  * 缺失时直接退出并提示。
  *
- * 注意：这里曾经写死只认 ANTHROPIC_*，把「换 LLM 厂商」和「服务能不能启动」
- * 绑死在一起——切换到 DeepSeek 后会因为校验不到 Anthropic 密钥而直接 exit(1)。
- * 因此改为按 provider 校验，嵌入侧要求保持不变（DeepSeek 不提供嵌入模型）。
+ * 注意：这两个密钥属于**不同厂商**，必须分别校验——DeepSeek 不提供嵌入模型，
+ * 嵌入始终走 OpenAI 兼容端点（见 llm/embeddings.ts）。
  */
 function validateEnv() {
-  const provider = resolveProvider();
-
-  const llmOk =
-    provider === 'deepseek'
-      ? Boolean(process.env.DEEPSEEK_API_KEY)
-      : Boolean(process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY);
+  const hasLlmKey = Boolean(process.env.DEEPSEEK_API_KEY);
+  const hasEmbedKey = Boolean(process.env.EMBED_API_KEY || process.env.OPENAI_API_KEY);
 
   const required = [
-    llmOk ? null : provider === 'deepseek' ? 'DEEPSEEK_API_KEY' : 'ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN',
-    process.env.EMBED_API_KEY || process.env.OPENAI_API_KEY ? null : 'OPENAI_API_KEY or EMBED_API_KEY',
+    hasLlmKey ? null : 'DEEPSEEK_API_KEY',
+    hasEmbedKey ? null : 'OPENAI_API_KEY or EMBED_API_KEY',
   ].filter(Boolean);
 
   if (required.length > 0) {
     console.error(`Missing required environment variables: ${required.join(', ')}`);
-    console.error(`(当前 LLM_PROVIDER=${provider}，请检查 .env 文件)`);
+    console.error('(请检查 .env 文件)');
     process.exit(1);
   }
 }

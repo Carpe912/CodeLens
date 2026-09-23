@@ -449,8 +449,7 @@ export async function indexCodebase(
   // 运行增强索引以提取 AST 信息
   //
   // 这里曾经以「ANTHROPIC_API_KEY 是否存在」作为开关，但这道门禁是不成立的：
-  // EnhancedIndexer 只做 AST 分析（符号表、调用关系、依赖图），**不发起任何 LLM 调用**
-  // （它内部那个 Anthropic 字段只赋值、从未读取）。
+  // EnhancedIndexer 只做 AST 分析（符号表、调用关系、依赖图），**不发起任何 LLM 调用**。
   // 后果是：一旦把 LLM 换成 DeepSeek，ANTHROPIC_API_KEY 不复存在，增强索引就会被
   // 静默跳过 —— 符号表和依赖图全空，/impact 之类的功能随之失效，而且只在日志里
   // 留一行 warning。因此改为无条件执行。
@@ -464,7 +463,7 @@ export async function indexCodebase(
   const enhancedMode = options.enhanced ?? 'full';
   console.log(`Starting enhanced indexing (AST analysis, mode=${enhancedMode})...`);
   {
-    const enhancedIndexer = new EnhancedIndexer(pool, '');
+    const enhancedIndexer = new EnhancedIndexer(pool);
 
     // 更新进度以指示增强索引阶段
     await pool.query(
@@ -903,7 +902,7 @@ export async function indexMultipleFiles(
   // 到这里为止 chunk 层已经是对的；下面失败只会让「增强能力」降级，
   // 不会让索引整体不可用 —— 所以逐段 try/catch，但每条都打日志。
   try {
-    const enhancedIndexer = new EnhancedIndexer(pool, '');
+    const enhancedIndexer = new EnhancedIndexer(pool);
     await enhancedIndexer.rebuildFiles(repoId, [...rebuildIds]);
   } catch (error) {
     console.error('⚠️ Entity/relationship layer rebuild failed:', error);

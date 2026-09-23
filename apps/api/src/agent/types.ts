@@ -361,6 +361,6 @@ export type AgentEvent =
  */
 export interface AgentDependencies {
   db: Pool;                    // 数据库连接池，用于持久化存储
-  llm: LlmClient;              // LLM 客户端（厂商由 LLM_PROVIDER 决定）
+  llm: LlmClient;              // LLM 客户端（DeepSeek）
   config: AgentConfig;         // Agent 配置
 }

@@ -51,7 +51,7 @@ const check = (name: string, ok: boolean, detail = '') => {
   if (!ok) failures++;
 };
 
-const engine = new MultiStrategySearch(pool, '');
+const engine = new MultiStrategySearch(pool);
 // 私有方法：探针就是要单独验它
 const expand = (results: SearchResult[], limit: number) =>
   (engine as any).expandWithDependencies(REPO, results, limit) as Promise<void>;

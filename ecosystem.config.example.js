@@ -23,20 +23,14 @@ module.exports = {
         PORT: 8787,
 
         // ============================================================
-        // LLM 厂商：deepseek | anthropic
-        //   改这一行即可切换；ANTHROPIC_* 保留作为回滚路径。
+        // LLM：本项目只用 DeepSeek（llm/client.ts 经 LangChain ChatOpenAI 适配）
+        //   LLM_PROVIDER / ANTHROPIC_* 已从代码中移除，设了也不会生效。
         // ============================================================
-        LLM_PROVIDER: 'deepseek',
         LLM_MODEL: 'deepseek-chat',
         DEEPSEEK_BASE_URL: 'https://api.deepseek.com',
         DEEPSEEK_API_KEY: '<your-deepseek-api-key>',
 
-        // 回滚用（LLM_PROVIDER=anthropic 时生效）
-        ANTHROPIC_BASE_URL: '<your-anthropic-proxy-base-url>',
-        ANTHROPIC_AUTH_TOKEN: '<your-anthropic-auth-token>',
-        ANTHROPIC_API_KEY: '<your-anthropic-api-key>',
-
-        // ⚠️ 向量嵌入与 LLM 厂商无关（DeepSeek 不提供嵌入模型），不要改 Base URL。
+        // ⚠️ 向量嵌入与 LLM 无关（DeepSeek 不提供嵌入模型），不要改 Base URL。
         //    原生维度是 1024，靠 EMBED_DIMENSIONS=1536 指定为 1536，
         //    才能与库里既有的 vector(1536) 列兼容。**改这个值会与现有向量不兼容。**
         EMBED_API_KEY: '<your-dashscope-api-key>',

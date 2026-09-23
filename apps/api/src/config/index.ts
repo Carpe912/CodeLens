@@ -47,10 +47,10 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   /**
    * ✅ 生效：AgentCore.generateAnswer() 使用的模型。
    *
-   * 刻意留空 —— 空值由 `llm/client.ts` 的 `resolveModel()` 按当前 `LLM_PROVIDER`
-   * 取该厂商的默认模型。**不要在这里写死某个厂商的模型名**：那样会让
-   * 「换 LLM 厂商」和「改代码」重新绑在一起（历史上这里写死过 `claude-sonnet-4-6`，
-   * 换成 DeepSeek 后虽然能被适配层救回，但语义是误导的）。
+   * 刻意留空 —— 空值由 `llm/client.ts` 的 `resolveModel()` 兜底为 deepseek-chat。
+   * **不要在这里写死模型名**：那样会让「换模型」和「改代码」重新绑在一起
+   * （历史上这里写死过 `claude-sonnet-4-6`，换成 DeepSeek 后虽然能被适配层救回，
+   * 但语义是误导的）。
    */
   llmModel: '',
   /** ✅ 生效：AgentCore.generateAnswer() 的温度参数。 */
@@ -70,7 +70,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
  *
  * ✅ 生效的环境变量：
  * - AGENT_TOOL_TIMEOUT: 检索调用超时（默认 30000ms）
- * - AGENT_LLM_MODEL: 生成答案所用模型（默认留空 = 由 LLM_PROVIDER 决定厂商默认模型）
+ * - AGENT_LLM_MODEL: 生成答案所用模型（默认留空 = 兜底 deepseek-chat）
  * - AGENT_TEMPERATURE: 生成温度（默认 0.7）
  *
  * ⚠️ 当前失效的环境变量（仅为未实现的架构预留）：

@@ -16,12 +16,10 @@
  */
 
 import 'dotenv/config';
-import { getLlmClient, describeLlmConfig, hasApiKey, resolveProvider } from '../llm/client.js';
+import { getLlmClient, describeLlmConfig, hasApiKey } from '../llm/client.js';
 import { describeError } from '../utils/errors.js';
 
 async function main(): Promise<void> {
-  const provider = resolveProvider();
-
   console.log('='.repeat(64));
   console.log('LLM 自检');
   console.log('='.repeat(64));
@@ -41,7 +39,7 @@ async function main(): Promise<void> {
   const startedAt = Date.now();
   try {
     const response = await client.messages.create({
-      // 刻意传一个 Claude 风格的名字：验证「换厂商后模型名自动映射」这条逻辑
+      // 刻意传一个 Claude 风格的名字：验证 resolveModel 的模型名归一化仍生效
       model: 'claude-sonnet-4-6',
       max_tokens: 64,
       temperature: 0,

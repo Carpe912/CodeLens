@@ -42,8 +42,7 @@ async function main() {
   }
 
   // 无外部密钥依赖：本脚本只做 AST 增强索引，不调用任何 LLM
-  // （历史上这里要求 ANTHROPIC_* 密钥，实际并不使用，切换到 DeepSeek 后会误报退出）
-  const llmApiKey = process.env.DEEPSEEK_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY || '';
+  // （向量嵌入由 llm/embeddings.ts 在索引流程内部按 EMBED_* 配置完成）
 
   console.log('='.repeat(60));
   console.log('Enhanced Re-indexing Script');
@@ -69,7 +68,7 @@ async function main() {
 
     // Initialize enhanced indexer
     console.log('Initializing enhanced indexer...');
-    const indexer = new EnhancedIndexer(pool, llmApiKey);
+    const indexer = new EnhancedIndexer(pool);
 
     // Reset progress and update status to indexing
     await pool.query(

@@ -19,8 +19,14 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { describeError } from '../utils/errors.js';
 
-/** 支持的 LLM 厂商 */
-export type LlmProvider = 'deepseek' | 'anthropic';
+/**
+ * LLM 厂商
+ *
+ * 本项目只用 DeepSeek，因此这里只有一个成员。它保留为类型（而不是直接写死
+ * 字面量）是为了给 `provider` 字段与启动日志一个具名锚点：将来真的接入第二家
+ * 厂商时，从这里加成员、并让 resolveModel/getApiKey 分派即可。
+ */
+export type LlmProvider = 'deepseek';
 
 /** 单条对话消息（Anthropic 与 OpenAI 兼容接口的共同子集） */
 export interface LlmChatMessage {
@@ -105,8 +111,9 @@ export function resolveModel(requested?: string): string {
 /**
  * LangChain ChatOpenAI 客户端（DeepSeek OpenAI 兼容协议）
  *
- * 通过 @langchain/openai 把 Chat Completions 的出入参翻译成 Anthropic 形状，
- * 使上层调用点无需感知框架差异。
+ * 通过 @langchain/openai 接 DeepSeek 的 OpenAI 兼容端点，并把结果收敛成
+ * 上层既有的 `messages.create` 契约（见 LlmMessageResponse），
+ * 使调用点无需感知 LangChain 的存在。
  *
  * ⚠️ 为什么按 (model, maxTokens, temperature) 缓存实例：
  * LangChain v1 的 `invoke(input, options)` **不接受** model / maxTokens / temperature
@@ -247,14 +254,4 @@ export function describeLlmConfig(): string {
   }
   const keyState = hasApiKey() ? '已配置' : '缺失';
   return `provider=deepseek model=${resolveModel()} baseURL=${host} apiKey=${keyState}`;
-}
-
-/**
- * 解析当前应使用的厂商（保留以兼容既有配置解析逻辑）
- *
- * 由于本项目当前只用 DeepSeek，此函数固定返回 'deepseek'。
- * 保留此函数的意义是让 server/context.ts 等既有导入点无需改动即可编译通过。
- */
-export function resolveProvider(): LlmProvider {
-  return 'deepseek';
 }

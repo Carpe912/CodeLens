@@ -87,13 +87,13 @@ export class EnhancedIndexer {
    * 构造函数
    *
    * @param db - PostgreSQL 数据库连接池
-   * @param _llmApiKey - 历史遗留参数：本类从未使用它发起过调用。
-   *   向量嵌入统一走 llm/embeddings.ts（EMBED_* 配置，OpenAI 兼容接口），
-   *   原先这里 new 出来的 Anthropic 客户端只是存进字段、从无读取——
-   *   注释里写的「用于向量生成」本身就是不成立的（Anthropic 不提供嵌入模型）。
-   *   保留形参以免破坏既有调用点签名。
+   *
+   * 历史遗留：本类曾接收第二个 `llmApiKey` 形参，但从未使用它发起过任何调用。
+   * 向量嵌入统一走 llm/embeddings.ts（EMBED_* 配置，OpenAI 兼容接口），
+   * 原先这里 new 出来的 Anthropic 客户端只是存进字段、从无读取——
+   * 注释里写的「用于向量生成」本身就是不成立的（Anthropic 不提供嵌入模型）。已删除。
    */
-  constructor(private db: Pool, _llmApiKey: string) {
+  constructor(private db: Pool) {
     this.relationshipBuilder = new RelationshipBuilder(db);
   }
 

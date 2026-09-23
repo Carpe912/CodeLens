@@ -131,4 +131,4 @@ export { createCodeLensGraph, runGraphQuery, type CodeLensGraph } from '../agent
 export { normalizeGitLabUrl, extractProjectName, getGitLabDefaultBranch } from '../utils/gitlab.js';
 
 // —— 服务级单例（见 context.ts）——
-export { pool, multiStrategySearch, agent, llm, anthropic, anthropicApiKey, getGraph } from './context.js';
+export { pool, multiStrategySearch, agent, llm, getGraph } from './context.js';

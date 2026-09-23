@@ -17,8 +17,8 @@
  * 若日后移除这两个注入点，本脚本将退化为只能验证 A、B 两层。
  *
  * ⚠️ 注意 import 顺序：dotenv 必须排在其余 import 之前。
- * 因为 llm/qa.ts 在**模块加载期**就会构造 Anthropic 客户端并校验 apiKey，
- * 若 dotenv 稍后才执行，会直接抛 "API key is missing"。
+ * 因为 llm/qa.ts 在**模块加载期**就会构造 LLM 客户端，
+ * 若 dotenv 稍后才执行，读取到的密钥配置会不完整。
  */
 import 'dotenv/config';
 import pg from 'pg';
@@ -125,7 +125,6 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   let generateCalls = 0;
   const graph = await createCodeLensGraph({
     pool,
-    anthropicApiKey: 'stub-key',
     search: stubSearch(i => (i === 0 ? WEAK : STRONG)),
     generateAnswer: async (_q, ev) => {
       generateCalls++;
@@ -156,7 +155,6 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 {
   const graph = await createCodeLensGraph({
     pool,
-    anthropicApiKey: 'stub-key',
     search: stubSearch(() => STRONG),
     generateAnswer: async (_q, ev) => `OK_${ev.length}`,
   });
@@ -169,7 +167,6 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 {
   const graph = await createCodeLensGraph({
     pool,
-    anthropicApiKey: 'stub-key',
     search: stubSearch(() => WEAK),
     generateAnswer: async (_q, ev) => `DEGRADED_${ev.length}`,
   });
@@ -186,7 +183,6 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   let generateCalls = 0;
   const graph = await createCodeLensGraph({
     pool,
-    anthropicApiKey: 'stub-key',
     search: stubSearch(() => []),
     generateAnswer: async () => { generateCalls++; return 'SHOULD_NOT_HAPPEN'; },
   });

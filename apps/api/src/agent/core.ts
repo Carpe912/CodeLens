@@ -107,7 +107,7 @@ export class AgentCore extends EventEmitter {
    * 构造函数
    *
    * @param db - PostgreSQL 连接池，用于数据持久化
-   * @param llm - LLM 客户端（厂商由 LLM_PROVIDER 决定），用于自然语言处理
+   * @param llm - LLM 客户端（DeepSeek），用于自然语言处理
    * @param config - Agent 配置，控制行为参数
    */
   constructor(
@@ -116,11 +116,8 @@ export class AgentCore extends EventEmitter {
     private config: AgentConfig
   ) {
     super();
-    // 初始化多策略搜索引擎
-    // 注意：第二个参数是历史遗留——MultiStrategySearch 内部并未真正使用 LLM 客户端
-    // （其 anthropic 字段只赋值不读取）。这里不再透传 Anthropic 专用变量，
-    // 避免切换到 DeepSeek 后因缺少 ANTHROPIC_API_KEY 而产生误导性的空字符串。
-    this.multiStrategySearch = new MultiStrategySearch(db, '');
+    // 初始化多策略搜索引擎（检索是纯算法融合，不消耗 LLM）
+    this.multiStrategySearch = new MultiStrategySearch(db);
     console.log('[AgentCore] Initialized');
   }
 
@@ -377,7 +374,7 @@ export class AgentCore extends EventEmitter {
    * 工作流程：
    * 1. 构建证据摘要：将证据格式化为可读文本
    * 2. 构建提示词：包含问题、证据和答案要求
-   * 3. 调用 LLM：使用当前 LLM_PROVIDER（默认 DeepSeek）生成答案
+   * 3. 调用 LLM：使用 DeepSeek 生成答案
    * 4. 提取文本：从响应中提取答案内容
    *
    * 提示词设计：

@@ -136,12 +136,11 @@ export class MultiStrategySearch {
 
   /**
    * @param db - PostgreSQL 连接池
-   * @param _llmApiKey - 历史遗留参数：本类内部从未真正发起过 LLM 调用
-   *   （原先只是 new 一个 Anthropic 客户端存到字段里、再无任何读取）。
-   *   保留形参是为了不破坏既有调用点的签名；下划线前缀表示有意不使用，
-   *   避免后来者以为这里真的需要某个厂商的密钥。
+   *
+   * 历史遗留：本类曾接收第二个 `llmApiKey` 形参，但内部从未真正发起过 LLM 调用
+   * （原先只是 new 一个 Anthropic 客户端存到字段里、再无任何读取），已删除。
    */
-  constructor(private db: Pool, _llmApiKey: string) {
+  constructor(private db: Pool) {
     this.dependencyTracker = new DependencyTracker(db);
     // 初始化缓存：100 个条目，5 分钟 TTL
     this.searchCache = new LRUCache<SearchResult[]>(100, 5 * 60 * 1000);

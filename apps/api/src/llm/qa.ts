@@ -2,7 +2,7 @@
  * 问答系统模块 - 基于代码证据的智能问答
  *
  * 功能说明：
- * 使用 LLM（由 LLM_PROVIDER 决定厂商），结合代码搜索结果，为用户提供准确的代码问答服务
+ * 使用 LLM（DeepSeek），结合代码搜索结果，为用户提供准确的代码问答服务
  *
  * 核心特性：
  * 1. 查询分类：自动识别 8 种查询类型，生成针对性提示词
@@ -32,7 +32,7 @@ import { getChunksWithContext } from '../db/index.js';
 import { withRetry } from '../utils/async.js';
 import { getLlmClient, getResponseText } from './client.js';
 
-// 共享 LLM 客户端（由 LLM_PROVIDER 决定走 DeepSeek 还是 Anthropic）
+// 共享 LLM 客户端（DeepSeek，经 llm/client.ts 的 LangChain 适配层）
 const llm = getLlmClient();
 
 /**

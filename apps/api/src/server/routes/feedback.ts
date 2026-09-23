@@ -9,7 +9,7 @@ import type { FastifyInstance } from 'fastify';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  pool, multiStrategySearch, agent, getGraph, anthropicApiKey, anthropic,
+  pool, multiStrategySearch, agent, getGraph,
   createRepo, getRepo, searchByKeyword, searchByEmbedding,
   addQuestionFeedback, getQuestionFeedback, getSimilarQuestionsWithFeedback,
   clearRepoData, getIndexProgress,

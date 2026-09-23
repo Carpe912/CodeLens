@@ -167,7 +167,7 @@ brew services start redis        # macOS
 # 4. 配置环境变量
 cp apps/api/.env.example apps/api/.env
 # 需要填写（完整清单见 apps/api/.env.example）：
-# - LLM_PROVIDER / DEEPSEEK_API_KEY: LLM 厂商与密钥（默认 DeepSeek，可切回 anthropic）
+# - DEEPSEEK_API_KEY:  LLM 密钥（本项目只用 DeepSeek）
 # - EMBED_API_KEY:     DashScope（阿里百炼）Embedding 密钥
 # - RERANK_API_KEY:    DashScope 精排密钥（与 EMBED 同源；RERANK_ENABLED=false 可关闭）
 # - DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD: PostgreSQL 连接
@@ -200,7 +200,7 @@ pnpm dev:web    # 前端（默认端口 5173）
 - Fastify 5（Web 框架）
 - PostgreSQL + pgvector（向量数据库，1536 维 / HNSW）
 - Redis + BullMQ（索引任务队列）
-- LLM 层（`LLM_PROVIDER` 切换厂商；默认 DeepSeek `deepseek-chat`，可回滚 Anthropic Claude）
+- LLM 层（DeepSeek `deepseek-chat`，经 LangChain `ChatOpenAI` 接 OpenAI 兼容端点）
   —— 适配层见 `apps/api/src/llm/client.ts`，排障见 `docs/deployment/SERVER_RUNBOOK.md` 第 8 节
 - 阿里百炼 DashScope（`qwen3.7-text-embedding` 向量化 + `qwen3.7-text-rerank` 精排）
   —— 精排见 `apps/api/src/retrieval/rerank.ts`，由 `RERANK_ENABLED` 开关控制，

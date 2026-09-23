@@ -87,7 +87,6 @@ async function buildCheckpointer(pool: Pool) {
  * 构建并编译编排图。
  *
  * @param deps.pool - 复用现有 pg 连接池（不新建连接）
- * @param deps.anthropicApiKey - Anthropic API Key
  * @param deps.search - 可注入的检索器，默认 new MultiStrategySearch(...)。
  *   注入点存在的意义：让图能在无数据库、无 LLM 的环境下被完整测试
  *   （尤其是「证据不足 → 重检索」这条环，靠单元测试很难覆盖）
@@ -96,12 +95,11 @@ async function buildCheckpointer(pool: Pool) {
  */
 export async function createCodeLensGraph(deps: {
   pool: Pool;
-  anthropicApiKey: string;
   search?: MultiStrategySearch;
   generateAnswer?: GenerateAnswerFn;
 }) {
   // 复用现有的多策略搜索引擎：图只编排，检索实现一行未改
-  const search = deps.search ?? new MultiStrategySearch(deps.pool, deps.anthropicApiKey);
+  const search = deps.search ?? new MultiStrategySearch(deps.pool);
   const checkpointer = await buildCheckpointer(deps.pool);
 
   const workflow = new StateGraph(GraphState)

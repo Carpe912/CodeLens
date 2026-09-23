@@ -9,7 +9,7 @@ import type { FastifyInstance } from 'fastify';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  pool, multiStrategySearch, agent, getGraph, anthropicApiKey, anthropic,
+  pool, multiStrategySearch, agent, getGraph,
   createRepo, getRepo, searchByKeyword, searchByEmbedding,
   addQuestionFeedback, getQuestionFeedback, getSimilarQuestionsWithFeedback,
   clearRepoData, getIndexProgress,
@@ -142,8 +142,7 @@ app.get<{
     }));
   } else if (enhanced === 'true') {
     console.log('Using enhanced search with query rewriting and reranking');
-    // 第二个参数是历史遗留：MultiStrategySearch 内部并不使用 LLM 客户端
-    const multiSearch = new MultiStrategySearch(pool, '');
+    const multiSearch = new MultiStrategySearch(pool);
     const results = await multiSearch.search(parseInt(repoId), q, { limit: 20 });
     // 曾经这里给的是 `code: r.content` —— 字段名不在任何消费方的契约里
     // （web 读 `code_text`，vscode 扩展读 `content`），于是两边都是空白。
