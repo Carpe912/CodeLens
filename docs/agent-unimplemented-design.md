@@ -127,6 +127,13 @@ while (!达到目标 && 轮次 < 最大轮次) {
 > 轮次由 `min(config.maxReasoningRounds, 策略计划长度)` 封顶，且条件边**先查轮次上限**以保证必然收敛。
 > 但它**没有**实现本节描述的假设图与置信度推理：判断依据是分数阈值而非逐步推理，也不产出推理链。
 > **不要把 v2 的「有界重试」当作 ReAct 已落地。**
+>
+> 📎 **"那为什么不直接用 LangChain 的预置 Agent？"** —— 这个问题已有专文回答，见
+> `docs/design/framework-comparison-05-boundaries.md` §4.10。结论是：`createReactAgent`
+> **现在就能 import**（`@langchain/langgraph/prebuilt` 已装），不用它是刻意的 ——
+> 预置 ReAct 是**模型驱动**循环，会把图里"几轮、什么顺序、无证据不调 LLM"这些
+> **可断言的确定性**换成模型的临场决策。真要落地本节，建议把它作为图里的
+> 一张子图嵌入，而不是替换外层循环。
 
 ---
 

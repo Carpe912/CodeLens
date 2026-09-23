@@ -607,6 +607,11 @@ const agent = createReactAgent({ llm, tools });
 - ❌ 无法并行执行（除非特殊配置）
 - ❌ 需要遵循框架约定
 
+> 🔗 **这只是对比示例，不是本仓的选型结论。** 实际结论是**刻意不用**预置 Agent
+> （`createReactAgent` 虽已随 `@langchain/langgraph/prebuilt` 可用）：它是模型驱动的 ReAct 循环，
+> 会拿掉图里"几轮、什么顺序、无证据不调 LLM"这些**可断言的确定性**。
+> 完整理由与反悔条件见 [框架替换的边界 §4.10](./framework-comparison-05-boundaries.md)。
+
 ---
 
 **原生方式：**

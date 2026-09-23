@@ -4,7 +4,8 @@
 > 目的是让后来者（包括未来的自己）在动「要不要上框架」的念头时，能先看到已经算过的账。
 >
 > 🗓️ **状态**：截至 2026-09-23，LLM 抽象层已完成 LangChain 化（见 `refactor(llm)` 提交），
-> 本文件记录**剩余 9 处刻意保持原生实现**的模块及理由。
+> 本文件记录**剩余 9 处刻意保持原生实现**的模块，外加 **1 处编排形态取舍**
+> （§4.10：为什么不用预置 Agent）的理由。
 >
 > **前置阅读**：`framework-comparison-03-hybrid-architecture.md`（混合架构的正面设计）、
 > `docs/deployment/SERVER_RUNBOOK.md` 第 9 节（向量维度事故的排障记录）。
@@ -40,9 +41,13 @@ LangChain 的抽象粒度是「一次 LLM 调用」和「一条 chain」，LangG
 | 7 | `mcp/codelens-mcp.ts` | 326 | MCP SDK | ❌ 不换 | 方向相反（对外暴露能力），且本项目以零依赖为设计前提 |
 | 8 | `agent/types.ts` 的未用类型 | ~200 | — | ⚠️ 另议 | 是「未实现架构」的债，**用框架让它"有用"是倒果为因** |
 | 9 | `llm/answer-consistency.ts` | 241 | `withStructuredOutput`（让模型自报引用） | ❌ 不换 | 引用校验的全部价值在于**独立于模型自述**；自证不能替代查伪 |
+| 10 | `agent/graph/` 的编排形态 | 557 | `createAgent`（未装）/ `createReactAgent`（**已装**） | ❌ 不换 | 预置 ReAct 是**模型驱动**循环，会把可断言的确定性换成模型的临场决策 |
 
 > 「行数」一列为总行数，仅表示模块量级。**凡涉及收益计算的地方（§4.9、§五）一律改用
 > 非注释代码行口径** —— 本仓注释体量大，用总行数算收益会把注释的增减算成代码的增减。
+>
+> 第 10 项与其余 9 项性质不同：前 9 项是「某个模块不换实现」，第 10 项是
+> 「**编排层的控制权不交给模型**」—— 它已经在用框架（LangGraph），只是不换成预置 Agent。
 
 ---
 
@@ -119,7 +124,7 @@ LangChain 的 `Retriever` 契约是 `invoke(query) → Document[]`，单路、�
 
 ### 准则 7：校验者与被校验者是同一个吗？——「让被校验方自报数据」的框架能力不能用在校验处
 
-这是六条之外最容易漏掉的一条，因为它**伪装成一次普通的效率改进**。
+这是前六条之外最容易漏掉的一条，因为它**伪装成一次普通的效率改进**。
 
 框架的 `withStructuredOutput` 之类的能力，做的事是「让模型按给定 schema 返回结构化数据」。
 当一个模块的职责恰好是**校验模型输出**时，这个能力看起来完美契合 ——
@@ -292,6 +297,56 @@ LangChain 的 `Retriever` 契约是 `invoke(query) → Document[]`，单路、�
 **纪律（勿破）**：**只观测、不改写**。把对不上的引用从答案里删掉，会让「编了行号」
 变成「没有行号」，问题是藏起来了而不是解决了。
 
+### 4.10 `agent/graph/` 的编排形态（557 行，非注释代码 287 行）—— 不换成预置 Agent
+
+**现状**：手写 `StateGraph` 拓扑（`createCodeLensGraph`），节点只有三个
+（retrieve / grade / generate），那条回边由 `routeAfterGrade` 按 `computeSufficiency()`
+阈值决定。真正手写的只有**接线**：检索算法在 `multi-strategy-search.ts`、
+生成在 `llm/qa.ts`，图只负责回答"要不要再检索一次"。
+
+**看起来最该用的框架能力**是预置 Agent，这里要区分两个来源：
+
+| API | 所在包 | 本仓状态 |
+|-----|-------|---------|
+| `create_agent`（Python）/ `createAgent`（JS） | `langchain` **主包** | ❌ **未安装**（只装了 `@langchain/core`、`langgraph`、`langgraph-checkpoint-postgres`、`openai` 四个子包） |
+| `createReactAgent` / `ToolNode` / `toolsCondition` | `@langchain/langgraph/prebuilt` | ✅ **已装、随时可用** |
+
+也就是说：**"装不上"只解释了前者，解释不了后者** —— `createReactAgent` 现在就能 import。
+它未被使用的唯一原因是**刻意不用**（源码里 `prebuilt` / `createReactAgent` / `createAgent` 零命中）。
+
+**为什么不用**：这是「接线驱动的循环」与「模型驱动的循环」之别。
+
+| | 现在的图 | 预置 ReAct Agent |
+|---|---|---|
+| 谁决定再检索一轮 | `routeAfterGrade` 按充分度阈值**接线决定** | **模型**决定 |
+| 谁决定用哪路召回 | `SEARCH_STRATEGY_PLAN` 逐轮升级（顺序写死） | **模型**从工具 schema 里挑 |
+| 轮次上界 | `min(maxReasoningRounds, 策略计划长度)`，天然有界 | `recursionLimit` 兜底 |
+
+由此会赔掉三样**已经验证过**的东西：
+
+1. **确定性在这里是可断言的属性。** `verify:graph` 的 C1/C3/C4 断言"恰好 2 轮"、"收敛到 3 轮"、
+   "无证据时 LLM 调用次数为 **0**"、策略顺序必须是 `r1_vector_exact → r2_with_dependency`。
+   在 ReAct 里轮次与工具选择都是**模型的输出**，这些断言写不出来，只能退化成 flaky 观测。
+2. **工具粒度对不上（准则 3）。** 5 路召回不是 5 把可挑的工具，而是**一次融合**里的 5 条通道
+   （`multi-strategy-search.ts` 的加权融合 + 去重 + rerank）。ReAct 的语义是"每轮挑一把工具调用"，
+   正好绕过融合；而若为保住融合把整个引擎包成**一个**工具，ReAct 就退化成
+   "调一次搜索、也许再调一次" —— 也就是现在的图，但多一个依赖、路由还不确定。
+3. **成本上限失去天然边界。** `graph/index.ts` 那行 `min(...)` 是有取舍的：策略互不相同，
+   用尽之后再重复只是白花钱。ReAct 没有"计划长度"这种上界。
+
+额外的新失败面：预置 Agent 依赖模型产出合法 tool call（DeepSeek 的 OpenAI 兼容协议支持
+function calling，所以这不是障碍），但 malformed 参数 → 重试循环，
+是现在这条链路完全没有的失败面。
+
+**什么时候该用**：当"用哪把工具"**真的取决于问题本身**、且工具是**异质**的
+（读文件 / 跑 SQL / 查 git / grep / 查依赖），而不是同一套检索的升级档位时。
+仓库自己已经记下判定点：`docs/agent-unimplemented-design.md:101` 把 ReAct 列为**未实现设计**，
+§六 的第 4、5 条触发条件就是重估时机。
+
+**如果要用，建议的接法**：把它作为**图里的一个节点**（一张"深挖"子图）嵌进来，
+而不是替换外层循环 —— 这样 `verify:graph` 对"几轮、什么顺序、无证据不调 LLM"的断言仍然成立，
+模型只在被允许的局部发散。**边界：外层确定性循环不交给模型。**
+
 ---
 
 ## 五、对照：`llm/client.ts` 为什么**该**换
@@ -359,9 +414,11 @@ messages     system 为首条，与改造前逐字段一致              ✓
 4. **检索需要 LLM 参与决策时**（4.4）
    —— 例如「让模型决定用哪路召回」。此时 4.4 会新增「编排」成分，
    但那部分应加在**图**里，检索引擎本身仍是算法。
-5. **`AgentCore` 真要升级为自主 Agent 时**（4.8）
+5. **`AgentCore` 真要升级为自主 Agent 时**（4.8 / 4.10）
    —— 此时 `Tool` / `Reflection` / `Lesson` 才有真实需求；
    但那是「实现未实现的设计」（见 `docs/agent-unimplemented-design.md`），不是「框架替换」。
+   一旦工具变成**异质的**（文件 / SQL / git / 依赖图各一把），4.10 的结论应当重估 ——
+   而"用预置 Agent"和"手写一张子图"在那个时点才是真正可比的两个方案。
 6. **想让引用「从源头就不会错」时**（4.9）
    —— 例如改为「只允许模型从给定的证据 ID 列表里挑选」，那是**事前约束**，
    值得做；但它**不能替代事后核验**（自证 ≠ 查伪，准则 7）。
@@ -393,6 +450,12 @@ rg "withStructuredOutput|ChatPromptTemplate" apps/api/src
 rg "checkAnswerConsistency" apps/api/src         # 期望 4 个生成链路各一处 + verify-memory
 pnpm --filter @codelens/api verify:memory        # 断言 unsupported_refs / line_mismatch 等判定
 pnpm --filter @codelens/api verify:graph         # C5 断言捏造引用被挑出且答案未被改写
+
+# 6. 确认编排层仍是"接线驱动"而非"模型驱动"（4.10）
+rg "prebuilt|createReactAgent|createAgent" apps/api/src   # 期望：零命中
+node -e "console.log(Object.keys(require('@langchain/langgraph/prebuilt')).join(', '))"
+# 期望看到 createReactAgent 等 —— 证明"没装"不是理由，"不用"才是结论
+pnpm --filter @codelens/api verify:graph         # 断言轮次/策略顺序/无证据不调 LLM
 ```
 
 ---
